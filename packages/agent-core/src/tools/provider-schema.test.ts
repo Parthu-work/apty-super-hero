@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  capStrictTools,
   PROVIDER_SCHEMA_RULES,
   rewriteToolSchema,
   schemaViolations,
@@ -161,5 +162,24 @@ describe("other providers", () => {
       strict: true,
       removed: [],
     });
+  });
+});
+
+describe("capStrictTools (KB-RAG K27, F1)", () => {
+  const tools = Array.from({ length: 23 }, (_, i) => ({
+    name: `t${i}`,
+    strict: i !== 3 ? true : undefined,
+  }));
+
+  it("keeps strict on Anthropic's first 20 strict tools and drops it from the rest, keeping every tool", () => {
+    const capped = capStrictTools(tools, PROVIDER_SCHEMA_RULES.anthropic);
+    expect(capped.map((t) => t.name)).toEqual(tools.map((t) => t.name));
+    expect(capped.filter((t) => t.strict === true)).toHaveLength(20);
+    expect(capped.slice(0, 21).every((t, i) => i === 3 || t.strict)).toBe(true);
+    expect(capped.slice(21).some((t) => "strict" in t)).toBe(false);
+  });
+
+  it("changes nothing for a provider without a cap", () => {
+    expect(capStrictTools(tools, PROVIDER_SCHEMA_RULES.openai)).toEqual(tools);
   });
 });

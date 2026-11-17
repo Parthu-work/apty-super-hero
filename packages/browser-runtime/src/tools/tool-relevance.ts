@@ -21,6 +21,7 @@
  */
 
 import type { FunctionTool } from "@apty/agent-core";
+import { getInvestigation } from "../apty/investigation-session.js";
 import {
   hasSymptomWord,
   isBareHowTo,
@@ -289,10 +290,8 @@ function isLikelyCasualMessage(lowerText: string): boolean {
   return trimmed.split(/\s+/).length <= 3;
 }
 
-function selectRelevantGroups(userMessage: string): Set<BrowserToolGroupName> {
-  const text = userMessage.toLowerCase();
+function keywordGroups(text: string): Set<BrowserToolGroupName> {
   const matchedGroups = new Set<BrowserToolGroupName>();
-
   for (const [group, keywords] of Object.entries(GROUP_KEYWORDS) as Array<
     [BrowserToolGroupName, string[]]
   >) {
@@ -300,6 +299,12 @@ function selectRelevantGroups(userMessage: string): Set<BrowserToolGroupName> {
       matchedGroups.add(group);
     }
   }
+  return matchedGroups;
+}
+
+function selectRelevantGroups(userMessage: string): Set<BrowserToolGroupName> {
+  const text = userMessage.toLowerCase();
+  const matchedGroups = keywordGroups(text);
 
   if (
     !RETRIEVAL_REQUEST.test(text.trim()) &&
@@ -348,6 +353,146 @@ function toolsOf(groups: ReadonlySet<BrowserToolGroupName>): FunctionTool[] {
 }
 
 /**
+ * What a turn is about, which decides how many tools it is offered (KB-RAG
+ * K27, F1): a file's meaning or content gets the Client file-read tools and
+ * search_kb, a symptom gets the investigation basics, and the whole
+ * investigation set waits until the SE asks for an investigation or one has
+ * started. Anthropic refuses a request with more than 20 strict tools.
+ */
+type ToolRoute = "file" | "symptom" | "investigation" | "other";
+
+/**
+ * The most tools each route offers; the conformance test holds every probe question to it.
+ * @internal
+ */
+export const TOOL_ROUTE_BUDGETS: Readonly<Record<ToolRoute, number | null>> = {
+  file: 8,
+  symptom: 12,
+  investigation: null,
+  other: null,
+};
+
+/** A file question keeps only these of the Apty groups. */
+const APTY_GROUPS: ReadonlySet<BrowserToolGroupName> = new Set([
+  "apty",
+  "investigation",
+  "devtools",
+  "networkCapture",
+  "extensionNetwork",
+  "diagnosis",
+  "selector",
+  "kb",
+]);
+
+/** A symptom question gets only the basics of these two large groups. */
+const TRIMMED_FOR_SYMPTOM: ReadonlySet<BrowserToolGroupName> = new Set([
+  "apty",
+  "investigation",
+]);
+
+const FILE_ROUTE_GROUPS: ReadonlySet<BrowserToolGroupName> = new Set([
+  "extensionNetwork",
+  "kb",
+]);
+
+/** Symptom basics, most relevant first; at most `TOOL_ROUTE_BUDGETS.symptom`. */
+const SYMPTOM_TOOLS: readonly string[] = [
+  "search_kb",
+  "run_diagnosis",
+  "get_apty_widget_diagnostics",
+  "get_apty_client_diagnostics",
+  "get_apty_page_logs",
+  "inspect_extension_network",
+  "analyze_element_selectors",
+  "get_runtime_diagnostics",
+  "get_network_diagnostics",
+  "start_investigation",
+  "get_next_investigation_action",
+  "get_investigation_status",
+];
+
+const SYMPTOM_GROUPS: readonly BrowserToolGroupName[] = [
+  "apty",
+  "diagnosis",
+  "selector",
+  "devtools",
+  "networkCapture",
+];
+
+function routeOf(
+  groups: ReadonlySet<BrowserToolGroupName>,
+  investigationAsked: boolean,
+  asksWhy = false,
+): ToolRoute {
+  if (investigationAsked) return "investigation";
+  const symptom = SYMPTOM_GROUPS.filter((g) => groups.has(g) && g !== "apty");
+  if (groups.has("extensionNetwork") && symptom.length === 0 && !asksWhy) {
+    return "file";
+  }
+  if (SYMPTOM_GROUPS.some((g) => groups.has(g)) || groups.has("kb")) {
+    return "symptom";
+  }
+  return "other";
+}
+
+function toolsOfRoute(
+  groups: ReadonlySet<BrowserToolGroupName>,
+  route: ToolRoute,
+): FunctionTool[] {
+  if (route === "investigation" || route === "other") return toolsOf(groups);
+  const allowed =
+    route === "file"
+      ? (group: BrowserToolGroupName) => FILE_ROUTE_GROUPS.has(group)
+      : () => true;
+  const symptomNames = new Set(SYMPTOM_TOOLS);
+  const withRoute = new Set(groups);
+  if (route === "symptom") withRoute.add("investigation");
+  return toolsOf(withRoute).filter((tool) => {
+    const group = groupOfTool.get(tool.name);
+    if (!group) return true;
+    if (route === "file") return !APTY_GROUPS.has(group) || allowed(group);
+    return !TRIMMED_FOR_SYMPTOM.has(group) || symptomNames.has(tool.name);
+  });
+}
+
+const groupOfTool = new Map<string, BrowserToolGroupName>(
+  REGISTRY_ORDER.flatMap((group) =>
+    browserToolGroups[group].map((tool) => [tool.name, group] as const),
+  ),
+);
+
+/** Investigation wording that asks for one, not a symptom such as "not working". */
+const INVESTIGATION_ASK = [
+  "investigate",
+  "debug",
+  "diagnose",
+  "diagnosis",
+  "root cause",
+  "reproduce",
+  "hypothesis",
+  "evidence",
+];
+
+const WHY = /\bwhy\b/i;
+
+function asksForInvestigation(text: string): boolean {
+  const lower = text.toLowerCase();
+  return INVESTIGATION_ASK.some((kw) => lower.includes(kw));
+}
+
+/**
+ * The route `selectRelevantTools` takes for one message, for the request-size report and tests.
+ * @internal
+ */
+export function toolRouteOf(userMessage: string): ToolRoute {
+  return routeOf(
+    selectRelevantGroups(userMessage),
+    asksForInvestigation(userMessage),
+    WHY.test(userMessage),
+  );
+}
+
+/**
  * Select which browser tools to expose to the model for one chat message.
  *
  * @param userMessage The current user message text (not the full history;
@@ -356,7 +501,11 @@ function toolsOf(groups: ReadonlySet<BrowserToolGroupName>): FunctionTool[] {
  *   `browserToolGroups`), or `[]` for messages that read as casual chat.
  */
 export function selectRelevantTools(userMessage: string): FunctionTool[] {
-  return toolsOf(selectRelevantGroups(userMessage));
+  const groups = selectRelevantGroups(userMessage);
+  return toolsOfRoute(
+    groups,
+    routeOf(groups, asksForInvestigation(userMessage), WHY.test(userMessage)),
+  );
 }
 
 const REMEMBERED_TURNS = 3;
@@ -364,6 +513,13 @@ const REMEMBERED_TURNS = 3;
 export interface StickyToolSelectorOptions {
   /** Chats remembered at once; the least recently used one is forgotten first. */
   maxSessions?: number;
+  /** True once the chat has an investigation: it is then offered the whole investigation set. */
+  investigationStarted?: (sessionId: string) => boolean;
+}
+
+interface RememberedTurn {
+  readonly groups: ReadonlySet<BrowserToolGroupName>;
+  readonly investigation: boolean;
 }
 
 /**
@@ -377,34 +533,51 @@ export interface StickyToolSelectorOptions {
  */
 export function createStickyToolSelector({
   maxSessions = 50,
+  investigationStarted = (sessionId) =>
+    getInvestigation(sessionId) !== undefined,
 }: StickyToolSelectorOptions = {}): (
   text: string,
   sessionId: string | null,
 ) => FunctionTool[] {
-  const recentTurns = new Map<string, Set<BrowserToolGroupName>[]>();
+  const recentTurns = new Map<string, RememberedTurn[]>();
 
   return (text, sessionId) => {
     const current = selectRelevantGroups(text);
-    if (sessionId === null) return toolsOf(current);
+    const asked = asksForInvestigation(text);
+    const why = WHY.test(text);
+    if (sessionId === null) {
+      return toolsOfRoute(current, routeOf(current, asked, why));
+    }
     // A file request stays a file request: the investigation it follows
     // does not ride along (see RETRIEVAL_REQUEST).
     if (RETRIEVAL_REQUEST.test(text.toLowerCase().trim())) {
-      return toolsOf(current);
+      return toolsOfRoute(current, routeOf(current, false));
     }
 
     const turns = recentTurns.get(sessionId) ?? [];
-    const groups = new Set([...turns.flatMap((t) => [...t]), ...current]);
+    const groups = new Set([
+      ...turns.flatMap((t) => [...t.groups]),
+      ...current,
+    ]);
+    const investigation =
+      asked ||
+      turns.some((t) => t.investigation) ||
+      investigationStarted(sessionId);
 
     recentTurns.delete(sessionId);
     recentTurns.set(
       sessionId,
-      current.size > 0 ? [...turns, current].slice(-REMEMBERED_TURNS) : turns,
+      current.size > 0
+        ? [...turns, { groups: current, investigation: asked }].slice(
+            -REMEMBERED_TURNS,
+          )
+        : turns,
     );
     if (recentTurns.size > maxSessions) {
       const oldest = recentTurns.keys().next().value;
       if (oldest !== undefined) recentTurns.delete(oldest);
     }
-    return toolsOf(groups);
+    return toolsOfRoute(groups, routeOf(groups, investigation, why));
   };
 }
 

@@ -92,6 +92,8 @@ export const SCENARIOS: Scenario[] = [
     message: "get the data from segments.json",
     history: [],
   },
+  // KB-RAG K27, F1: a file's meaning gets search_kb and the file tools only.
+  { name: "file-question", message: "what does flow.json mean", history: [] },
   { name: "dom-health", message: "check dom health", history: [] },
   { name: "click-task", message: "click the login button", history: [] },
   {
@@ -342,6 +344,11 @@ describe("request anatomy scenarios", () => {
     ]) {
       expect(byName(sent, name)).toEqual(byName(rows, name));
     }
+  });
+
+  it("a symptom question is offered at most 12 tools and a file question at most 8 (K27, F1)", () => {
+    expect(byName(rows, "apty-question").toolCount).toBeLessThanOrEqual(12);
+    expect(byName(rows, "file-question").toolCount).toBeLessThanOrEqual(8);
   });
 
   it("a follow-up is offered the tools of the turn it continues", () => {

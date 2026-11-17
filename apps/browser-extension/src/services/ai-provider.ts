@@ -13,6 +13,7 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import {
   type AiDestination,
   type AppSettings,
+  capStrictTools,
   createLogger,
   type DestinationVerdict,
   destinationAllowed,
@@ -219,9 +220,8 @@ export function providerSchemaMiddleware(
   const rules = PROVIDER_SCHEMA_RULES[provider];
   return {
     specificationVersion: "v3",
-    transformParams: async ({ params }) => ({
-      ...params,
-      tools: params.tools?.map((tool) => {
+    transformParams: async ({ params }) => {
+      const tools = params.tools?.map((tool) => {
         if (tool.type !== "function") return tool;
         const rewritten = rewriteToolSchema(tool.inputSchema, rules);
         const { strict, ...withoutStrict } = tool;
@@ -233,8 +233,12 @@ export function providerSchemaMiddleware(
           `${provider}: tool ${tool.name} is sent without strict; its schema cannot be strict for this provider.`,
         );
         return { ...withoutStrict, inputSchema };
-      }),
-    }),
+      });
+      return {
+        ...params,
+        tools: tools && capStrictTools(tools, rules),
+      };
+    },
   };
 }
 
