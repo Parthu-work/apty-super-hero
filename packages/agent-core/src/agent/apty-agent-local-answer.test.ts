@@ -274,3 +274,53 @@ describe("the turn's decision record (KB-RAG K25, A2)", () => {
     expect(events[1]).toEqual({ type: "turn_decision", decision });
   });
 });
+
+describe("an instruction for a turn with no KB card (KB-RAG K27, F2)", () => {
+  const DECISION = {
+    route: "model" as const,
+    version: "4.x" as const,
+    versionSource: "user" as const,
+    packs: [],
+    kb: { kind: "no_pack" as const, version: "4.x" as const },
+  };
+
+  it("adds the decision's instruction to the system prompt of that turn only", async () => {
+    let instruction: string | undefined = "FIXTURE: do not invent settings.";
+    const { agent, requests } = agentWith(() => ({
+      decision: DECISION,
+      ...(instruction ? { modelInstruction: instruction } : {}),
+    }));
+    await collect(agent.chat("where is the FIXTURE switch"));
+    instruction = undefined;
+    await collect(agent.chat("hello there"));
+    expect(requests[0]?.systemInstructions).toBe(
+      "test\n\nFIXTURE: do not invent settings.",
+    );
+    expect(requests[1]?.systemInstructions).toBe("test");
+  });
+
+  it("Ask the AI anyway: skips the local responder and sends the caller's instruction", async () => {
+    const responder = vi.fn(() => ANSWER);
+    const { agent, requests } = agentWith(responder);
+    const events = await collect(
+      agent.chat("where is the FIXTURE switch", {
+        skipLocalResponder: true,
+        turnInstruction: "FIXTURE: say you do not know.",
+      }),
+    );
+    expect(events).toContainEqual({
+      type: "turn_decision",
+      decision: {
+        route: "model",
+        version: "unknown",
+        versionSource: "unknown",
+        packs: [],
+      },
+    });
+    expect(responder).not.toHaveBeenCalled();
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.systemInstructions).toBe(
+      "test\n\nFIXTURE: say you do not know.",
+    );
+  });
+});

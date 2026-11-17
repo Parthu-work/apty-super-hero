@@ -81,3 +81,16 @@ export function isMostlyNonLatin(text: string): boolean {
   const nonLatin = letters.filter((letter) => !LATIN.test(letter)).length;
   return nonLatin * 2 > letters.length;
 }
+
+const PRODUCT_QUESTION =
+  /\bwhere (?:is|are|do|can)\b|\bhow much\b|\bwhich menu\b|\b(?:price|pricing|cost|licen[cs]e|subscription|plan|feature|setting|option|toggle|menu|configure|enable|disable)s?\b/i;
+
+/**
+ * A configuration, how-to or product question (K27, F2): a bare how-to,
+ * "where is", "how much", "which menu", or a question about prices,
+ * licences, features or settings. A model turn on one the KB had no card
+ * for is told not to describe Apty settings, menus, prices or features.
+ */
+export function looksLikeProductQuestion(text: string): boolean {
+  return isBareHowTo(text) || PRODUCT_QUESTION.test(text);
+}

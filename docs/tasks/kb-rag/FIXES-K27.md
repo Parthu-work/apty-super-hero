@@ -288,8 +288,8 @@ pnpm kb:eval --pack "$(ls -t ~/apty-kb/apty-kb-A4PKH-4.x-*.kbpack.json | head -1
 | Package | State | Notes |
 |---------|-------|-------|
 | F3 | done | Builder classifies "Start here" titles as routing before layers. KB owner: rebuild the 4.x pack and run the self-check; expect "10 routing left out". |
-| F1 | not started | |
-| F2 | not started | |
+| F1 | done | Route-based tool sets (file 8, symptom 12, investigation full) and a 20-strict cap for Anthropic. `tool-schemas.test.ts`, `tool-budget.e2e.test.mjs`. |
+| F2 | done | `unknown_setting` answered by the KB with closest cards and no model call; a fixed instruction on no-card model turns; "Not from the KB or a check" label; menu paths flagged. `kb-unknown-setting.e2e.test.mjs`. |
 | F5 | not started | |
 | F4 | not started | |
 | F6 | not started | |

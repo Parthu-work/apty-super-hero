@@ -484,6 +484,57 @@ describe("DefaultMessageItem — KB grounding (K18)", () => {
   });
 });
 
+describe("DefaultMessageItem — a model answer with no KB card (KB-RAG K27, F2)", () => {
+  const decision = {
+    route: "model" as const,
+    version: "unknown" as const,
+    versionSource: "unknown" as const,
+    packs: [],
+    kb: {
+      kind: "not_covered" as const,
+      reason: "no_match" as const,
+      coverage: 0,
+      min: 0.5,
+      version: "unknown" as const,
+    },
+  };
+
+  it("is labelled, and a menu path in it is flagged as not found in the KB", async () => {
+    render(
+      <DefaultMessageItem
+        message={{
+          ...assistantMessage(
+            "Go to Admin Portal → Applications → Settings to change it.",
+          ),
+          metadata: { decision },
+        }}
+        isLast
+      />,
+    );
+    expect(screen.getByTestId("not-from-kb")).toHaveTextContent(
+      "Not from the KB or a check",
+    );
+    expect(
+      await screen.findByText(
+        "Not found in the KB: Admin Portal → Applications → Settings",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("is not labelled when the KB or a check answered", () => {
+    render(
+      <DefaultMessageItem
+        message={{
+          ...assistantMessage("From a check"),
+          metadata: { decision: { ...decision, route: "check" as const } },
+        }}
+        isLast
+      />,
+    );
+    expect(screen.queryByTestId("not-from-kb")).toBeNull();
+  });
+});
+
 describe("DefaultMessageItem — the turn's decision (KB-RAG K25, A2)", () => {
   const base = {
     version: "4.x" as const,

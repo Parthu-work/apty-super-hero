@@ -1351,6 +1351,9 @@
     "deny": "拒绝"
   },
   "chat": {
+    "notFromKb": "并非来自 KB 或检查",
+    "kbNotFoundTitle": "在 KB 中未找到",
+    "kbNotFound": "在 KB 中未找到：{{phrases}}",
     "copy": "复制",
     "saveAsSkill": "保存为技能",
     "retry": "重试",
@@ -2620,6 +2623,10 @@
     "fromCheck": "Apty 版本：{{version}}，来自检查读取的文件。"
   },
   "kbMatches": {
+    "unknownSetting": "KB 中没有名为“{{phrase}}”的设置。",
+    "closestCards": "最接近的卡片，可能未提及该设置：",
+    "checkStudio": "请在 Studio 或 Admin 中查看，或询问 KB 负责人。",
+    "askAiAnyway": "仍然询问 AI",
     "title": "匹配的 KB 卡片",
     "layer": "卡片的第 {{layer}} 层",
     "stub": "KB 中有这张卡片，但其 {{version}} 版本的内容尚未编写。",

@@ -84,6 +84,8 @@ export interface KbSearchResult {
   reason?: KbNotCoveredReason;
   /** With `unknown_setting`: the setting-like phrases the question names that no card searched holds. */
   missingPhrases?: string[];
+  /** With `unknown_setting` (K27, F2): the cards that came closest, one hit each; they may not mention the setting. */
+  closest?: KbSearchHit[];
   /** Diagnostics: the question's context words (application or page place) the top card does not hold, left out of coverage. */
   contextIgnored?: string[];
   /** With `not_covered`: the coverage the pack needs, and the card that came closest. */
@@ -1031,6 +1033,7 @@ function createV2Index(pack: KbPack): KbIndex {
         coverage,
         reason: "unknown_setting",
         missingPhrases,
+        closest: onePerCardOnly(ranked).slice(0, topK),
         min: settings.min,
         topPageId: stubFirst?.pageId ?? (top as KbSearchHit).chunk.pageId,
         ...ignored,

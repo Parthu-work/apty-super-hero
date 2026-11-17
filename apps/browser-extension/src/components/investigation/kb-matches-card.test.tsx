@@ -276,3 +276,66 @@ describe("KB matches card for a feature not in this version (KB-RAG K25, A4)", (
     expect(screen.getAllByRole("link")).toHaveLength(1);
   });
 });
+
+describe("a setting no KB card has (K27, F2)", () => {
+  const unknownSetting = {
+    status: "not_covered",
+    source: "kb",
+    cards: [],
+    reason: "unknown_setting",
+    missingPhrases: ["FIXTURE Glow Pulse Switch"],
+    closest: [
+      {
+        cite: "kb://202",
+        title: "FIXTURE tooltip opens twice",
+        site: "fixture.atlassian.net",
+        space: "JX",
+        aptyVersion: "5.x",
+      },
+    ],
+    results: [],
+  };
+
+  it("names the missing setting, lists the closest cards as such and says where to look", () => {
+    render(<AptyToolDisplay tool={tool(unknownSetting)} />);
+    const card = screen.getByTestId("kb-unknown-setting");
+    expect(
+      within(card).getByText(
+        'The KB has no setting called "FIXTURE Glow Pulse Switch".',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(card).getByText("Closest cards, they may not mention it:"),
+    ).toBeInTheDocument();
+    expect(
+      within(card).getByRole("link", { name: /FIXTURE tooltip opens twice/ }),
+    ).toHaveAttribute(
+      "href",
+      "https://fixture.atlassian.net/wiki/spaces/JX/pages/202",
+    );
+    expect(
+      within(card).getByText("Check Studio or Admin, or ask the KB owner."),
+    ).toBeInTheDocument();
+    expect(
+      within(card).queryByRole("button", { name: "Ask the AI anyway" }),
+    ).toBeNull();
+  });
+
+  it("Ask the AI anyway sends the question past the KB with the fixed instruction", async () => {
+    const { ChatContext } = await import("@apty/ui/components/chatbot");
+    const { KB_NO_CARD_INSTRUCTION } = await import("@apty/agent-core");
+    const sendMessage = vi.fn(async () => {});
+    render(
+      <ChatContext.Provider value={{ status: "idle", sendMessage } as never}>
+        <AptyToolDisplay tool={tool(unknownSetting)} />
+      </ChatContext.Provider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Ask the AI anyway" }));
+    expect(sendMessage).toHaveBeenCalledWith(
+      "the tooltip opens twice",
+      undefined,
+      undefined,
+      { skipLocalResponder: true, turnInstruction: KB_NO_CARD_INSTRUCTION },
+    );
+  });
+});

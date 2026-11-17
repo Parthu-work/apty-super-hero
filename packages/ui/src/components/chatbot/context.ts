@@ -13,6 +13,7 @@ import type {
   ChatConfig,
   ChatStatus,
   ContextItem,
+  SendMessageOptions,
   UIMessage,
 } from "../../types";
 
@@ -34,6 +35,7 @@ export interface ChatContextValue {
     text: string,
     files?: File[],
     contexts?: ContextItem[],
+    options?: SendMessageOptions,
   ) => Promise<void>;
   /** Continue conversation */
   continueConversation: (text: string) => Promise<void>;

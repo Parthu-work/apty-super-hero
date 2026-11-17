@@ -266,6 +266,10 @@ describe("coverage (schema v2)", () => {
       missingPhrases: ["Glowing Toggle"],
       hits: [],
     });
+    expect(invented.closest?.[0]?.chunk.pageId).toBe("101");
+    expect(new Set(invented.closest?.map((hit) => hit.chunk.pageId)).size).toBe(
+      invented.closest?.length,
+    );
     const quoted = index.search('banner "glow switch" does not glow');
     expect(quoted.missingPhrases).toEqual(["glow switch"]);
 

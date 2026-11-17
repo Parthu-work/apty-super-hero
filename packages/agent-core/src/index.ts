@@ -133,6 +133,7 @@ export { SessionStorage } from "./conversation/storage.js";
 export { isSummaryItem } from "./conversation/summary-item.js";
 export {
   type DecisionPack,
+  KB_NO_CARD_INSTRUCTION,
   type KbDecision,
   type KbDeliveryFailure,
   packIdOf,

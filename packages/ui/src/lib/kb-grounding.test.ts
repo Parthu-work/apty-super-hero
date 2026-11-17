@@ -7,6 +7,20 @@ const CHUNKS = [
 ];
 
 describe("ungroundedPhrases", () => {
+  it("flags a menu path on a turn with no KB card, as one phrase (K27, F2)", () => {
+    expect(
+      ungroundedPhrases(
+        "Go to Admin Portal → Applications → Settings and open Widget Gadget.",
+        [],
+      ),
+    ).toEqual(["Admin Portal → Applications → Settings", "Widget Gadget"]);
+    expect(
+      ungroundedPhrases("Open Studio > Hide From Widget to change it.", [
+        "- In Studio, turn on the FIXTURE Hide From Widget switch.",
+      ]),
+    ).toEqual([]);
+  });
+
   it("flags a setting name that no returned chunk holds", () => {
     expect(
       ungroundedPhrases(

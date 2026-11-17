@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { hasSymptomWord, isBareHowTo, isMostlyNonLatin } from "./kb-intent.js";
+import {
+  hasSymptomWord,
+  isBareHowTo,
+  isMostlyNonLatin,
+  looksLikeProductQuestion,
+} from "./kb-intent.js";
 
 describe("hasSymptomWord", () => {
   it.each([
@@ -75,5 +80,25 @@ describe("isMostlyNonLatin", () => {
     expect(isMostlyNonLatin("the widget is not showing 没有")).toBe(false);
     expect(isMostlyNonLatin("le widget ne s'affiche pas")).toBe(false);
     expect(isMostlyNonLatin("403")).toBe(false);
+  });
+});
+
+describe("looksLikeProductQuestion (K27, F2)", () => {
+  it.each([
+    "where is the FIXTURE Glow toggle",
+    "how much does an Apty licence cost",
+    "which menu holds the export",
+    "how do I configure the FIXTURE banner",
+    "is the FIXTURE feature on by default",
+  ])("is a product question: %s", (text) => {
+    expect(looksLikeProductQuestion(text)).toBe(true);
+  });
+
+  it.each([
+    "summarise this page for me",
+    "the tooltip keeps flickering",
+    "click the login button",
+  ])("is not: %s", (text) => {
+    expect(looksLikeProductQuestion(text)).toBe(false);
   });
 });

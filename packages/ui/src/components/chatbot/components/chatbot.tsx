@@ -7,6 +7,7 @@ import type {
   ChatbotThemeVariables,
   ChatDraft,
   ContextItem,
+  SendMessageOptions,
 } from "../../../types";
 import { DEFAULT_MODELS } from "../constants";
 import {
@@ -74,7 +75,12 @@ export function ChatbotProvider({
   // text to onNeedsAuth so the host app can show one setup surface (not a
   // pair of stacked chat messages) and restore the text as a draft.
   const wrappedSendMessage = useCallback(
-    async (text: string, files?: File[], contexts?: ContextItem[]) => {
+    async (
+      text: string,
+      files?: File[],
+      contexts?: ContextItem[],
+      options?: SendMessageOptions,
+    ) => {
       const authCheck = handlersRef.current?.checkAuthBeforeSend;
       if (authCheck) {
         try {
@@ -88,7 +94,7 @@ export function ChatbotProvider({
           // backend return an appropriate error.
         }
       }
-      await chatState.sendMessage(text, files, contexts);
+      await chatState.sendMessage(text, files, contexts, options);
     },
     [chatState],
   );

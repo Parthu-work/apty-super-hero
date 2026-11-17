@@ -21,6 +21,7 @@ import { ExternalLinkIcon } from "lucide-react";
 import { useState } from "react";
 import { WrongCardButton } from "../cases/wrong-card-button";
 import { KbEgressNote } from "./kb-egress-note";
+import { UnknownSettingCard } from "./kb-unknown-setting";
 import { KbVersionControl, useActiveSiteHost } from "./kb-version-control";
 
 const CITE = /^kb:\/\/(\d+)#L([1-4])$/;
@@ -33,6 +34,15 @@ function isKbStub(result: Partial<KbToolResult>): boolean {
   return result.status === "stub" && STUB_CITE.test(String(result.stub?.cite));
 }
 
+/** K27, F2: the question names a setting no card has, with the closest cards. */
+function isUnknownSetting(result: Partial<KbToolResult>): boolean {
+  return (
+    result.status === "not_covered" &&
+    result.reason === "unknown_setting" &&
+    Array.isArray(result.closest)
+  );
+}
+
 /** A search_kb result with cards to show; anything else keeps the default display. */
 export function isKbMatches(output: unknown): output is KbToolResult {
   const result = output as Partial<KbToolResult> | null;
@@ -40,6 +50,7 @@ export function isKbMatches(output: unknown): output is KbToolResult {
     typeof result === "object" &&
     result !== null &&
     (isKbStub(result) ||
+      isUnknownSetting(result) ||
       result.status === "non_english" ||
       (result.status === "pack_unusable" && result.unusable !== undefined) ||
       (result.status === "not_in_version" &&
@@ -118,6 +129,16 @@ export function KbMatchesCard({ tool }: ToolDisplaySlotProps) {
           })} ${t("kbMatches.askForNewPack")}`}
         </p>
       </section>
+    );
+  }
+  if (isUnknownSetting(output)) {
+    return (
+      <UnknownSettingCard
+        title={title}
+        query={query}
+        missing={output.missingPhrases ?? []}
+        closest={output.closest ?? []}
+      />
     );
   }
   if (output.status === "non_english") {

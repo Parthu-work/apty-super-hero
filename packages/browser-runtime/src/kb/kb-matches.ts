@@ -51,6 +51,16 @@ export interface KbSearchedPack {
 
 export type KbOutcome =
   | { kind: "answer"; result: KbToolResult; packs: KbSearchedPack[] }
+  | {
+      /** K27, F2: the question names a setting no card has; answered by the KB with the closest cards, not by the model. */
+      kind: "unknown_setting";
+      result: KbToolResult;
+      coverage: number;
+      min: number;
+      topPageId?: string;
+      version: KbTabVersion;
+      packs: KbSearchedPack[];
+    }
   | { kind: "how_to" }
   | { kind: "non_english" }
   | { kind: "no_pack"; version: KbTabVersion; delivery?: KbDeliveryFailure }
@@ -150,6 +160,17 @@ export async function localKbMatches(
     ) {
       return { kind: "answer", result, packs };
     }
+    if (found.reason === "unknown_setting") {
+      return {
+        kind: "unknown_setting",
+        result,
+        coverage: Math.round(found.coverage * 100) / 100,
+        min: found.min ?? 0,
+        ...(found.topPageId ? { topPageId: found.topPageId } : {}),
+        version,
+        packs,
+      };
+    }
     return {
       kind: "not_covered",
       reason: found.reason ?? "no_match",
@@ -177,6 +198,15 @@ export function kbDecisionOf(outcome: KbOutcome): KbDecision {
         kind: "answer",
         status: outcome.result.status,
         pageIds: outcome.result.cards.map((card) => card.pageId),
+      };
+    case "unknown_setting":
+      return {
+        kind: "not_covered",
+        reason: "unknown_setting",
+        coverage: outcome.coverage,
+        min: outcome.min,
+        ...(outcome.topPageId ? { topPageId: outcome.topPageId } : {}),
+        version: outcome.version,
       };
     case "not_covered":
       return {

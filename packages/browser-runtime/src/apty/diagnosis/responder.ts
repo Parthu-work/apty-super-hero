@@ -1,10 +1,12 @@
-import type {
-  LocalResponder,
-  TabVersionSource,
-  TurnDecision,
+import {
+  KB_NO_CARD_INSTRUCTION,
+  type LocalResponder,
+  type TabVersionSource,
+  type TurnDecision,
 } from "@apty/agent-core";
 import { siteHostOf } from "../../conversation/site-host.js";
 import type { KbTabVersion, KbToolResult } from "../../kb/kb-index.js";
+import { looksLikeProductQuestion } from "../../kb/kb-intent.js";
 import {
   type KbMatchesOptions,
   type KbOutcome,
@@ -513,6 +515,24 @@ export function tabVersionOf(url: string | undefined): {
   };
 }
 
+const PRODUCT_OUTCOMES: ReadonlySet<KbOutcome["kind"]> = new Set([
+  "no_pack",
+  "pack_unusable",
+  "error",
+  "how_to",
+  "non_english",
+]);
+
+/**
+ * K27, F2: the KB searched and returned no card, or could not search and
+ * the question asks about Apty's configuration, menus or prices. The model
+ * then must not describe Apty settings, menus, paths, prices or features.
+ */
+function needsNoCardInstruction(outcome: KbOutcome, input: string): boolean {
+  if (outcome.kind === "not_covered") return true;
+  return PRODUCT_OUTCOMES.has(outcome.kind) && looksLikeProductQuestion(input);
+}
+
 /**
  * A message no check pack claims: answered from the KB pack's cards with no
  * model call, or left to the model with the KB's outcome as the decision.
@@ -527,12 +547,15 @@ async function kbAnswer(
     modelAvailable: sources.modelAvailable?.() ?? false,
     version: tab.version,
   })) ?? { kind: "no_pack" as const, version: tab.version };
-  const answered = outcome.kind === "answer";
+  const answered =
+    outcome.kind === "answer" || outcome.kind === "unknown_setting";
   const decision: TurnDecision = {
     route: answered ? "kb" : "model",
     ...tab,
     packs:
-      outcome.kind === "answer" || outcome.kind === "not_covered"
+      outcome.kind === "answer" ||
+      outcome.kind === "not_covered" ||
+      outcome.kind === "unknown_setting"
         ? outcome.packs.map((pack) => ({
             version: pack.version as TurnDecision["packs"][number]["version"],
             sha256: pack.sha256,
@@ -542,7 +565,11 @@ async function kbAnswer(
         : [],
     kb: kbDecisionOf(outcome),
   };
-  if (outcome.kind !== "answer") return { decision };
+  if (!answered) {
+    return needsNoCardInstruction(outcome, input)
+      ? { decision, modelInstruction: KB_NO_CARD_INSTRUCTION }
+      : { decision };
+  }
   await getRedactionMode();
   const policy = currentValuePolicy();
   const shown = applyResultPrivacy(outcome.result, policy) as KbToolResult;
