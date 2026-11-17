@@ -47,7 +47,11 @@ import { useCopiedFlag } from "../../ui/copy-button";
 import { useComponentsContext } from "../context";
 import { ChatErrorNotice } from "./chat-error-notice";
 import { DefaultToolDisplay } from "./slots/tool-display";
-import { TurnDecisionDetails, TurnDecisionLine } from "./turn-decision-note";
+import {
+  decisionText,
+  TurnDecisionDetails,
+  TurnDecisionLine,
+} from "./turn-decision-note";
 
 /**
  * Get icon for context type
@@ -159,6 +163,15 @@ export function DefaultMessageItem({
   const text = message.parts
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join("\n");
+  // K27, F10: a copied or downloaded reply carries its turn's record.
+  const decision = message.metadata?.decision;
+  const withRecord = (body: string) =>
+    message.role === "assistant" && decision
+      ? `${body}\n\n${decisionText(decision, t)}`
+      : body;
+  const copyWithRecord = onCopy
+    ? (body: string) => onCopy(withRecord(body))
+    : undefined;
 
   // The cards this turn's search_kb calls returned: the citations link to them.
   const kbCards = turnKbCards ?? kbReturnedCards(message.parts);
@@ -384,7 +397,7 @@ export function DefaultMessageItem({
               message,
               isLast,
               onRegenerate: isLast ? onRegenerate : undefined,
-              onCopy,
+              onCopy: copyWithRecord,
             })
           ) : (
             <Actions>
@@ -396,7 +409,7 @@ export function DefaultMessageItem({
               {onCopy && (
                 <Action
                   onClick={async () => {
-                    const result = await onCopy(text);
+                    const result = await onCopy(withRecord(text));
                     if (result === undefined || result) flashCopied();
                   }}
                   tooltip={t(copied ? "common.copied" : "common.copy")}
@@ -412,7 +425,9 @@ export function DefaultMessageItem({
                 onClick={() =>
                   downloadText(
                     timestampedFilename("message", "md"),
-                    formatExport ? formatExport(text) : text,
+                    formatExport
+                      ? formatExport(withRecord(text))
+                      : withRecord(text),
                     "text/markdown",
                   )
                 }

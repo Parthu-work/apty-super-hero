@@ -2676,6 +2676,7 @@
     "clearLocked": "Your organization keeps this record, so it cannot be cleared here."
   },
   "turnDecision": {
+    "copy": "Copy why this answer",
     "kbNotSearched": "KB not searched: a check answered ({{packs}} loaded)",
     "noPacksLoaded": "no packs",
     "why": "Why this answer",
