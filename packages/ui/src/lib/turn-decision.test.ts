@@ -87,7 +87,7 @@ describe("a check's record (KB-RAG K27, F8)", () => {
         ...check,
         packs: [
           { version: "4.x", sha256: "0123456789ab" },
-          { version: "5.x", sha256: "ba9876543210" },
+          { version: "5.x", sha256: "fedcba987654" },
         ],
       },
       t,

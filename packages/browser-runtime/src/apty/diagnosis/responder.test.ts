@@ -705,7 +705,7 @@ describe("a check's record names the loaded packs (KB-RAG K27, F8)", () => {
     const respond = createDiagnosisResponder({
       loadedPacksOf: async () => [
         { version: "4.x", sha256: "0123456789ab" },
-        { version: "5.x", sha256: "ba9876543210" },
+        { version: "5.x", sha256: "fedcba987654" },
       ],
     });
     const answered = await respond(
@@ -716,7 +716,7 @@ describe("a check's record names the loaded packs (KB-RAG K27, F8)", () => {
       route: "check",
       packs: [
         { version: "4.x", sha256: "0123456789ab" },
-        { version: "5.x", sha256: "ba9876543210" },
+        { version: "5.x", sha256: "fedcba987654" },
       ],
     });
   });

@@ -289,12 +289,12 @@ describe("KnowledgeBaseCard: who signed each pack and whether it is used (KB-RAG
     ],
     [
       {
-        trust: { status: "revoked_key", keyId: "fedcba9876543210" },
+        trust: { status: "revoked_key", keyId: "fedcfedcba987654" },
         validity: { state: "current", date: null },
         usable: false,
         reason: "revoked",
       },
-      "Signed by key fedcba9876543210, which this extension does not trust",
+      "Signed by key fedcfedcba987654, which this extension does not trust",
       "Signed by a revoked key",
       true,
     ],
