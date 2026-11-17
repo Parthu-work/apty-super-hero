@@ -18,6 +18,7 @@ import {
   type LocalDecision,
   type LocalResponder,
   newCase,
+  otherSite,
   turnStartsCase,
   withTurn,
 } from "@apty/agent-core";
@@ -133,23 +134,32 @@ type Listener = () => void;
 export interface CaseRecorder {
   /** Wraps the chat's responder so each turn is recorded. */
   wrap(responder: LocalResponder): LocalResponder;
-  /** A check or KB search the model ran in the conversation. */
+  /** A check or KB search the model ran in the conversation, on the tab's host when known. */
   recordToolResult(
     conversationId: string,
     toolName: string,
     result: unknown,
+    tabHost?: string,
   ): Promise<void>;
-  current(conversationId: string): Promise<CaseRecord | undefined>;
+  /** The conversation's newest case; with `tabHost`, its newest case on that site (K27, F4). */
+  current(
+    conversationId: string,
+    tabHost?: string,
+  ): Promise<CaseRecord | undefined>;
+  /** K27, F4: a new, empty case on the current tab's site; the conversation's other cases stay as they are. */
+  startNew(conversationId: string, tabHost?: string): Promise<CaseRecord>;
   /**
    * K26 (C4): a DOM Config run held, or its settings exported, while the
    * conversation's case is open. A field left out keeps its value for the
    * same run. No open case: nothing is recorded.
    */
   recordDomConfig(conversationId: string, entry: CaseDomConfig): Promise<void>;
+  /** Closes the conversation's open case, on `tabHost`'s site when given. */
   close(
     conversationId: string,
     outcome: Exclude<CaseOutcome, "open">,
     answers?: Pick<CaseRecord, "findingRight" | "rightCardId" | "note">,
+    tabHost?: string,
   ): Promise<CaseRecord | undefined>;
   /** Moves a case to this conversation ("Continue CASE-…"). */
   continueIn(caseId: string, conversationId: string): Promise<void>;
@@ -188,15 +198,32 @@ export function createCaseRecorder({
     for (const listener of listeners) listener();
   };
 
-  /** Adds `turn` to the conversation's case, opening one when the turn starts a case. */
+  /** The conversation's newest case on `tabHost`'s site; an unknown host matches any (K27, F4). */
+  async function caseFor(
+    conversationId: string,
+    tabHost: string | undefined,
+    { openOnly }: { openOnly: boolean },
+  ) {
+    return (await store.list()).find(
+      (record) =>
+        record.conversationId === conversationId &&
+        (!openOnly || record.outcome === "open") &&
+        !otherSite(record.tabHost, tabHost),
+    );
+  }
+
+  /**
+   * Adds `turn` to the conversation's open case on the turn's site, opening
+   * one when the turn starts a case. A turn on another site never touches a
+   * case of the first: it opens its own, or is attached to none (K27, F4).
+   */
   async function apply(
     conversationId: string,
     turn: CaseTurn,
     starts: boolean,
     tabHost?: string,
   ) {
-    const existing = await store.forConversation(conversationId);
-    const open = existing?.outcome === "open" ? existing : undefined;
+    const open = await caseFor(conversationId, tabHost, { openOnly: true });
     if (!open && !starts) return undefined;
     const base =
       open ??
@@ -204,7 +231,10 @@ export function createCaseRecorder({
         ...(tabHost ? { tabHost } : {}),
         ...(random ? { random } : {}),
       });
-    const next = withTurn(base, turn);
+    const next = withTurn(
+      !base.tabHost && tabHost ? { ...base, tabHost } : base,
+      turn,
+    );
     await store.put(next);
     notify();
     return next;
@@ -281,7 +311,7 @@ export function createCaseRecorder({
         return answer;
       };
     },
-    async recordToolResult(conversationId, toolName, result) {
+    async recordToolResult(conversationId, toolName, result, tabHost) {
       if (typeof result === "object" && result !== null) {
         if (recorded.has(result)) return;
         recorded.add(result);
@@ -292,13 +322,26 @@ export function createCaseRecorder({
           conversationId,
           { at, check: caseCheckOf(result, at) },
           true,
+          tabHost,
         );
       } else if (toolName === SEARCH_KB && isKbResult(result)) {
         const kb = caseKbOf(result);
-        await apply(conversationId, { at, kb }, kb.cards.length > 0);
+        await apply(conversationId, { at, kb }, kb.cards.length > 0, tabHost);
       }
     },
-    current: (conversationId) => store.forConversation(conversationId),
+    current: (conversationId, tabHost) =>
+      tabHost
+        ? caseFor(conversationId, tabHost, { openOnly: false })
+        : store.forConversation(conversationId),
+    async startNew(conversationId, tabHost) {
+      const record = newCase(conversationId, now(), {
+        ...(tabHost ? { tabHost } : {}),
+        ...(random ? { random } : {}),
+      });
+      await store.put(record);
+      notify();
+      return record;
+    },
     async recordDomConfig(conversationId, entry) {
       const open = await store.forConversation(conversationId);
       if (!open || open.outcome !== "open") return;
@@ -322,8 +365,10 @@ export function createCaseRecorder({
       });
       notify();
     },
-    async close(conversationId, outcome, answers) {
-      const open = await store.forConversation(conversationId);
+    async close(conversationId, outcome, answers, tabHost) {
+      const open = tabHost
+        ? await caseFor(conversationId, tabHost, { openOnly: true })
+        : await store.forConversation(conversationId);
       if (!open || open.outcome !== "open") return undefined;
       const closed = closeCase(open, outcome, now(), answers);
       await store.put(closed);

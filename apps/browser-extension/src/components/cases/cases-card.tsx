@@ -19,6 +19,7 @@ import { useTranslation } from "@apty/ui/i18n/context";
 import { FolderOpen } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { caseStore } from "../../services/cases";
+import { useSiteLabels } from "./use-site-label";
 
 function CaseDetails({
   record,
@@ -122,6 +123,7 @@ export function CasesCard({
   }, [reload]);
 
   const open = cases?.find((record) => record.id === opened);
+  const { aliases, setAliases, label } = useSiteLabels();
 
   return (
     <Card id="cases">
@@ -133,6 +135,15 @@ export function CasesCard({
         <CardDescription>{t("cases.description", { days })}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        <label className="flex items-center gap-2 text-sm text-foreground">
+          <input
+            type="checkbox"
+            checked={aliases}
+            onChange={(event) => void setAliases(event.target.checked)}
+            className="size-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          />
+          {t("cases.siteAliases")}
+        </label>
         {cases && cases.length === 0 && (
           <p className="text-sm text-muted-foreground">{t("cases.empty")}</p>
         )}
@@ -146,6 +157,9 @@ export function CasesCard({
                   </th>
                   <th scope="col" className="py-1 pr-3 font-medium">
                     {t("cases.columns.date")}
+                  </th>
+                  <th scope="col" className="py-1 pr-3 font-medium">
+                    {t("cases.columns.site")}
                   </th>
                   <th scope="col" className="py-1 pr-3 font-medium">
                     {t("cases.columns.version")}
@@ -167,6 +181,12 @@ export function CasesCard({
                     <td className="py-1.5 pr-3 font-mono">{record.id}</td>
                     <td className="py-1.5 pr-3">
                       {record.createdAt.slice(0, 10)}
+                    </td>
+                    <td
+                      className="max-w-40 truncate py-1.5 pr-3"
+                      data-testid="case-site-cell"
+                    >
+                      {label(record.tabHost) ?? "-"}
                     </td>
                     <td className="py-1.5 pr-3">{record.aptyVersion ?? "-"}</td>
                     <td className="max-w-48 truncate py-1.5 pr-3">

@@ -945,7 +945,9 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
           <SupportBundleButton
             result={result}
             loadRecord={async () =>
-              sessionId ? caseRecorder().current(sessionId) : undefined
+              sessionId
+                ? caseRecorder().current(sessionId, result.siteKey)
+                : undefined
             }
           />
         </div>

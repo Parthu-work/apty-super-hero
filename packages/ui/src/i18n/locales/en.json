@@ -2710,6 +2710,11 @@
     "deliveryFailed": "The last update of the {{version}} pack from your organization failed ({{reason}})."
   },
   "cases": {
+    "site": "Site: {{site}}",
+    "newCase": "New case",
+    "siteAliases": "Show sites as customer-a, customer-b",
+    "fromSite": "From {{site}}",
+    "otherSiteNote": "This came from another site than the current tab.",
     "label": "Case",
     "copyId": "Copy case id {{id}}",
     "continue": "Continue {{id}}",
@@ -2729,6 +2734,7 @@
     "deleteAll": "Delete all cases",
     "deleteAllConfirm": "Delete every case on this device?",
     "columns": {
+      "site": "Site",
       "id": "Case",
       "date": "Date",
       "version": "Version",

@@ -55,6 +55,7 @@ export function SupportBundleButton({
     ...buildSupportBundle({
       record: found,
       ...(result ? { result } : {}),
+      ...(result?.siteKey ? { resultSite: result.siteKey } : {}),
       userAgent: navigator.userAgent,
       ...(extensionVersion() ? { extensionVersion: extensionVersion() } : {}),
       redact: redactTextStrict,

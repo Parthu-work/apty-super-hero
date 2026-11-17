@@ -148,6 +148,8 @@ export interface KbToolResult extends KbSourceTag {
   /** The top two cards are for different Apty versions: ask which one the tenant runs. */
   mixedVersions?: boolean;
   results: KbToolHit[];
+  /** K27, F4: a local answer's site, as `siteKeyOf(host)`; never the host itself, never sent to the model. */
+  siteKey?: string;
 }
 
 /** A card saying a feature has no equivalent in its Apty version. */

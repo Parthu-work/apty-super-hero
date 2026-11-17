@@ -1,6 +1,7 @@
 import {
   KB_NO_CARD_INSTRUCTION,
   type LocalResponder,
+  siteKeyOf,
   type TabVersionSource,
   type TurnDecision,
 } from "@apty/agent-core";
@@ -533,6 +534,12 @@ function needsNoCardInstruction(outcome: KbOutcome, input: string): boolean {
   return PRODUCT_OUTCOMES.has(outcome.kind) && looksLikeProductQuestion(input);
 }
 
+/** K27, F4: the tab's site as a key, so an answer never holds the host. */
+function siteKeyFor(url: string | undefined): string | undefined {
+  const host = siteHostOf(url);
+  return host ? siteKeyOf(host) : undefined;
+}
+
 /**
  * A message no check pack claims: answered from the KB pack's cards with no
  * model call, or left to the model with the KB's outcome as the decision.
@@ -542,7 +549,9 @@ async function kbAnswer(
   sources: ResponderSources,
   runContext: unknown,
 ) {
-  const tab = tabVersionOf(await sources.pageUrlOf(runContext));
+  const pageUrl = await sources.pageUrlOf(runContext);
+  const tab = tabVersionOf(pageUrl);
+  const siteKey = siteKeyFor(pageUrl);
   const outcome = (await sources.kbMatchesOf?.(input, {
     modelAvailable: sources.modelAvailable?.() ?? false,
     version: tab.version,
@@ -579,7 +588,7 @@ async function kbAnswer(
       { query: input.slice(0, 300), topK: 3 },
       policy,
     ) as { query: string; topK: number },
-    result: shown,
+    result: siteKey ? { ...shown, siteKey } : shown,
     transcript: JSON.stringify(shown),
     decision,
   };
@@ -638,16 +647,18 @@ export function createDiagnosisResponder(
     await getRedactionMode();
     const policy = currentValuePolicy();
     const shown = applyResultPrivacy(result, policy) as DiagnosisResult;
+    const pageUrl = await sources.pageUrlOf(runContext);
+    const siteKey = siteKeyFor(pageUrl);
     return {
       toolName: RUN_DIAGNOSIS,
       params: applyResultPrivacy(paramsOf(route), policy) as ReturnType<
         typeof paramsOf
       >,
-      result: shown,
+      result: siteKey ? { ...shown, siteKey } : shown,
       transcript: applyResultPrivacy(transcriptOf(shown), policy) as string,
       decision: {
         route: "check",
-        ...tabVersionOf(await sources.pageUrlOf(runContext)),
+        ...tabVersionOf(pageUrl),
         packs: [],
         checkPackId: route.packId,
       } satisfies TurnDecision,

@@ -291,7 +291,7 @@ pnpm kb:eval --pack "$(ls -t ~/apty-kb/apty-kb-A4PKH-4.x-*.kbpack.json | head -1
 | F1 | done | Route-based tool sets (file 8, symptom 12, investigation full) and a 20-strict cap for Anthropic. `tool-schemas.test.ts`, `tool-budget.e2e.test.mjs`. |
 | F2 | done | `unknown_setting` answered by the KB with closest cards and no model call; a fixed instruction on no-card model turns; "Not from the KB or a check" label; menu paths flagged. `kb-unknown-setting.e2e.test.mjs`. |
 | F5 | done | Content lookups ("is workflow X in segment Y", content file names in either spelling) get the Client file-read tools within the file budget; the prompt says the model can read them. |
-| F4 | not started | |
+| F4 | done | Cases bind to the tab's host (`otherSite`, `siteKeyOf`); a turn on another host opens its own case or none. Case strip shows the site (alias option) and New case; Cases table has a Site column; cards from another site fold under "From <site>"; bundles leave out another site's check. `case-host.e2e.test.mjs`. |
 | F6 | not started | |
 | F7 | not started | |
 | F8 | not started | |

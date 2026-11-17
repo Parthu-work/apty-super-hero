@@ -8,6 +8,8 @@ export const STORAGE_KEYS = {
   AUTOMATION_MODE: `${PREFIX}automation_mode`,
   /** Origins the user has explicitly approved a risky tool call on — see tools/approval.ts. */
   RISKY_ORIGIN_GRANTS: `${PREFIX}risky_origin_grants`,
+  /** K27, F4: show tab hosts as customer-a, customer-b in the panel and in lists. */
+  SITE_ALIASES: `${PREFIX}site_aliases`,
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

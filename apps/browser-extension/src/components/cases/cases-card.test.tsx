@@ -10,6 +10,7 @@ const store = vi.hoisted(() => ({ current: undefined as unknown }));
 
 vi.mock("../../services/cases", () => ({
   caseStore: () => store.current,
+  caseRecorder: () => ({ subscribe: () => () => undefined }),
 }));
 vi.mock("@apty/browser-runtime/runtime/org-policy", () => ({
   loadOrgPolicy: async () => ({
@@ -81,5 +82,37 @@ describe("CasesCard (KB-RAG K25, L1)", () => {
       }),
     );
     expect(await screen.findByText("No cases yet.")).toBeInTheDocument();
+  });
+});
+
+describe("the Site column (KB-RAG K27, F4)", () => {
+  it("shows each case's site, and customer-a, customer-b once aliases are on", async () => {
+    const cases = store.current as ReturnType<typeof createCaseStore>;
+    await cases.put({
+      ...newCase("conv-2", new Date(NOW.getTime() + 1000), {
+        tabHost: "two.example.com",
+        random: () => 0.5,
+      }),
+    });
+    await cases.put({
+      ...newCase("conv-3", new Date(NOW.getTime() + 2000), {
+        tabHost: "three.example.com",
+        random: () => 0.9,
+      }),
+    });
+    render(<CasesCard />);
+    expect(
+      await screen.findByRole("columnheader", { name: "Site" }),
+    ).toBeInTheDocument();
+    await screen.findByText("two.example.com");
+    expect(screen.getByText("three.example.com")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: "Show sites as customer-a, customer-b",
+      }),
+    );
+    expect(await screen.findByText("customer-a")).toBeInTheDocument();
+    expect(screen.getByText("customer-b")).toBeInTheDocument();
+    expect(screen.queryByText("two.example.com")).toBeNull();
   });
 });

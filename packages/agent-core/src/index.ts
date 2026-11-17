@@ -19,8 +19,11 @@ export {
   caseExpired,
   caseToContinue,
   closeCase,
+  hostAlias,
   newCase,
   newCaseId,
+  otherSite,
+  siteKeyOf,
   turnStartsCase,
   withTurn,
 } from "./case/case.js";

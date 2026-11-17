@@ -18,6 +18,7 @@ import {
 let store: CaseStore | undefined;
 let recorder: CaseRecorder | undefined;
 let activeConversation: string | null = null;
+let activeSite: string | undefined;
 
 export function caseStore(): CaseStore {
   store ??= createCaseStore({
@@ -31,16 +32,17 @@ export function caseRecorder(): CaseRecorder {
   return recorder;
 }
 
-/** The conversation the panel shows, so the model's own checks land in its case. */
-export function setActiveConversation(id: string | null): void {
+/** The conversation the panel shows, and its tab's host, so the model's own checks land in that site's case. */
+export function setActiveConversation(id: string | null, site?: string): void {
   activeConversation = id;
+  activeSite = site;
 }
 
 /** Records a check or KB search the model ran in the panel's conversation. */
 export function recordModelToolResult(toolName: string, result: unknown) {
   if (!activeConversation) return;
   void caseRecorder()
-    .recordToolResult(activeConversation, toolName, result)
+    .recordToolResult(activeConversation, toolName, result, activeSite)
     .catch((error) => console.error("[case] not recorded", error));
 }
 

@@ -2710,6 +2710,11 @@
     "deliveryFailed": "你的组织下发的 {{version}} 知识包上次更新失败（{{reason}}）。"
   },
   "cases": {
+    "site": "站点：{{site}}",
+    "newCase": "新建案例",
+    "siteAliases": "将站点显示为 customer-a、customer-b",
+    "fromSite": "来自 {{site}}",
+    "otherSiteNote": "这来自与当前标签页不同的站点。",
     "label": "案例",
     "copyId": "复制案例编号 {{id}}",
     "continue": "继续 {{id}}",
@@ -2729,6 +2734,7 @@
     "deleteAll": "删除所有案例",
     "deleteAllConfirm": "删除本设备上的所有案例？",
     "columns": {
+      "site": "站点",
       "id": "案例",
       "date": "日期",
       "version": "版本",
