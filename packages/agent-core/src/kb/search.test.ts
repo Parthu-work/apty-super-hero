@@ -1371,3 +1371,67 @@ describe("the shown layer (KB-RAG K27, F6)", () => {
     expect(result.hits[0]?.chunk).toMatchObject({ pageId: "701", layer: 3 });
   });
 });
+
+describe("choices on a broad symptom (KB-RAG K27, E3)", () => {
+  const flow = (pageId: string, title: string, what: string) =>
+    card(pageId, title, [
+      `- In Studio, check the FIXTURE flow ${what} setting and publish.`,
+      `- The FIXTURE flow ${what} marker must be on the page.`,
+      `- flowstate.json lists the FIXTURE ${what} entries.`,
+      `- Send support the FIXTURE flow ${what} details.`,
+    ]);
+  const CARDS = [
+    flow("801", "FIXTURE flow halts midway through the steps", "halt"),
+    flow("802", "FIXTURE flow never launches for anybody", "launch"),
+    flow("803", "FIXTURE flow jumps past the final step", "jump"),
+    card("804", "FIXTURE gauge reads zero", [
+      "- In Admin, pick a FIXTURE gauge source.",
+      "- The FIXTURE gauge frame loads.",
+      "- gauge.json lists sources (FIXTURE).",
+      "- Send support the FIXTURE gauge id.",
+    ]),
+    {
+      pageId: "800",
+      title: "Start here, FIXTURE flow problems",
+      symptom: "the FIXTURE flow is not working",
+      status: "routing" as const,
+      options: [
+        { pageId: "801", title: "FIXTURE flow halts midway through the steps" },
+        { pageId: "802", title: "FIXTURE flow never launches for anybody" },
+        { pageId: "803", title: "FIXTURE flow jumps past the final step" },
+        { pageId: "999", title: "FIXTURE card not in this pack" },
+      ],
+    },
+  ];
+  const index = createKbIndex(
+    syntheticPack(
+      CARDS,
+      { coverage: { min: 0.3, minIdf: 0.5, minTerms: 1 } },
+      V2,
+    ),
+  );
+
+  it("offers the routing card's choices, only those in the pack, for a broad question", () => {
+    const result = index.search("FIXTURE flow not working", {
+      topK: 3,
+      onePerCard: true,
+    });
+    expect(result.choices?.card.pageId).toBe("800");
+    expect(result.choices?.options.map((o) => o.pageId)).toEqual([
+      "801",
+      "802",
+      "803",
+    ]);
+  });
+
+  it("never offers choices for a specific question", () => {
+    for (const question of [
+      "FIXTURE flow halts midway through the steps",
+      "FIXTURE gauge reads zero",
+    ]) {
+      const result = index.search(question, { topK: 3, onePerCard: true });
+      expect(result.choices, question).toBeUndefined();
+      expect(result.hits.length).toBeGreaterThan(0);
+    }
+  });
+});

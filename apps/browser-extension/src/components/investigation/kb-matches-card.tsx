@@ -20,6 +20,7 @@ import type { ToolDisplaySlotProps } from "@apty/ui/types";
 import { ExternalLinkIcon } from "lucide-react";
 import { useState } from "react";
 import { WrongCardButton } from "../cases/wrong-card-button";
+import { KbChoices } from "./kb-choices";
 import { KbEgressNote } from "./kb-egress-note";
 import { KbLayerSwitcher } from "./kb-layer-switcher";
 import { UnknownSettingCard } from "./kb-unknown-setting";
@@ -175,6 +176,22 @@ export function KbMatchesCard({ tool }: ToolDisplaySlotProps) {
           <ExternalLinkIcon aria-hidden="true" className="size-3" />
         </a>
         {versionControl}
+      </section>
+    );
+  }
+  if (output.choices && output.choices.options.length > 0) {
+    return (
+      <section
+        aria-label={title}
+        className="space-y-2 rounded-lg border border-border bg-card p-3"
+      >
+        <h3 className="text-sm font-medium text-foreground">{title}</h3>
+        <KbChoices options={output.choices.options} />
+        {versionControl}
+        <p className="text-xs text-muted-foreground">
+          {t("kbMatches.provenance")}
+        </p>
+        <KbEgressNote />
       </section>
     );
   }

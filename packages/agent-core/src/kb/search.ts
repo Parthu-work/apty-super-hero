@@ -62,6 +62,17 @@ export type KbNotCoveredReason =
   | "no_strong_term"
   | "unknown_setting";
 
+/** A routing card and the cards it points to, at most `MAX_ROUTING_CHOICES`. */
+export interface KbRoutingChoices {
+  card: KbCard;
+  options: Array<{ pageId: string; title: string }>;
+}
+
+/** At most this many choices are offered. */
+const MAX_ROUTING_CHOICES = 4;
+/** "Close in score": the second card scores at least this share of the first. */
+const CLOSE_SCORE_SHARE = 0.75;
+
 export interface KbSearchResult {
   /**
    * `not_covered`: nothing matched, the top card covers too little of the
@@ -86,6 +97,12 @@ export interface KbSearchResult {
   missingPhrases?: string[];
   /** With `unknown_setting` (K27, F2): the cards that came closest, one hit each; they may not mention the setting. */
   closest?: KbSearchHit[];
+  /**
+   * K27, E3: a broad question (no card's title named, several cards close
+   * in score) that a routing ("start here") card covers: its choices, to ask
+   * the SE which one they mean instead of showing loosely related cards.
+   */
+  choices?: KbRoutingChoices;
   /** Diagnostics: the question's context words (application or page place) the top card does not hold, left out of coverage. */
   contextIgnored?: string[];
   /** With `not_covered`: the coverage the pack needs, and the card that came closest. */
@@ -1096,7 +1113,48 @@ function createV2Index(pack: KbPack): KbIndex {
     const hits = options.onePerCard
       ? onePerCardOnly(ranked, hinted === SUPPORT_LAYER)
       : ranked;
-    return { status: "ok", hits: hits.slice(0, topK), coverage, ...ignored };
+    const choices = routingChoices(query, ranked, chunklessScores, holdsTitle);
+    return {
+      status: "ok",
+      hits: hits.slice(0, topK),
+      coverage,
+      ...(choices ? { choices } : {}),
+      ...ignored,
+    };
+  }
+
+  /** K27, E3: the choices of the routing card that covers a broad question, if any. */
+  function routingChoices(
+    query: string,
+    ranked: KbSearchHit[],
+    chunklessScores: ReadonlyMap<string, number>,
+    holdsTitle: boolean,
+  ): KbRoutingChoices | undefined {
+    // Broad: no card's title is named and the top cards score alike, so no
+    // word of the question tells them apart.
+    if (holdsTitle) return undefined;
+    const [first, second] = onePerCardOnly(ranked);
+    if (!first || !second || second.score < first.score * CLOSE_SCORE_SHARE) {
+      return undefined;
+    }
+    const routing = [...chunklessScores]
+      .map(([pageId, score]) => ({ card: cards.get(pageId), score }))
+      .filter(
+        ({ card }) =>
+          card?.status === "routing" && (card.options?.length ?? 0) > 0,
+      )
+      .sort((a, b) => b.score - a.score)
+      .find(
+        ({ card }) =>
+          corpus.assess(query, (card as KbCard).pageId, settings.minIdf)
+            .coverage >= settings.min,
+      )?.card;
+    if (!routing) return undefined;
+    const options = (routing.options ?? [])
+      .filter((option) => cards.get(option.pageId)?.status !== "routing")
+      .filter((option) => cards.has(option.pageId))
+      .slice(0, MAX_ROUTING_CHOICES);
+    return options.length > 0 ? { card: routing, options } : undefined;
   }
 
   return {

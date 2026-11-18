@@ -197,11 +197,17 @@ const CITE_PAGE = /^kb:\/\/(\d+)/;
 
 /**
  * The card ids the KB matches card shows for `result`, in its order (K27,
- * F7): the stub or the "not in this version" card first, then each result.
+ * F7): the stub or the "not in this version" card first, then each result;
+ * for a broad question (E3), the routing card's choices instead.
  * The decision record holds exactly these.
  * @internal exported for tests
  */
 export function renderedPageIds(result: KbToolResult): string[] {
+  if (result.choices) {
+    return result.choices.options.map(
+      (option) => CITE_PAGE.exec(option.cite)?.[1] ?? "",
+    );
+  }
   const cites = [
     result.status === "stub" ? result.stub?.cite : undefined,
     result.status === "not_in_version" ? result.absent?.cite : undefined,

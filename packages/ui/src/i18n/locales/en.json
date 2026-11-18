@@ -2629,6 +2629,8 @@
     "fromCheck": "Apty version: {{version}}, from the check's files."
   },
   "kbMatches": {
+    "whichOne": "Which of these is it?",
+    "choiceMissing": "That card is not in the loaded pack.",
     "layerName": {
       "1": "Settings",
       "2": "Console and Elements",

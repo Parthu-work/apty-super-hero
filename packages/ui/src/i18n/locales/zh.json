@@ -2629,6 +2629,8 @@
     "fromCheck": "Apty 版本：{{version}}，来自检查读取的文件。"
   },
   "kbMatches": {
+    "whichOne": "是以下哪一种？",
+    "choiceMissing": "已加载的包中没有这张卡片。",
     "layerName": {
       "1": "设置",
       "2": "控制台和元素",

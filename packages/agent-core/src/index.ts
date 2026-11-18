@@ -227,6 +227,7 @@ export {
   type KbIndex,
   type KbIndexInfo,
   type KbNotCoveredReason,
+  type KbRoutingChoices,
   type KbSearchHit,
   type KbSearchOptions,
   type KbSearchResult,

@@ -12,6 +12,8 @@ export interface SyntheticCard {
   verifiedOn?: string | null;
   /** The card's symptom line (schema 2). */
   symptom?: string | null;
+  /** K27, E3: a routing card's choices. */
+  options?: Array<{ pageId: string; title: string }>;
 }
 
 export const nodeSha256 = async (text: string) =>
@@ -66,6 +68,7 @@ export function syntheticPack(
       ).length,
       ...(card.status !== undefined ? { status: card.status } : {}),
       ...(card.symptom !== undefined ? { symptom: card.symptom } : {}),
+      ...(card.options !== undefined ? { options: card.options } : {}),
       url: `https://fixture.atlassian.net/wiki/spaces/FX/pages/${card.pageId}`,
       updatedAt: "2026-02-01T00:00:00.000Z",
     })),

@@ -151,6 +151,12 @@ export interface KbToolResult extends KbSourceTag {
   /** The top two cards are for different Apty versions: ask which one the tenant runs. */
   mixedVersions?: boolean;
   results: KbToolHit[];
+  /** K27, E3: a broad question a routing card covers: its choices, by cite and title; shown instead of the cards. */
+  choices?: {
+    cite: string;
+    title: string;
+    options: Array<{ cite: string; title: string }>;
+  };
   /** K27, F4: a local answer's site, as `siteKeyOf(host)`; never the host itself, never sent to the model. */
   siteKey?: string;
 }
@@ -296,8 +302,21 @@ export function kbToolResultOf(found: KbSearchResult): KbToolResult {
     total += hit.chunk.text.length;
     results.push(toolHit(hit));
   }
+  const choices = found.choices
+    ? {
+        choices: {
+          cite: `kb://${found.choices.card.pageId}`,
+          title: found.choices.card.title,
+          options: found.choices.options.map((option) => ({
+            cite: `kb://${option.pageId}`,
+            title: option.title,
+          })),
+        },
+      }
+    : {};
   return {
     status: "ok",
+    ...choices,
     ...kbSourceTag(
       found.hits
         .slice(0, results.length)

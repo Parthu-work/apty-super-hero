@@ -34,6 +34,16 @@ const cardSchema = z.object({
   status: z.enum(["full", "stub", "routing", "absent"]).optional(),
   /** Schema 3, an `absent` card: why there is no equivalent, at most 300 characters. */
   absentReason: z.string().max(300).optional(),
+  /** K27, E3, a `routing` card: the cards it points to, by id and title; older readers ignore it. */
+  options: z
+    .array(
+      z.object({
+        pageId: z.string().regex(/^\d+$/),
+        title: z.string().max(300),
+      }),
+    )
+    .max(8)
+    .optional(),
   url: z
     .string()
     .regex(/^https:\/\/[^/\s]+\/wiki\/spaces\/[^/\s]+\/pages\/\d+$/),
