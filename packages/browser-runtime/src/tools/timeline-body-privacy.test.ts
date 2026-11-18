@@ -77,13 +77,18 @@ vi.hoisted(() => {
   };
 });
 
-import { clearEvidence, getEvidence } from "../apty/evidence-store";
+import {
+  clearEvidence,
+  getEvidence,
+  recordEvidence,
+} from "../apty/evidence-store";
 import { connectExtensionClient } from "../apty/extension-network-inspector";
 import {
   createOutboundSanitizer,
   redactToolOutput,
 } from "../runtime/outbound-sanitizer";
 import {
+  bodyPreviewInMode,
   currentRedactionMode,
   getRedactionMode,
   resetRedactionModeForTests,
@@ -215,5 +220,66 @@ describe("get_investigation_timeline never carries a stored response body", () =
       offset: 0,
     })) as { found: boolean };
     expect(answer).toMatchObject({ found: true });
+  });
+});
+
+describe("a page capture's body preview (KB-RAG K27, R1)", () => {
+  const NAME = "Zorblax Quill";
+  const EMAIL = "zq@patients.example";
+  const PREVIEW = JSON.stringify({
+    patient: { name: NAME, contact: EMAIL, visits: 3, mrnNumber: 4815162342 },
+    ok: true,
+  });
+
+  function capture(preview = PREVIEW) {
+    recordEvidence({
+      conversationId: CONV,
+      source: "network",
+      type: "network-http-error",
+      timestamp: 1,
+      tabId: 1,
+      url: "https://app.example/api/visits",
+      requestId: "p1",
+      data: {
+        url: "https://app.example/api/visits",
+        status: 500,
+        bodyPreview: preview,
+      },
+    });
+  }
+
+  it("Strict: the timeline keeps the body's shape and withholds its free text", async () => {
+    capture();
+    await setMode("strict");
+    for (const [layer, text] of Object.entries(await timeline())) {
+      expect(text, layer).not.toContain(NAME);
+      expect(text, layer).not.toContain(EMAIL);
+      expect(text, layer).not.toContain("4815162342");
+      expect(text, layer).toContain("visits");
+    }
+  });
+
+  it("Standard: the preview gets the same redaction as any tool result, in the mode it is read in", async () => {
+    capture();
+    await setMode("standard");
+    for (const [layer, text] of Object.entries(await timeline())) {
+      expect(text, layer).not.toContain(EMAIL);
+    }
+  });
+
+  it("withholds text that is not JSON whole in Strict, and keeps it in Off", () => {
+    expect(bodyPreviewInMode(`note: ${NAME} called`, "strict")).toMatch(
+      /^<WITHHELD> \(\d+ characters of text, withheld in Strict mode\)$/,
+    );
+    expect(bodyPreviewInMode(`note: ${NAME}`, "off")).toBe(`note: ${NAME}`);
+    expect(JSON.parse(bodyPreviewInMode(PREVIEW, "strict"))).toEqual({
+      patient: {
+        name: "<WITHHELD>",
+        contact: "<WITHHELD>",
+        visits: 3,
+        mrnNumber: "<WITHHELD>",
+      },
+      ok: true,
+    });
   });
 });

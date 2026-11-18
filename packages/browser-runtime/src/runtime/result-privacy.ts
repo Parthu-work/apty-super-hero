@@ -34,6 +34,13 @@ const PAGE_TITLE_KEYS = new Set(["title", "tabTitle", "pageTitle"]);
 /** Pages whose title can name a person: web pages and local files, not browser or extension pages. */
 const PAGE_URL = /^(?:https?|file):\/\//i;
 const WEB_URL_IN_TEXT = /https?:\/\/[^\s"'<>()[\]{}`\\]+/gi;
+/**
+ * K27, R1: a URL of another scheme (ws://, ftp://, app://) or a relative
+ * path with two or more segments or a query (/patients/4815/chart,
+ * /search?q=…) inside free text, such as console output.
+ */
+const OTHER_URL_IN_TEXT =
+  /(?<![\w/:])(?:[a-z][a-z0-9+.-]*:\/\/[^\s"'<>()[\]{}`\\]+|\/[\w.~%!$&*+,;=:@-]+(?:\/[\w.~%!$&*+,;=:@-]*)+(?:\?[^\s"'<>()[\]{}`\\]*)?|\/[\w.~%!$&*+,;=:@-]+\?[^\s"'<>()[\]{}`\\]+)/gi;
 /** Screenshot payloads and local object URLs, which carry no page data in their address. */
 const NOT_REWRITTEN = /^(?:data|blob):/i;
 /**
@@ -46,11 +53,14 @@ const URL_SHAPED =
   /^(?:\/(?!\/)|\/\/[\w.-]+(?::\d+)?(?:[/?#]|$)|(?:[a-z][a-z0-9+.-]*:)+\/\/)\S*$/i;
 
 function rewriteText(text: string, policy: ValuePolicy): string {
-  if (!text.includes("://")) return text;
-  return text.replace(
-    WEB_URL_IN_TEXT,
-    (url) => applyUrlPolicy(url, policy) ?? "",
-  );
+  if (!text.includes("/")) return text;
+  return text
+    .replace(WEB_URL_IN_TEXT, (url) => applyUrlPolicy(url, policy) ?? "")
+    .replace(OTHER_URL_IN_TEXT, (url) =>
+      /^(?:https?|data|blob|kb):/i.test(url)
+        ? url
+        : (applyUrlPolicy(url, policy) ?? ""),
+    );
 }
 
 function originOf(url: string): string {

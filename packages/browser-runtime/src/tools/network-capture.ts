@@ -21,6 +21,10 @@ import {
 } from "../apty/network-capture-session.js";
 import { loadSettings } from "../runtime/effective-settings.js";
 import {
+  getRedactionMode,
+  withBodyPreviewsRedacted,
+} from "../runtime/redaction-mode.js";
+import {
   describeTabForMeta,
   describeTabResolutionFailure,
   resolveDiagnosticTab,
@@ -78,11 +82,12 @@ export const stopNetworkCaptureTool = tool({
     if (!result.stopped) {
       return result;
     }
+    await getRedactionMode();
     return {
       stopped: true,
       session: result.session,
       count: result.requests?.length ?? 0,
-      requests: result.requests,
+      requests: withBodyPreviewsRedacted(result.requests),
     };
   },
 });

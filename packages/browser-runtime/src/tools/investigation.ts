@@ -34,7 +34,10 @@ import {
 } from "../apty/investigation-session.js";
 import { shownEvidence } from "../apty/shown-url.js";
 import type { DiagnosticEvidence } from "../apty/types.js";
-import { getRedactionMode } from "../runtime/redaction-mode.js";
+import {
+  getRedactionMode,
+  withBodyPreviewsRedacted,
+} from "../runtime/redaction-mode.js";
 import type { ToolRunContext } from "./tab-utils";
 
 /**
@@ -112,7 +115,8 @@ export const getInvestigationTimelineTool = tool({
     await getRedactionMode();
     const evidence = getEvidence(conversationId)
       .map(shownEvidence)
-      .map(withoutBody);
+      .map(withoutBody)
+      .map(withBodyPreviewsRedacted);
 
     if (evidence.length === 0) {
       return {
