@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 // `InterventionManager.getInstance()` at module scope, which wires up
 // `chrome.tabs` listeners. Stub just enough of `chrome` for that
 // module-level side effect to no-op — this test never drives interventions.
-(global as any).chrome = {
+(globalThis as { chrome?: unknown }).chrome = {
   tabs: {
     onActivated: { addListener: () => {} },
     onUpdated: { addListener: () => {} },

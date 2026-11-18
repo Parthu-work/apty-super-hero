@@ -23,6 +23,17 @@ describe("applyResultPrivacy", () => {
     });
   });
 
+  it("masks a non-http URL in free text, and leaves KB citations and a file-less word alone (K27, R1)", () => {
+    expect(
+      applyResultPrivacy(
+        { log: "socket ws://ehr.example/patients/884213/feed closed" },
+        "withhold",
+      ),
+    ).toEqual({ log: "socket ws://ehr.example/patients/:id/feed closed" });
+    const kept = { note: "see kb://101#L1, and/or try again" };
+    expect(applyResultPrivacy(kept, "withhold")).toEqual(kept);
+  });
+
   it("reduces a tab or page to its id and origin in Strict", () => {
     expect(
       applyResultPrivacy(
@@ -127,7 +138,7 @@ describe("applyResultPrivacy", () => {
     });
   });
 
-  it("masks a whole value shaped like a URL under any key, but not prose, XPath or JSON text", () => {
+  it("masks a whole value shaped like a URL under any key, and a relative URL in prose (K27, R1), but not XPath", () => {
     const xpath = "//button[normalize-space()='Save']";
     const json = '{"next":"https://ehr.example/patients/884213"}';
     const result = {
@@ -143,7 +154,7 @@ describe("applyResultPrivacy", () => {
       cdn: "//cdn.example.com/patients/:id/x.js",
       selector: xpath,
       absolutePath: "/html/body/div[3]",
-      note: "opened /patients/884213/chart today",
+      note: "opened /patients/:id/chart today",
       body: '{"next":"https://ehr.example/patients/:id"}',
     });
   });

@@ -83,6 +83,39 @@ Under an invalid policy the extension trusts only the demo key (and only for
 `.invalid` sites), allows no unsigned pack, and so uses no KB pack but demo
 packs.
 
+## The KB owner's key during the pilot
+
+`KB_OWNER_PACK_KEYS` in `packages/agent-core/src/kb/trusted-keys.ts` is
+still empty (KB-RAG K27, R1): no production signing key is built in until
+the KB owner confirms which key that is. Key `348cdb36b45e1bdf` signed the
+packs of the first real-pack test (17 Nov 2026); it was made on a
+developer's machine and is not shipped.
+
+Until then, trust the pilot key through the policy. The KB owner runs
+`pnpm kb:keygen` once on the machine that will sign packs and sends IT the
+two values it prints (the private key never leaves that machine). IT puts
+them in the policy's `trustedPackKeys`:
+
+```json
+{
+  "trustedPackKeys": [
+    {
+      "keyId": "0123456789abcdef",
+      "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE<rest of the base64 public key>",
+      "name": "Apty KB owner (pilot)"
+    }
+  ]
+}
+```
+
+Replace both values with what `pnpm kb:keygen` printed; an entry whose
+`keyId` does not match its `spki` trusts nothing. Options → Knowledge base
+then shows each pack as "Signed by key <keyId> (Apty KB owner (pilot))".
+When the owner confirms the production key, it is added to
+`KB_OWNER_PACK_KEYS` in one commit and this entry can go; to stop trusting
+a leaked key before then, remove it here or list its key id in `revokedPackKeyIds`
+(see `docs/support-runbook.md`).
+
 ## Deploying it
 
 The policy is for the extension's ID. The Agent's ID is fixed by the

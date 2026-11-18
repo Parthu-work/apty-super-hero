@@ -10,11 +10,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { after, before, describe, it } from "node:test";
 import {
+  axeInBothThemes,
   describeViolations,
   extensionPage,
   launchBrowser,
   openSidePanel,
-  runAxe,
   sendChat,
   startMockModel,
   startPageServer,
@@ -81,7 +81,7 @@ describe("the support bundle (KB-RAG K25, L2)", () => {
     for (const name of ["Copy", "Copy as text", "Download"]) {
       await dialog.getByRole("button", { name, exact: true }).waitFor();
     }
-    const violations = await runAxe(options);
+    const violations = await axeInBothThemes(options);
     assert.deepEqual(violations, [], describeViolations(violations));
 
     const [download] = await Promise.all([

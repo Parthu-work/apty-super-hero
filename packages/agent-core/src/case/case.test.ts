@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseOrgPolicy } from "../config/org-policy.js";
 import type { TurnDecision } from "../kb/decision.js";
 import {
+  type CaseRecord,
   caseExpired,
   caseToContinue,
   closeCase,
@@ -9,6 +10,8 @@ import {
   newCase,
   newCaseId,
   otherSite,
+  pilotMeasures,
+  pilotMeasuresCsv,
   siteKeyOf,
   turnStartsCase,
   withTurn,
@@ -223,5 +226,101 @@ describe("sites (KB-RAG K27, F4)", () => {
     expect(siteKeyOf(key)).toBe(key);
     expect(otherSite("A.example.com", key)).toBe(false);
     expect(otherSite("b.example.com", key)).toBe(true);
+  });
+});
+
+describe("pilot measures (KB-RAG K27, R4)", () => {
+  const at = (minutes: number) =>
+    new Date(Date.UTC(2026, 10, 12, 10, minutes)).toISOString();
+  const caseWith = (
+    id: string,
+    version: "4.x" | "5.x",
+    route: "check" | "kb" | "model",
+    verdictMinute: number,
+    outcome: CaseRecord["outcome"] = "open",
+  ): CaseRecord => {
+    const start = newCase(id, new Date(at(0)), { random: () => 0 });
+    const turned = withTurn(start, {
+      at: at(verdictMinute),
+      decision: {
+        route,
+        version,
+        versionSource: "files",
+        packs: [],
+        ...(route === "model"
+          ? {
+              kb: {
+                kind: "not_covered" as const,
+                reason: "no_match" as const,
+                coverage: 0,
+                min: 0.5,
+                version,
+              },
+            }
+          : {}),
+      },
+    });
+    return { ...turned, id, outcome };
+  };
+
+  it("records the first verdict once, with its route, and never from the model", () => {
+    const first = caseWith("c1", "4.x", "kb", 2);
+    expect(first).toMatchObject({
+      firstVerdictAt: at(2),
+      firstVerdictRoute: "kb",
+    });
+    const later = withTurn(first, {
+      at: at(5),
+      decision: {
+        route: "check",
+        version: "4.x",
+        versionSource: "files",
+        packs: [],
+      },
+    });
+    expect(later.firstVerdictAt).toBe(at(2));
+    expect(caseWith("c2", "4.x", "model", 1).firstVerdictAt).toBeUndefined();
+  });
+
+  it("counts by version and outcome and takes the median time to a first verdict", () => {
+    const measures = pilotMeasures(
+      [
+        caseWith("a", "4.x", "kb", 1, "resolved"),
+        caseWith("b", "4.x", "check", 3, "escalated"),
+        caseWith("c", "4.x", "kb", 10),
+        caseWith("d", "4.x", "model", 1, "not_covered"),
+        caseWith("e", "5.x", "kb", 2),
+      ],
+      [{ aptyVersion: "4.x" }, { aptyVersion: "5.x" }, { aptyVersion: "5.x" }],
+    );
+    expect(measures).toEqual([
+      {
+        version: "4.x",
+        cases: 4,
+        kbAnswered: 2,
+        checkAnswered: 1,
+        notCovered: 1,
+        wrongCard: 1,
+        resolved: 1,
+        escalated: 1,
+        medianSecondsToVerdict: 180,
+      },
+      {
+        version: "5.x",
+        cases: 1,
+        kbAnswered: 1,
+        checkAnswered: 0,
+        notCovered: 0,
+        wrongCard: 2,
+        resolved: 0,
+        escalated: 0,
+        medianSecondsToVerdict: 120,
+      },
+    ]);
+    const csv = pilotMeasuresCsv(measures);
+    expect(csv.split("\n")[0]).toBe(
+      "Apty version,cases,KB card answered,check answered,not covered,wrong card,resolved,escalated,median seconds to first verdict",
+    );
+    expect(csv).toContain("4.x,4,2,1,1,1,1,1,180");
   });
 });

@@ -35,6 +35,15 @@ opening a tab on another site, closing a tab the agent didn't open,
 running page JavaScript and sending a screenshot each ask for your
 approval.
 
+For Apty's own teams, the agent can also answer from Apty's internal
+knowledge base: signed KB packs that you import, or that your
+organization's policy delivers, kept on your device and checked against
+trusted keys and an expiry date before each use. Card text stays in the
+side panel unless your organization approves an AI destination. Each
+debugging session becomes a case on your device, and a support bundle for
+Apty support is built there with Strict redaction, for you to review, copy
+or download.
+
 Apty Agent sends no telemetry and has no server of its own.
 
 ## Store images

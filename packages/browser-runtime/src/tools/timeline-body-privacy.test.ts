@@ -77,13 +77,18 @@ vi.hoisted(() => {
   };
 });
 
-import { clearEvidence, getEvidence } from "../apty/evidence-store";
+import {
+  clearEvidence,
+  getEvidence,
+  recordEvidence,
+} from "../apty/evidence-store";
 import { connectExtensionClient } from "../apty/extension-network-inspector";
 import {
   createOutboundSanitizer,
   redactToolOutput,
 } from "../runtime/outbound-sanitizer";
 import {
+  bodyPreviewInMode,
   currentRedactionMode,
   getRedactionMode,
   resetRedactionModeForTests,
@@ -215,5 +220,53 @@ describe("get_investigation_timeline never carries a stored response body", () =
       offset: 0,
     })) as { found: boolean };
     expect(answer).toMatchObject({ found: true });
+  });
+});
+
+describe("a page capture's body preview (KB-RAG K27, R1)", () => {
+  const EMAIL = "zq@patients.example";
+  const TOKEN = "sk-live-0123456789abcdefghijklmn";
+  const PREVIEW = JSON.stringify({
+    patient: { contact: EMAIL, visits: 3 },
+    session: { token: TOKEN },
+    ok: true,
+  });
+
+  function capture(preview = PREVIEW) {
+    recordEvidence({
+      conversationId: CONV,
+      source: "network",
+      type: "network-http-error",
+      timestamp: 1,
+      tabId: 1,
+      url: "https://app.example/api/visits",
+      requestId: "p1",
+      data: {
+        url: "https://app.example/api/visits",
+        status: 500,
+        bodyPreview: preview,
+      },
+    });
+  }
+
+  it.each([
+    "strict",
+    "standard",
+  ] as const)("%s: a preview stored unredacted is redacted like any tool result when the timeline is read", async (mode) => {
+    capture();
+    await setMode(mode);
+    for (const [layer, text] of Object.entries(await timeline())) {
+      expect(text, layer).not.toContain(EMAIL);
+      expect(text, layer).not.toContain(TOKEN);
+      expect(text, layer).toContain("visits");
+    }
+  });
+
+  it("keeps a JSON preview valid JSON, and leaves it as it is in Off", () => {
+    expect(() =>
+      JSON.parse(bodyPreviewInMode(PREVIEW, "strict")),
+    ).not.toThrow();
+    expect(bodyPreviewInMode(PREVIEW, "strict")).not.toContain(EMAIL);
+    expect(bodyPreviewInMode(PREVIEW, "off")).toBe(PREVIEW);
   });
 });

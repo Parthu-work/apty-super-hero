@@ -66,8 +66,10 @@ weaker than Standard while an Apty KB pack is loaded.
 ### Support bundles and exports
 
 A support bundle (Prepare support bundle, on a verdict or a case), the
-tracking sheet (CSV) and the questions file for `kb:eval` are built on your
-device and shown to you in full before you copy or download them. The
+tracking sheet (CSV), the questions file for `kb:eval` and the pilot
+measures (CSV: counts by Apty version and outcome and the median time to a
+first verdict, numbers only; KB-RAG K27) are built on your device and shown
+to you in full before you copy or download them. The
 extension never sends them anywhere; where the file goes is your choice. A
 bundle holds no KB card text, customer names, user ids, emails or tokens
 (D-CASE2).
@@ -213,7 +215,8 @@ must not reach your AI provider.
 | Remembered approvals ("Allow on this site for 15 min") | `chrome.storage.local` | 15 minutes, or until revoked |
 | The KB packs you import (Apty's internal RAG Answer Cards), one per Apty version (4.x, 5.x, common). Only a pack signed by a key the extension or your organization's policy trusts, and not past its expiry date, is used (KB-RAG K23); one that is not used stays until you remove it but answers nothing | The extension's IndexedDB (`apty-kb-db`) | Until you remove or replace each in Settings → General → Knowledge base, or remove the extension |
 | The record of requests that carried KB text: time, provider, origin, model, card ids and layers, pack versions (never text) | The extension's IndexedDB (`apty-kb-egress-db`) | Your organization's `auditRetentionDays`, 30 days by default; Clear in Data handling when no policy is set |
-| Cases (KB-RAG K25): one per debugging conversation, with its id, your first symptom message (Strict-redacted, 300 characters), the Apty version, checks, finding, the KB cards shown (ids only), each turn's decision record and the outcome; never card text, file bodies or screenshots | The extension's IndexedDB (`apty-cases-db`, store `cases`) | Your organization's `caseRetentionDays`, 90 days by default; delete one or all in Settings → General → Cases |
+| Cases (KB-RAG K25, K27): one per debugging conversation and site, with its id, the site's host, your first symptom message (Strict-redacted, 300 characters), the Apty version, checks, finding, the KB cards shown (ids only), each turn's decision record, when the first verdict came and from which route, and the outcome; never card text, file bodies or screenshots | The extension's IndexedDB (`apty-cases-db`, store `cases`) | Your organization's `caseRetentionDays`, 90 days by default; delete one or all in Settings → General → Cases |
+| Two panel preferences (KB-RAG K27): whether sites show as customer-a, customer-b, and whether you chose to work without an AI key | The extension's local storage (`apty_site_aliases`, `apty_no_key_mode`) | Until you change them or remove the extension |
 | Feedback (KB-RAG K25): wrong-card marks and case outcomes (card ids, version, pack date, coverage and reason), and your question Strict-redacted, exported only if you tick "Include my question" | The extension's IndexedDB (`apty-cases-db`, store `feedback`) | Until you clear it in Settings → General → Feedback (not while a policy is set) |
 | The Apty content calls a page network capture saw, with their whole redacted bodies (for the checks; **Capture and reload** makes one on click) | The service worker's memory | 15 minutes after the capture stops, or until the browser closes |
 | A HAR file you check, including one saved from the 4.x Client's service worker | The side panel's memory | While the HAR page is open |

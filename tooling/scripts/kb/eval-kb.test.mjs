@@ -210,6 +210,42 @@ describe("calibrateCoverage (schema 2)", () => {
     assert.deepEqual(report.misses, []);
   });
 
+  it("counts a not-in-this-version card as a hit when it is the expected card (K25 audit, G1)", async () => {
+    const withAbsent = buildPack({
+      pages: [
+        ...SYNTHETIC_PAGES,
+        {
+          id: "1098",
+          title: "RAG Card: FIXTURE funnel chart for gadget walkthroughs",
+          group: "FIXTURE group",
+          updatedAt: "2026-02-01T00:00:00.000Z",
+          body: "<p>Symptom: the FIXTURE funnel chart for gadget walkthroughs.</p><p>No 5.x equivalent: the FIXTURE funnel chart is 4.x only.</p>",
+        },
+      ],
+      site: "fixture.atlassian.net",
+      space: "FX",
+      label: "rag-card",
+      builtAt: "2026-03-01T00:00:00.000Z",
+    }).pack;
+    assert.equal(
+      withAbsent.cards.find((card) => card.pageId === "1098").status,
+      "absent",
+    );
+    const report = evaluate(
+      core,
+      await readPack(core, JSON.stringify(withAbsent)),
+      [
+        {
+          id: "ab1",
+          q: "funnel chart for gadget walkthroughs",
+          expectedPageIds: ["1098"],
+        },
+      ],
+    );
+    assert.equal(report.recallAt1, 1);
+    assert.deepEqual(report.misses, []);
+  });
+
   it("does not let a threshold change a schema 2 pack's answers", () => {
     assert.deepEqual(
       evaluate(core, v2, questions, { threshold: 1_000 }).misses,

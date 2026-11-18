@@ -54,6 +54,7 @@ import { BrowserMessageActions } from "./browser-message-actions";
 import { BrowserMessageList } from "./browser-message-list";
 import { ChatImagesListener } from "./chat-images-listener";
 import { ConnectionsPage } from "./connections/connections-page";
+import { FirstRunChecklist } from "./connections/first-run-checklist";
 import { InterventionUI } from "./intervention-ui";
 import {
   AptyToolDisplay,
@@ -293,7 +294,9 @@ function ChatApp() {
                   onOpenSettings={handleOpenProviderSettings}
                   onDismiss={() => setAuthDraft(null)}
                 />
-              ) : null,
+              ) : (
+                <FirstRunChecklist />
+              ),
             afterMessages: () => (
               <>
                 <InterventionUI mode={interventionMode} />

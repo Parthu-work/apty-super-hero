@@ -201,15 +201,17 @@ describe("controls that do not change", () => {
     }
   });
 
-  it("console free text keeps the path (a known limitation, not fixed here); only an mrn value is masked", async () => {
-    for (const mode of ["strict", "standard"] as const) {
+  it("masks a relative URL in console free text the way an absolute one is masked (K27, R1)", async () => {
+    for (const [mode, shown] of [
+      ["strict", "link: /patients/:id/chart"],
+      ["standard", `link: /patients/${ID}/chart?mrn=[masked]`],
+    ] as const) {
       await setMode(mode);
       const sent = await asSent(
         wrapped({ result: `link: ${INPUTS.relative}` }),
       );
-      expect(sent.chat).toContain(
-        `link: ${INPUTS.relative.replace(/mrn=\d+/, "mrn=<REDACTED>")}`,
-      );
+      expect(sent.chat).toContain(shown);
+      expect(sent.mcp).toContain(shown);
     }
   });
 });

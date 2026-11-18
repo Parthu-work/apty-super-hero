@@ -376,3 +376,31 @@ export function resetRedactionModeForTests(): void {
   loading = null;
   listening = false;
 }
+
+/**
+ * A captured response body's preview as the model reads it (KB-RAG K27,
+ * R1): the same redaction as every other tool result, in the mode current
+ * when it is read, not only the mode it was captured in.
+ * @internal exported for tests
+ */
+export function bodyPreviewInMode(text: string, mode: RedactionMode): string {
+  return mode === "off" ? text : redactJsonTextInMode(text, mode);
+}
+
+/** `value` with every `bodyPreview` string read in the current mode. */
+export function withBodyPreviewsRedacted<T>(value: T): T {
+  const mode = currentRedactionMode();
+  const walk = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(walk);
+    if (typeof node !== "object" || node === null) return node;
+    return Object.fromEntries(
+      Object.entries(node).map(([key, item]) => [
+        key,
+        key === "bodyPreview" && typeof item === "string"
+          ? bodyPreviewInMode(item, mode)
+          : walk(item),
+      ]),
+    );
+  };
+  return walk(value) as T;
+}

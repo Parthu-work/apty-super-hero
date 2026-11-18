@@ -308,13 +308,8 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 
 ## Known limitations
 
-- Page network-capture evidence carries a body preview (opt-in via
-  response-body capture in Settings) that appears in
-  `get_investigation_timeline`; `stop_network_capture` already returns the
-  same text; free text in it is not caught by any redaction pattern.
-- A URL inside prose or console output (for example a `run_console_command`
-  result) is masked only when it is an absolute http(s) URL; a relative or
-  non-http URL in free text reaches the model as it is.
+- None open from K25 and K26: the network-capture body preview and URLs in
+  free text were closed in K27 R1 (see below).
 
 ## Where to look
 
