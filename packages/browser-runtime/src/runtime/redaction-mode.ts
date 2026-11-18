@@ -402,6 +402,7 @@ function withholdValues(value: unknown): unknown {
  * lengths, booleans, short numbers) and withholds its strings, and
  * withholds any other text whole; Standard runs the same redaction as
  * every other tool result.
+ * @internal exported for tests
  */
 export function bodyPreviewInMode(text: string, mode: RedactionMode): string {
   if (mode === "off") return text;
