@@ -1,5 +1,11 @@
 import type { UIToolPart } from "@apty/ui/types";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const localKbMatches = vi.hoisted(() => vi.fn());
@@ -105,13 +111,17 @@ describe("KbMatchesCard", () => {
     );
     const versions = screen.getByRole("radiogroup", { name: "Apty version" });
     fireEvent.click(within(versions).getByRole("radio", { name: "4.x" }));
-    await screen.findByRole("link", { name: /FIXTURE card 401/ });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("link", { name: /FIXTURE card 501/ }),
+      ).toBeNull(),
+    );
+    screen.getByRole("link", { name: /FIXTURE card 401/ });
     expect(localKbMatches).toHaveBeenCalledWith(
       "the tooltip opens twice",
       undefined,
       { version: "4.x", modelAvailable: true },
     );
-    expect(screen.queryByRole("link", { name: /FIXTURE card 501/ })).toBeNull();
     expect(screen.queryByText(/different Apty versions/)).toBeNull();
   });
 
