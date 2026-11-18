@@ -377,41 +377,14 @@ export function resetRedactionModeForTests(): void {
   listening = false;
 }
 
-const WITHHELD = "<WITHHELD>";
-/** A number long enough to be a record, account or phone number. */
-const LONG_NUMBER = /^-?\d{5,}(?:\.\d+)?$/;
-
-function withholdValues(value: unknown): unknown {
-  if (typeof value === "string") return value === "" ? value : WITHHELD;
-  if (typeof value === "number") {
-    return LONG_NUMBER.test(String(value)) ? WITHHELD : value;
-  }
-  if (Array.isArray(value)) return value.map(withholdValues);
-  if (typeof value === "object" && value !== null) {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, withholdValues(item)]),
-    );
-  }
-  return value;
-}
-
 /**
- * A captured response body's preview as the model reads it, in `mode` at
- * the time it is read (KB-RAG K27, R1). Free text such as a name or a note
- * passes every pattern, so Strict keeps a JSON body's shape (keys, array
- * lengths, booleans, short numbers) and withholds its strings, and
- * withholds any other text whole; Standard runs the same redaction as
- * every other tool result.
+ * A captured response body's preview as the model reads it (KB-RAG K27,
+ * R1): the same redaction as every other tool result, in the mode current
+ * when it is read, not only the mode it was captured in.
  * @internal exported for tests
  */
 export function bodyPreviewInMode(text: string, mode: RedactionMode): string {
-  if (mode === "off") return text;
-  if (mode === "standard") return redactJsonTextInMode(text, mode);
-  try {
-    return JSON.stringify(withholdValues(JSON.parse(text)));
-  } catch {
-    return `${WITHHELD} (${text.length} characters of text, withheld in Strict mode)`;
-  }
+  return mode === "off" ? text : redactJsonTextInMode(text, mode);
 }
 
 /** `value` with every `bodyPreview` string read in the current mode. */

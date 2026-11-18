@@ -2,10 +2,12 @@
  * The first-run checklist (KB-RAG K27, R3): while the Agent is not ready,
  * one card above the chat with a row per thing it needs and a button to the
  * Options section that fixes it. It reads what Preflight reads and is gone
- * once every row is ready.
+ * once every row is ready, or once the chat has a message, so it never moves
+ * a conversation the reader is in.
  */
 import type { KbPackState, OrgPolicyState } from "@apty/agent-core";
 import { loadOrgPolicy } from "@apty/browser-runtime/runtime/org-policy";
+import { useChatContext } from "@apty/ui/components/chatbot";
 import { Button } from "@apty/ui/components/ui/button";
 import { useTranslation } from "@apty/ui/i18n/context";
 import { cn } from "@apty/ui/lib/utils";
@@ -126,6 +128,11 @@ function Row({ row, onNoKey }: { row: FirstRunRow; onNoKey: () => void }) {
 }
 
 export function FirstRunChecklist() {
+  const { messages } = useChatContext();
+  return messages.length === 0 ? <Checklist /> : null;
+}
+
+function Checklist() {
   const { t } = useTranslation();
   const readiness = useReadiness();
   const [noKeyMode, chooseNoKey] = useNoKeyMode();

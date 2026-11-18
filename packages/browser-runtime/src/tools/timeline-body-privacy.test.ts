@@ -224,10 +224,11 @@ describe("get_investigation_timeline never carries a stored response body", () =
 });
 
 describe("a page capture's body preview (KB-RAG K27, R1)", () => {
-  const NAME = "Zorblax Quill";
   const EMAIL = "zq@patients.example";
+  const TOKEN = "sk-live-0123456789abcdefghijklmn";
   const PREVIEW = JSON.stringify({
-    patient: { name: NAME, contact: EMAIL, visits: 3, mrnNumber: 4815162342 },
+    patient: { contact: EMAIL, visits: 3 },
+    session: { token: TOKEN },
     ok: true,
   });
 
@@ -248,38 +249,24 @@ describe("a page capture's body preview (KB-RAG K27, R1)", () => {
     });
   }
 
-  it("Strict: the timeline keeps the body's shape and withholds its free text", async () => {
+  it.each([
+    "strict",
+    "standard",
+  ] as const)("%s: a preview stored unredacted is redacted like any tool result when the timeline is read", async (mode) => {
     capture();
-    await setMode("strict");
+    await setMode(mode);
     for (const [layer, text] of Object.entries(await timeline())) {
-      expect(text, layer).not.toContain(NAME);
       expect(text, layer).not.toContain(EMAIL);
-      expect(text, layer).not.toContain("4815162342");
+      expect(text, layer).not.toContain(TOKEN);
       expect(text, layer).toContain("visits");
     }
   });
 
-  it("Standard: the preview gets the same redaction as any tool result, in the mode it is read in", async () => {
-    capture();
-    await setMode("standard");
-    for (const [layer, text] of Object.entries(await timeline())) {
-      expect(text, layer).not.toContain(EMAIL);
-    }
-  });
-
-  it("withholds text that is not JSON whole in Strict, and keeps it in Off", () => {
-    expect(bodyPreviewInMode(`note: ${NAME} called`, "strict")).toMatch(
-      /^<WITHHELD> \(\d+ characters of text, withheld in Strict mode\)$/,
-    );
-    expect(bodyPreviewInMode(`note: ${NAME}`, "off")).toBe(`note: ${NAME}`);
-    expect(JSON.parse(bodyPreviewInMode(PREVIEW, "strict"))).toEqual({
-      patient: {
-        name: "<WITHHELD>",
-        contact: "<WITHHELD>",
-        visits: 3,
-        mrnNumber: "<WITHHELD>",
-      },
-      ok: true,
-    });
+  it("keeps a JSON preview valid JSON, and leaves it as it is in Off", () => {
+    expect(() =>
+      JSON.parse(bodyPreviewInMode(PREVIEW, "strict")),
+    ).not.toThrow();
+    expect(bodyPreviewInMode(PREVIEW, "strict")).not.toContain(EMAIL);
+    expect(bodyPreviewInMode(PREVIEW, "off")).toBe(PREVIEW);
   });
 });

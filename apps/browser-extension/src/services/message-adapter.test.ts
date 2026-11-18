@@ -287,3 +287,47 @@ describe("message-adapter – a failed turn", () => {
     expect(restored?.metadata).toBeUndefined();
   });
 });
+
+describe("message-adapter – the turn's decision record (KB-RAG K27)", () => {
+  const decision = {
+    route: "kb" as const,
+    version: "4.x" as const,
+    versionSource: "files" as const,
+    packs: [{ version: "4.x" as const, sha256: "0123456789ab" }],
+    kb: { kind: "answer" as const, status: "ok", pageIds: ["101"] },
+  };
+
+  it("keeps it through storage, so a reopened chat still shows Why this answer", () => {
+    const [stored] = toStorageFormat([
+      {
+        id: "a5",
+        role: "assistant",
+        parts: [{ type: "text", text: "FIXTURE answer" }],
+        metadata: { decision },
+      },
+    ]);
+    expect(stored?.decision).toEqual(decision);
+    const [restored] = fromStorageFormat([stored!]);
+    expect(restored?.metadata?.decision).toEqual(decision);
+    expect(restored?.metadata?.error).toBeUndefined();
+  });
+
+  it("keeps a failure and its decision together", () => {
+    const [stored] = toStorageFormat([
+      {
+        id: "a6",
+        role: "assistant",
+        parts: [],
+        metadata: {
+          decision,
+          error: { kind: "badKey", message: "401 Incorrect API key" },
+        },
+      },
+    ]);
+    const [restored] = fromStorageFormat([stored!]);
+    expect(restored?.metadata).toMatchObject({
+      decision,
+      error: { kind: "badKey" },
+    });
+  });
+});
