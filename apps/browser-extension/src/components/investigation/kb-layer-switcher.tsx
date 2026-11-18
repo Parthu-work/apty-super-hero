@@ -59,6 +59,10 @@ export function KbLayerSwitcher({
             size="sm"
             variant={n === shown ? "secondary" : "ghost"}
             aria-pressed={n === shown}
+            aria-label={t("kbMatches.layerButtonName", {
+              layer: n,
+              name: t(`kbMatches.layerName.${n}`),
+            })}
             className="h-6 px-2 text-xs"
             onClick={() => setShown(n)}
           >
@@ -71,19 +75,37 @@ export function KbLayerSwitcher({
           </StatusBadge>
         )}
       </div>
-      <p className="text-xs text-muted-foreground">
-        {t("kbMatches.layer", { layer: shown })}
+      <p className="text-xs text-muted-foreground" data-testid="kb-layer-name">
+        {t("kbMatches.layerTitled", {
+          layer: shown,
+          name: t(`kbMatches.layerName.${shown}`),
+        })}
       </p>
       <p
         className="whitespace-pre-line text-sm text-foreground"
         data-testid="kb-layer-text"
       >
         {current
-          ? render(current.text)
+          ? shown === layer
+            ? render(current.text)
+            : current.text
           : chunks
             ? t("kbMatches.layerMissing")
             : ""}
       </p>
+      {shown < 4 && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs"
+          onClick={() => setShown((shown + 1) as KbLayer)}
+        >
+          {t("kbMatches.nextLayer", {
+            name: t(`kbMatches.layerName.${(shown + 1) as KbLayer}`),
+          })}
+        </Button>
+      )}
     </div>
   );
 }

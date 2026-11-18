@@ -2629,6 +2629,15 @@
     "fromCheck": "Apty version: {{version}}, from the check's files."
   },
   "kbMatches": {
+    "layerName": {
+      "1": "Settings",
+      "2": "Console and Elements",
+      "3": "Network data",
+      "4": "Contact support"
+    },
+    "layerTitled": "Layer {{layer}}: {{name}}",
+    "layerButtonName": "Layer {{layer}}, {{name}}",
+    "nextLayer": "Next: {{name}}",
     "versionChip": {
       "client": "{{version}}, from the Client's files",
       "evidence": "{{version}}, from a check's files",

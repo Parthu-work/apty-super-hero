@@ -2629,6 +2629,15 @@
     "fromCheck": "Apty 版本：{{version}}，来自检查读取的文件。"
   },
   "kbMatches": {
+    "layerName": {
+      "1": "设置",
+      "2": "控制台和元素",
+      "3": "网络数据",
+      "4": "联系支持"
+    },
+    "layerTitled": "第 {{layer}} 层：{{name}}",
+    "layerButtonName": "第 {{layer}} 层，{{name}}",
+    "nextLayer": "下一步：{{name}}",
     "versionChip": {
       "client": "{{version}}，来自 Client 的文件",
       "evidence": "{{version}}，来自检查的文件",
