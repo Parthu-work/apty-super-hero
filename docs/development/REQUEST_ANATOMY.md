@@ -12,7 +12,7 @@ how its size is measured and gated. Sizes are estimated tokens: characters
 | Tool schemas | The tool groups the message selects, plus those of the chat's last 3 tool-using turns, in registry order | `createStickyToolSelector` in `packages/browser-runtime/src/tools/tool-relevance.ts` |
 | History | The session's earlier turns; a summary in their place when **Summarize earlier turns** is on | `ConversationManager`, `ConversationCompressor` in `packages/agent-core/src/conversation/` |
 | Tool results | Each cut to 2,000 tokens; results older than the newest 4 become stubs | `createRequestBudgetFilter` in `packages/browser-runtime/src/runtime/request-budget.ts` |
-| Request budget | When set in Settings: older results, messages and turns give way until the request fits, or it stops before it is sent | `createContextBudgetFilter` in `packages/browser-runtime/src/runtime/context-budget.ts` |
+| Request budget | The one set in Settings, else the chat provider's cap (`providerRequestCap`, K27 E6): older results, messages and turns give way until the request fits, or it stops before it is sent | `createContextBudgetFilter` in `packages/browser-runtime/src/runtime/context-budget.ts` |
 
 `search_kb` (KB-RAG K4, K16) and its prompt section ("APTY PRODUCT FACTS
 COME FROM THE KB CARDS") are offered with any Apty, network, DevTools,
@@ -84,7 +84,8 @@ npm run report:request-size
 
 It runs `apps/browser-extension/src/hooks/request-anatomy.scenarios.test.ts`,
 which builds named requests with the extension's own selection, prompt and
-filters, and prints each part, raw and as sent, under request budgets, and
+filters, and prints each part, raw and as sent, under request budgets, a
+300-turn chat under each provider's cap with no budget set (K27, E6), and
 for a chat after a summary. `--json` prints the numbers.
 
 ## The gate
