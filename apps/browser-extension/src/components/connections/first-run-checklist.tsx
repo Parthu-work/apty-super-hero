@@ -69,6 +69,13 @@ function useFacts(): Omit<
   return { packs, policy };
 }
 
+const TONE: Record<FirstRunRow["state"], string> = {
+  ok: "text-success",
+  todo: "text-muted-foreground",
+  problem: "text-destructive",
+  checking: "text-muted-foreground",
+};
+
 const ICON = {
   ok: CircleCheckIcon,
   todo: CircleDashedIcon,
@@ -88,14 +95,7 @@ function Row({ row, onNoKey }: { row: FirstRunRow; onNoKey: () => void }) {
     >
       <Icon
         aria-hidden="true"
-        className={cn(
-          "size-4 shrink-0",
-          row.state === "ok"
-            ? "text-success"
-            : row.state === "problem"
-              ? "text-destructive"
-              : "text-muted-foreground",
-        )}
+        className={cn("size-4 shrink-0", TONE[row.state])}
       />
       <span className="min-w-0 flex-1 text-sm text-foreground">
         <span className="font-medium">{label}</span>
