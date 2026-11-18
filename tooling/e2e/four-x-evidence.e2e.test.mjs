@@ -1,6 +1,6 @@
 /**
  * KB-RAG K15: a 4.x tenant's evidence with no Apty Client. In Injected
- * mode the verdict card's "Capture and reload" captures the page's own
+ * mode the verdict card's "Get the evidence" captures the page's own
  * calls and runs the 4.x check on them; in Extension mode the SE checks a
  * HAR saved from the 4.x Client's service worker, which has no page entry,
  * against the tab's page once confirmed. Neither cites a 5.x card, and the
@@ -75,7 +75,7 @@ async function linksOf(card) {
 }
 
 describe("4.x evidence (KB-RAG K15)", () => {
-  it("captures an Injected-mode page's calls on Capture and reload, and gives a 4.x verdict with no model request", async () => {
+  it("captures an Injected-mode page's calls on Get the evidence, and gives a 4.x verdict with no model request", async () => {
     const app = await browser.context.newPage();
     await app.goto(`${site.origin}/app.html`);
     const panel = await openSidePanel(browser, model, app);
@@ -86,7 +86,7 @@ describe("4.x evidence (KB-RAG K15)", () => {
       .getByRole("region", { name: "Why the widget may not be visible" })
       .first();
     await first.waitFor({ timeout: 30_000 });
-    await first.getByRole("button", { name: "Capture and reload" }).click();
+    await first.getByRole("button", { name: "Get the evidence" }).click();
     await panel
       .getByText(/^Captured \d+ Apty calls\. The check ran on them:$/)
       .waitFor({ timeout: 60_000 });

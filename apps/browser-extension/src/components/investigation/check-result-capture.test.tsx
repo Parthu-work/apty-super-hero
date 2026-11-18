@@ -10,10 +10,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const captureAndReload = vi.hoisted(() => vi.fn());
 const recheckFromCapture = vi.hoisted(() => vi.fn());
-vi.mock("@apty/browser-runtime/apty/diagnosis/capture-check", () => ({
-  captureAndReload,
-  recheckFromCapture,
-}));
+vi.mock(
+  "@apty/browser-runtime/apty/diagnosis/capture-check",
+  async (importOriginal) => ({
+    ...(await importOriginal<object>()),
+    captureAndReload,
+    recheckFromCapture,
+  }),
+);
 
 import { CheckResultCard } from "./check-result-card";
 
@@ -55,7 +59,7 @@ describe("getting a 4.x tenant's files from the verdict card (K15)", () => {
         tool={tool(diagnoseWidgetNotVisible(unreachable, PAGE))}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Capture and reload" }));
+    fireEvent.click(screen.getByRole("button", { name: "Get the evidence" }));
     expect(
       await screen.findByText("Captured 7 Apty calls. The check ran on them:"),
     ).toBeInTheDocument();
@@ -79,7 +83,7 @@ describe("getting a 4.x tenant's files from the verdict card (K15)", () => {
         tool={tool(diagnoseWidgetNotVisible(unreachable, PAGE))}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Capture and reload" }));
+    fireEvent.click(screen.getByRole("button", { name: "Get the evidence" }));
     expect(
       await screen.findByText(
         "The page made no Apty content call. In Extension mode the 4.x Client makes them: save a HAR from its service worker.",
@@ -111,6 +115,9 @@ describe("getting a 4.x tenant's files from the verdict card (K15)", () => {
     );
     expect(
       screen.queryByRole("button", { name: "Capture and reload" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Get the evidence" }),
     ).toBeNull();
   });
 });
