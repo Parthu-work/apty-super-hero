@@ -75,6 +75,9 @@ export interface CaseRecord {
   note?: string;
   /** K26 (C4): the last DOM Config run held while the case was open. */
   domConfig?: CaseDomConfig;
+  /** K27, R4: when the case got its first answer from a check or a KB card, and which. */
+  firstVerdictAt?: string;
+  firstVerdictRoute?: "check" | "kb";
 }
 
 /** A DOM Config run in a case: counts and the export's hash; the settings file only as the export holds it. */
@@ -150,6 +153,11 @@ export function withTurn(record: CaseRecord, turn: CaseTurn): CaseRecord {
   }
   if (turn.decision) {
     next.decisions = [...record.decisions, { ...turn.decision, at: turn.at }];
+    const route = turn.decision.route;
+    if (!next.firstVerdictAt && (route === "check" || route === "kb")) {
+      next.firstVerdictAt = turn.at;
+      next.firstVerdictRoute = route;
+    }
     if (turn.decision.version !== "unknown" || !next.aptyVersion) {
       next.aptyVersion = turn.decision.version;
       next.versionSource = turn.decision.versionSource;
@@ -291,4 +299,105 @@ export function hostAlias(
     if (n < 26) break;
   }
   return `customer-${name}`;
+}
+
+/** K27, R4: the pilot's measures for one Apty version, from the device's cases and feedback. */
+export interface PilotMeasures {
+  version: "4.x" | "5.x" | "unknown";
+  cases: number;
+  /** Cases a KB card answered first. */
+  kbAnswered: number;
+  /** Cases a check answered first. */
+  checkAnswered: number;
+  /** Cases with a turn the KB did not cover, or closed as not covered. */
+  notCovered: number;
+  /** Wrong card reports. */
+  wrongCard: number;
+  resolved: number;
+  escalated: number;
+  /** Median seconds from the case's first message to its first verdict; null with none. */
+  medianSecondsToVerdict: number | null;
+}
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const value =
+    sorted.length % 2 === 1
+      ? (sorted[mid] as number)
+      : ((sorted[mid - 1] as number) + (sorted[mid] as number)) / 2;
+  return Math.round(value);
+}
+
+/**
+ * Counts by version and outcome, and the median time to a first verdict
+ * (K27, R4). Ids and numbers only; nothing here is sent anywhere.
+ */
+export function pilotMeasures(
+  records: readonly CaseRecord[],
+  wrongCards: readonly { aptyVersion?: string }[],
+): PilotMeasures[] {
+  const versions = ["4.x", "5.x", "unknown"] as const;
+  const versionOf = (v: string | undefined) =>
+    v === "4.x" || v === "5.x" ? v : "unknown";
+  return versions
+    .map((version) => {
+      const cases = records.filter((r) => versionOf(r.aptyVersion) === version);
+      const seconds = cases.flatMap((r) =>
+        r.firstVerdictAt
+          ? [
+              (Date.parse(r.firstVerdictAt) - Date.parse(r.createdAt)) / 1000,
+            ].filter((n) => Number.isFinite(n) && n >= 0)
+          : [],
+      );
+      return {
+        version,
+        cases: cases.length,
+        kbAnswered: cases.filter((r) => r.firstVerdictRoute === "kb").length,
+        checkAnswered: cases.filter((r) => r.firstVerdictRoute === "check")
+          .length,
+        notCovered: cases.filter(
+          (r) =>
+            r.outcome === "not_covered" ||
+            r.decisions.some((d) => d.kb?.kind === "not_covered"),
+        ).length,
+        wrongCard: wrongCards.filter(
+          (w) => versionOf(w.aptyVersion) === version,
+        ).length,
+        resolved: cases.filter((r) => r.outcome === "resolved").length,
+        escalated: cases.filter((r) => r.outcome === "escalated").length,
+        medianSecondsToVerdict: median(seconds),
+      };
+    })
+    .filter((m) => m.cases > 0 || m.wrongCard > 0);
+}
+
+/** The measures as CSV: a header row and one row per version, numbers only. */
+export function pilotMeasuresCsv(measures: readonly PilotMeasures[]): string {
+  const header = [
+    "Apty version",
+    "cases",
+    "KB card answered",
+    "check answered",
+    "not covered",
+    "wrong card",
+    "resolved",
+    "escalated",
+    "median seconds to first verdict",
+  ];
+  const rows = measures.map((m) =>
+    [
+      m.version,
+      m.cases,
+      m.kbAnswered,
+      m.checkAnswered,
+      m.notCovered,
+      m.wrongCard,
+      m.resolved,
+      m.escalated,
+      m.medianSecondsToVerdict ?? "",
+    ].join(","),
+  );
+  return `${[header.join(","), ...rows].join("\n")}\n`;
 }

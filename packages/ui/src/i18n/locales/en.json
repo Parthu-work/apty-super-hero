@@ -2816,6 +2816,22 @@
     "includeDomSettings": "Include the exported DOM Config settings file (rules and settings only, as exported)"
   },
   "feedback": {
+    "measures": {
+      "title": "Pilot measures on this device",
+      "version": "Version",
+      "cases": "Cases",
+      "kbAnswered": "KB card answered",
+      "checkAnswered": "Check answered",
+      "notCovered": "Not covered",
+      "wrongCard": "Wrong card",
+      "resolved": "Resolved",
+      "escalated": "Escalated",
+      "median": "Median time to first verdict",
+      "seconds": "{{seconds}} s",
+      "export": "Export pilot measures (CSV)",
+      "csvLabel": "Pilot measures",
+      "csvDescription": "Counts by Apty version and outcome, and the median time from a case's first message to its first verdict. Ids and numbers only: no question, card text or site."
+    },
     "wrongCard": "Wrong card",
     "wrongCardFor": "Wrong card: {{pageId}}",
     "rightCard": "Which card was right? (page id, optional)",

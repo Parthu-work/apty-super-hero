@@ -2816,6 +2816,22 @@
     "includeDomSettings": "包含导出的 DOM Config 设置文件（仅规则和设置，与导出内容相同）"
   },
   "feedback": {
+    "measures": {
+      "title": "本设备上的试点指标",
+      "version": "版本",
+      "cases": "案例",
+      "kbAnswered": "KB 卡片回答",
+      "checkAnswered": "检查回答",
+      "notCovered": "未覆盖",
+      "wrongCard": "卡片错误",
+      "resolved": "已解决",
+      "escalated": "已升级",
+      "median": "首次结论的中位时间",
+      "seconds": "{{seconds}} 秒",
+      "export": "导出试点指标（CSV）",
+      "csvLabel": "试点指标",
+      "csvDescription": "按 Apty 版本和结果统计的数量，以及案例从第一条消息到首次结论的中位时间。仅包含 ID 和数字：不含问题、卡片文本或站点。"
+    },
     "wrongCard": "卡片有误",
     "wrongCardFor": "卡片有误：{{pageId}}",
     "rightCard": "哪张卡片是正确的？（页面编号，可选）",
