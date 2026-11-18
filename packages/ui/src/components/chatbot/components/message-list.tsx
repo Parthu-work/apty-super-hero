@@ -1,5 +1,6 @@
 import { BrainIcon, ChevronDownIcon, Loader2Icon } from "lucide-react";
-import { useMemo } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useStickToBottomContext } from "use-stick-to-bottom";
 import { useTranslation } from "../../../i18n/context";
 import { kbReturnedCards } from "../../../lib/kb-citations";
 import { cn } from "../../../lib/utils";
@@ -50,6 +51,54 @@ function groupIntoTurns(messages: UIMessage[]): ConversationTurn[] {
   return turns;
 }
 
+/** Above this many turns, only the newest `WINDOW_TURNS` are rendered at first (K27, U1). */
+const WINDOW_ABOVE = 100;
+/** How many turns are rendered at first, and how many Show earlier messages adds. */
+const WINDOW_TURNS = 60;
+// No content-visibility on turns: its size estimate settles after the
+// reader stops and moves the scroller (chat-scroll.e2e at 480 px); the
+// window above keeps the DOM small instead.
+
+/**
+ * Show earlier messages: adds older turns above the shown ones and keeps
+ * the reader where they were, by moving the scroller down by exactly the
+ * height the new turns added.
+ */
+function ShowEarlier({ onShow }: { onShow: () => void }) {
+  const { t } = useTranslation();
+  const { scrollRef } = useStickToBottomContext();
+  const before = useRef<{ height: number; top: number } | null>(null);
+  const [shown, setShown] = useState(0);
+  useLayoutEffect(() => {
+    const scroller = scrollRef.current;
+    const was = before.current;
+    if (!scroller || !was || shown === 0) return;
+    scroller.scrollTop = was.top + (scroller.scrollHeight - was.height);
+    before.current = null;
+  }, [shown, scrollRef]);
+  return (
+    <div className="flex justify-center">
+      <button
+        type="button"
+        className="rounded-md border border-border px-3 py-1.5 text-sm text-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        onClick={() => {
+          const scroller = scrollRef.current;
+          if (scroller) {
+            before.current = {
+              height: scroller.scrollHeight,
+              top: scroller.scrollTop,
+            };
+          }
+          onShow();
+          setShown((n) => n + 1);
+        }}
+      >
+        {t("chat.showEarlier")}
+      </button>
+    </div>
+  );
+}
+
 /**
  * Default MessageList component
  */
@@ -83,6 +132,20 @@ export function DefaultMessageList({
     [displayMessages],
   );
 
+  // K27, U1: a long chat renders its newest turns; earlier ones on request.
+  const firstMessageId = displayMessages[0]?.id;
+  const [windowStart, setWindowStart] = useState<{
+    chat: string | undefined;
+    from: number;
+  }>({ chat: undefined, from: 0 });
+  const start =
+    windowStart.chat === firstMessageId
+      ? windowStart.from
+      : turns.length > WINDOW_ABOVE
+        ? turns.length - WINDOW_TURNS
+        : 0;
+  const shownTurns = turns.slice(start);
+
   // Determine if a message is the very last display message
   const lastMessage = displayMessages[displayMessages.length - 1];
   const lastMessageId = lastMessage?.id ?? null;
@@ -100,101 +163,115 @@ export function DefaultMessageList({
               }}
             />
           ) : (
-            turns.map((turn) => {
-              // Generate stable key from message IDs
-              const turnKey = turn.userMessage
-                ? turn.userMessage.id
-                : (turn.assistantMessages[0]?.id ?? "");
-              return (
-                <div key={turnKey} className="space-y-2">
-                  {/* Render user message */}
-                  {turn.userMessage && (
-                    <MessageItem
-                      key={turn.userMessage.id}
-                      message={turn.userMessage}
-                      isLast={turn.userMessage.id === lastMessageId}
-                      isStreaming={running}
-                      onRegenerate={onRegenerate}
-                      onCopy={onCopy}
-                      formatExport={formatExport}
-                      onOpenProviderSettings={onOpenProviderSettings}
-                    />
-                  )}
+            <>
+              {start > 0 && (
+                <ShowEarlier
+                  onShow={() =>
+                    setWindowStart({
+                      chat: firstMessageId,
+                      from: Math.max(0, start - WINDOW_TURNS),
+                    })
+                  }
+                />
+              )}
+              {shownTurns.map((turn) => {
+                // Generate stable key from message IDs
+                const turnKey = turn.userMessage
+                  ? turn.userMessage.id
+                  : (turn.assistantMessages[0]?.id ?? "");
+                return (
+                  <div key={turnKey} className="space-y-2">
+                    {/* Render user message */}
+                    {turn.userMessage && (
+                      <MessageItem
+                        key={turn.userMessage.id}
+                        message={turn.userMessage}
+                        isLast={turn.userMessage.id === lastMessageId}
+                        isStreaming={running}
+                        onRegenerate={onRegenerate}
+                        onCopy={onCopy}
+                        formatExport={formatExport}
+                        onOpenProviderSettings={onOpenProviderSettings}
+                      />
+                    )}
 
-                  {/* Render assistant messages with folding */}
-                  {turn.assistantMessages.length > 1
-                    ? (() => {
-                        const finalMsg =
-                          turn.assistantMessages[
-                            turn.assistantMessages.length - 1
-                          ]!;
-                        return (
-                          <>
-                            {/* Intermediate messages – collapsed by default */}
-                            <Collapsible defaultOpen={false}>
-                              <CollapsibleTrigger className="group flex h-10 w-full items-center gap-2 rounded-md px-3 text-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-                                <BrainIcon
-                                  aria-hidden="true"
-                                  className="size-4"
-                                />
-                                <span className="flex-1 text-left">
-                                  {t("common.showThinkingDetails")}
-                                </span>
-                                <ChevronDownIcon
-                                  aria-hidden="true"
-                                  className="size-4 transition-transform duration-200 group-data-[state=open]:rotate-180 motion-reduce:transition-none"
-                                />
-                              </CollapsibleTrigger>
-                              <CollapsibleContent className="mt-2">
-                                <div className="space-y-2 rounded-md border border-border bg-card p-3">
-                                  {turn.assistantMessages
-                                    .slice(0, -1)
-                                    .map((msg) => (
-                                      <CollapsedMessageItem
-                                        key={msg.id}
-                                        message={msg}
-                                      />
-                                    ))}
-                                </div>
-                              </CollapsibleContent>
-                            </Collapsible>
+                    {/* Render assistant messages with folding */}
+                    {turn.assistantMessages.length > 1
+                      ? (() => {
+                          const finalMsg =
+                            turn.assistantMessages[
+                              turn.assistantMessages.length - 1
+                            ]!;
+                          return (
+                            <>
+                              {/* Intermediate messages – collapsed by default */}
+                              <Collapsible defaultOpen={false}>
+                                <CollapsibleTrigger className="group flex h-10 w-full items-center gap-2 rounded-md px-3 text-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                                  <BrainIcon
+                                    aria-hidden="true"
+                                    className="size-4"
+                                  />
+                                  <span className="flex-1 text-left">
+                                    {t("common.showThinkingDetails")}
+                                  </span>
+                                  <ChevronDownIcon
+                                    aria-hidden="true"
+                                    className="size-4 transition-transform duration-200 group-data-[state=open]:rotate-180 motion-reduce:transition-none"
+                                  />
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="mt-2">
+                                  <div className="space-y-2 rounded-md border border-border bg-card p-3">
+                                    {turn.assistantMessages
+                                      .slice(0, -1)
+                                      .map((msg) => (
+                                        <CollapsedMessageItem
+                                          key={msg.id}
+                                          message={msg}
+                                        />
+                                      ))}
+                                  </div>
+                                </CollapsibleContent>
+                              </Collapsible>
 
-                            {/* Final assistant message – always expanded */}
-                            <MessageItem
-                              key={finalMsg.id}
-                              message={finalMsg}
-                              kbCards={kbReturnedCards(
-                                turn.assistantMessages.flatMap((m) => m.parts),
-                              )}
-                              isLast={finalMsg.id === lastMessageId}
-                              isStreaming={running}
-                              onRegenerate={onRegenerate}
-                              onCopy={onCopy}
-                              formatExport={formatExport}
-                              onOpenProviderSettings={onOpenProviderSettings}
-                            />
-                          </>
-                        );
-                      })()
-                    : // Single assistant message – render normally
-                      turn.assistantMessages.map((msg) => (
-                        <MessageItem
-                          key={msg.id}
-                          message={msg}
-                          kbCards={kbReturnedCards(
-                            turn.assistantMessages.flatMap((m) => m.parts),
-                          )}
-                          isLast={msg.id === lastMessageId}
-                          isStreaming={running}
-                          onRegenerate={onRegenerate}
-                          onCopy={onCopy}
-                          formatExport={formatExport}
-                          onOpenProviderSettings={onOpenProviderSettings}
-                        />
-                      ))}
-                </div>
-              );
-            })
+                              {/* Final assistant message – always expanded */}
+                              <MessageItem
+                                key={finalMsg.id}
+                                message={finalMsg}
+                                kbCards={kbReturnedCards(
+                                  turn.assistantMessages.flatMap(
+                                    (m) => m.parts,
+                                  ),
+                                )}
+                                isLast={finalMsg.id === lastMessageId}
+                                isStreaming={running}
+                                onRegenerate={onRegenerate}
+                                onCopy={onCopy}
+                                formatExport={formatExport}
+                                onOpenProviderSettings={onOpenProviderSettings}
+                              />
+                            </>
+                          );
+                        })()
+                      : // Single assistant message – render normally
+                        turn.assistantMessages.map((msg) => (
+                          <MessageItem
+                            key={msg.id}
+                            message={msg}
+                            kbCards={kbReturnedCards(
+                              turn.assistantMessages.flatMap((m) => m.parts),
+                            )}
+                            isLast={msg.id === lastMessageId}
+                            isStreaming={running}
+                            onRegenerate={onRegenerate}
+                            onCopy={onCopy}
+                            formatExport={formatExport}
+                            onOpenProviderSettings={onOpenProviderSettings}
+                          />
+                        ))}
+                  </div>
+                );
+              })}
+            </>
           )}
           {/* Running: after the last message until the turn ends */}
           {running &&

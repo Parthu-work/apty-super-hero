@@ -1,3 +1,5 @@
+import type { TurnDecision } from "@apty/agent-core";
+
 /**
  * Message part types
  */
@@ -27,6 +29,8 @@ export interface UIMessage {
   timestamp?: number;
   /** A failed turn: what kind of failure, and the provider's message. */
   error?: { kind: string; message: string; retryAfterMs?: number };
+  /** K27: the turn's decision record (ids, numbers and codes only), so a reopened chat keeps "Why this answer". */
+  decision?: TurnDecision;
 }
 
 /**

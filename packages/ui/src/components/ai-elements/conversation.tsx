@@ -10,11 +10,17 @@ import { Button } from "../ui/button";
 
 type ConversationProps = ComponentProps<typeof StickToBottom>;
 
+/**
+ * The chat's scroller (KB-RAG K27, U1). Content that grows (a card or a
+ * tree rendering, a disclosure opening, a font loading) keeps the bottom
+ * without an animation that restarts on every resize; once the reader has
+ * scrolled up, nothing scrolls for them and Scroll to bottom is offered.
+ */
 export const Conversation = ({ className, ...props }: ConversationProps) => (
   <StickToBottom
     className={cn("relative flex-1 overflow-y-auto", className)}
-    initial="smooth"
-    resize="smooth"
+    initial="instant"
+    resize="instant"
     role="log"
     {...props}
   />
@@ -24,9 +30,14 @@ type ConversationContentProps = ComponentProps<typeof StickToBottom.Content>;
 
 export const ConversationContent = ({
   className,
+  scrollClassName,
   ...props
 }: ConversationContentProps) => (
-  <StickToBottom.Content className={cn("p-4", className)} {...props} />
+  <StickToBottom.Content
+    className={cn("p-4", className)}
+    scrollClassName={cn("[overflow-anchor:auto]", scrollClassName)}
+    {...props}
+  />
 );
 
 type ConversationEmptyStateProps = ComponentProps<"div"> & {

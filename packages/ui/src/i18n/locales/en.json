@@ -1353,6 +1353,7 @@
     "deny": "Deny"
   },
   "chat": {
+    "showEarlier": "Show earlier messages",
     "notFromKb": "Not from the KB or a check",
     "kbNotFoundTitle": "Not found in the KB",
     "kbNotFound": "Not found in the KB: {{phrases}}",
