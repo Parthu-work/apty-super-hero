@@ -2726,6 +2726,43 @@
     },
     "deliveryFailed": "你的组织下发的 {{version}} 知识包上次更新失败（{{reason}}）。"
   },
+  "firstRun": {
+    "title": "开始之前",
+    "description": "智能助手需要以下各项。每个按钮会打开对应的选项页面进行设置；全部就绪后此卡片会消失。",
+    "fix": "修复",
+    "setKey": "设置 AI 密钥",
+    "noKey": "不使用 AI 密钥",
+    "fixLabel": "修复：{{item}}",
+    "label": {
+      "kb-4.x": "Apty 4.x 的 KB 包",
+      "kb-5.x": "Apty 5.x 的 KB 包",
+      "ai": "AI 模型",
+      "client": "Apty Client",
+      "policy": "组织策略"
+    },
+    "state": {
+      "ok": "就绪",
+      "todo": "未设置",
+      "problem": "需要处理",
+      "checking": "检查中"
+    },
+    "rows": {
+      "checking": "检查中…",
+      "packMissing": "尚未导入 {{version}} 包。",
+      "packUnusable": "{{version}} 包未被使用（{{reason}}）。",
+      "packReady": "已签名且受信任；{{expires}} 到期。",
+      "packReadyNoExpiry": "已加载且受信任。",
+      "aiKey": "已设置 AI 密钥。",
+      "aiNoKey": "无密钥模式：由 KB 和检查回答；不会发送任何内容给 AI 模型。",
+      "aiMissing": "尚未设置 AI 密钥。请设置，或仅使用 KB 和检查。",
+      "clientConnected": "已连接并有响应。",
+      "clientNotAnswering": "已设置，但没有响应。",
+      "clientNotSet": "尚未连接。",
+      "policyActive": "由你的组织设置。",
+      "policyNone": "没有组织策略：使用默认设置。",
+      "policyInvalid": "无法使用你的组织策略；请联系 IT。"
+    }
+  },
   "cases": {
     "site": "站点：{{site}}",
     "newCase": "新建案例",

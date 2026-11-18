@@ -2726,6 +2726,43 @@
     },
     "deliveryFailed": "The last update of the {{version}} pack from your organization failed ({{reason}})."
   },
+  "firstRun": {
+    "title": "Before you start",
+    "description": "The Agent needs these. Each button opens the Options page that sets it up; this card goes once everything is ready.",
+    "fix": "Fix",
+    "setKey": "Set an AI key",
+    "noKey": "Use without an AI key",
+    "fixLabel": "Fix: {{item}}",
+    "label": {
+      "kb-4.x": "KB pack for Apty 4.x",
+      "kb-5.x": "KB pack for Apty 5.x",
+      "ai": "AI model",
+      "client": "Apty Client",
+      "policy": "Organization policy"
+    },
+    "state": {
+      "ok": "ready",
+      "todo": "not set up",
+      "problem": "needs attention",
+      "checking": "checking"
+    },
+    "rows": {
+      "checking": "Checking…",
+      "packMissing": "No {{version}} pack is imported.",
+      "packUnusable": "The {{version}} pack is not used ({{reason}}).",
+      "packReady": "Signed and trusted; expires {{expires}}.",
+      "packReadyNoExpiry": "Loaded and trusted.",
+      "aiKey": "An AI key is set.",
+      "aiNoKey": "No-key mode: the KB and the checks answer; nothing goes to an AI model.",
+      "aiMissing": "No AI key yet. Set one, or work with the KB and checks only.",
+      "clientConnected": "Connected and answering.",
+      "clientNotAnswering": "Set up, but not answering.",
+      "clientNotSet": "Not connected yet.",
+      "policyActive": "Set by your organization.",
+      "policyNone": "No organization policy: the defaults apply.",
+      "policyInvalid": "Your organization's policy cannot be used; ask IT."
+    }
+  },
   "cases": {
     "site": "Site: {{site}}",
     "newCase": "New case",
