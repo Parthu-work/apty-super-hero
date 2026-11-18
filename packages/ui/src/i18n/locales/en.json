@@ -2575,8 +2575,31 @@
       "network": "In that DevTools window, open Network and tick Preserve log.",
       "reproduce": "Reload the application tab and reproduce the problem.",
       "save": "In the service worker's Network panel, right-click and choose “Save all as HAR with content”.",
-      "drop": "Open the HAR check in the side panel and choose the HAR; confirm the page it should be checked against.",
+      "drop": "Drop the HAR below, or open the HAR check in the side panel; confirm the page it should be checked against.",
       "copyExtensions": "Copy chrome://extensions"
+    },
+    "getEvidence": {
+      "get": "Get the evidence",
+      "modeExtension": "Extension mode: the Apty Client's service worker reads Apty's files, so a HAR saved there holds them.",
+      "modeInjected": "Injected mode: the page reads Apty's files, so a capture of this tab while it reloads holds them.",
+      "modeUnknown": "This page does not show the Client's mode; Get the evidence tries a capture first.",
+      "from": {
+        "player-config": "Shown by the page's player config.",
+        "client-script": "Shown by the script the Apty Client injects into the page.",
+        "page-calls": "Shown by the page's own Apty calls.",
+        "client-calls": "Shown by the Apty Client answering for its calls."
+      },
+      "remembered": "Last used on this site.",
+      "routeCapture": "Route: Capture and reload this tab.",
+      "routeHar": "Route: a HAR from the Client's service worker.",
+      "useHar": "Use a HAR instead",
+      "useCapture": "Use Capture and reload instead",
+      "progress": "Getting the evidence",
+      "drop": "Drop the HAR file here, or choose it",
+      "reading": "Reading the HAR…",
+      "check": "Check the HAR",
+      "checking": "Checking the HAR…",
+      "noFiles": "This HAR holds no Apty content file. Save it again from the Client's service worker with Preserve log on, after reloading the page."
     }
   },
   "harCheck": {
