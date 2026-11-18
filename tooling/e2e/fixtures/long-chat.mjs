@@ -94,10 +94,30 @@ function turn(n) {
   return messages;
 }
 
+/** A tool call as a saved chat keeps it: a tool_use part and its tool_result. */
+function stored(part) {
+  if (part.type !== "tool") return [part];
+  return [
+    {
+      type: "tool_use",
+      id: part.toolCallId,
+      name: part.toolName,
+      input: part.input,
+    },
+    {
+      type: "tool_result",
+      tool_use_id: part.toolCallId,
+      content: JSON.stringify(part.output),
+    },
+  ];
+}
+
 export function longChat(turns = 300) {
   return {
     id: `conv_e2e_long_${turns}`,
     title: `FIXTURE long chat of ${turns} turns`,
-    messages: Array.from({ length: turns }, (_, n) => turn(n)).flat(),
+    messages: Array.from({ length: turns }, (_, n) => turn(n))
+      .flat()
+      .map((message) => ({ ...message, parts: message.parts.flatMap(stored) })),
   };
 }
