@@ -9,9 +9,9 @@ import type { RuleId } from "./types.js";
 type Rule4x = Extract<RuleId, `W4X-${string}` | `C4X-${string}`>;
 
 const APP_URLS_MIRROR = "1509786000";
-const WIDGET_MISSING_EVERYWHERE = "1509785878";
+export const WIDGET_MISSING_EVERYWHERE = "1509785878";
 const FLOW_JSON_MIRROR = "1509786022";
-const WORKFLOW_NOT_IN_WIDGET = "1509720308";
+export const WORKFLOW_NOT_IN_WIDGET = "1509720308";
 const CONTENT_WRONG_USERS = "1509753345";
 const RULES_JSON_MIRROR = "1509753805";
 const FLOW_STEPS_MIRROR = "1509622325";
