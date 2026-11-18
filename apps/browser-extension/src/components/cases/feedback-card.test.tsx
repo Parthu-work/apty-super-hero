@@ -17,6 +17,13 @@ vi.mock("../../services/cases", () => ({
     clearFeedback: async () => undefined,
   }),
 }));
+vi.mock("../../services/kb-cards", () => ({
+  loadKbCatalog: async () => ({
+    cards: [],
+    text: (pageId: string) =>
+      pageId === "4002" ? "FIXTURE tooltip opens twice" : undefined,
+  }),
+}));
 vi.mock("@apty/browser-runtime/runtime/org-policy", () => ({
   loadOrgPolicy: async () => ({ kind: policy.kind }),
 }));
@@ -82,5 +89,52 @@ describe("the pilot measures (KB-RAG K27, R4)", () => {
     const dialog = await screen.findByRole("dialog");
     expect(dialog).toHaveTextContent("4.x,1,1,0,0,1,1,0,90");
     expect(dialog).not.toHaveTextContent("FIXTURE secret question");
+  });
+});
+
+describe("proposed synonyms (KB-RAG K27, E7)", () => {
+  const wrong = {
+    at: "2026-11-12T10:02:00.000Z",
+    mark: "wrong_card",
+    aptyVersion: "4.x",
+    shownCardId: "4001",
+    rightCardId: "4002",
+    question: "the FIXTURE hint bubble opens twice",
+  };
+
+  it("needs the questions included, and then lists the words the right card lacks as proposals only", async () => {
+    data.feedback = [wrong];
+    render(<FeedbackCard />);
+    await screen.findByText(/1/, { selector: "[data-testid=feedback-count]" });
+    const exportButton = screen.getByRole("button", {
+      name: "Export proposed synonyms",
+    });
+    expect(exportButton).toBeDisabled();
+    expect(
+      screen.getByText(/tick Include my question to export them/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Include my question"));
+    expect(exportButton).toBeEnabled();
+    fireEvent.click(exportButton);
+    const dialog = await screen.findByRole("dialog");
+    const proposals = JSON.parse(
+      within(dialog).getByRole("region", { name: "Proposed synonyms" })
+        .textContent ?? "",
+    );
+    expect(proposals).toEqual({
+      kind: "apty-kb-synonym-proposals",
+      note: "Proposals only. The KB owner decides; nothing here is applied to a pack.",
+      proposals: [
+        {
+          cardId: "4002",
+          aptyVersion: "4.x",
+          words: [
+            { word: "bubble", count: 1 },
+            { word: "hint", count: 1 },
+          ],
+        },
+      ],
+    });
+    expect(dialog).not.toHaveTextContent("opens twice");
   });
 });

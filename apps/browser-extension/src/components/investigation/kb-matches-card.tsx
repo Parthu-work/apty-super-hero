@@ -19,6 +19,7 @@ import { useTranslation } from "@apty/ui/i18n/context";
 import type { ToolDisplaySlotProps } from "@apty/ui/types";
 import { ExternalLinkIcon } from "lucide-react";
 import { useState } from "react";
+import { HelpedButton } from "../cases/helped-button";
 import { WrongCardButton } from "../cases/wrong-card-button";
 import { KbChoices } from "./kb-choices";
 import { KbEgressNote } from "./kb-egress-note";
@@ -266,16 +267,23 @@ export function KbMatchesCard({ tool }: ToolDisplaySlotProps) {
                   {hit.verifiedOn}
                 </p>
               )}
-              <WrongCardButton
-                pageId={pageId}
-                layer={Number(layer)}
-                aptyVersion={hit.aptyVersion}
-                question={query}
-                otherCards={output.results.map((other) => ({
-                  pageId: CITE.exec(other.cite)?.[1] ?? "",
-                  title: other.title,
-                }))}
-              />
+              <div className="flex flex-wrap items-center gap-1">
+                <HelpedButton
+                  pageId={pageId}
+                  layer={Number(layer)}
+                  aptyVersion={hit.aptyVersion}
+                />
+                <WrongCardButton
+                  pageId={pageId}
+                  layer={Number(layer)}
+                  aptyVersion={hit.aptyVersion}
+                  question={query}
+                  otherCards={output.results.map((other) => ({
+                    pageId: CITE.exec(other.cite)?.[1] ?? "",
+                    title: other.title,
+                  }))}
+                />
+              </div>
             </li>
           );
         })}

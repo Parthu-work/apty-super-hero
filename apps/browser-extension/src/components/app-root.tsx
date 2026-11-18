@@ -66,6 +66,7 @@ import { DomConfigPage } from "./investigation/dom-config/dom-config-page";
 import { DomHealthPage } from "./investigation/dom-health/dom-health-page";
 import { HarCheckPage } from "./investigation/har-check/har-check-page";
 import { InvestigationSummaryBar } from "./investigation/investigation-summary-bar";
+import { KbClosestSuggestions } from "./investigation/kb-closest-suggestions";
 import { RedactionOffBanner } from "./redaction-off-banner";
 import { SetupNeededCard } from "./setup-needed-card";
 import { PageLayer } from "./shell/page-layer";
@@ -306,6 +307,9 @@ function ChatApp() {
             ),
             messageActions: (props) => <BrowserMessageActions {...props} />,
             turnActions: ({ parts }) => <TurnActionRow parts={parts} />,
+            kbClosest: ({ pageIds }) => (
+              <KbClosestSuggestions pageIds={pageIds} />
+            ),
             inputToolbar: (props) => <AutomationModeInputToolbar {...props} />,
             promptExtras: () => (
               <>
