@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Apty Agent",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Debugs web applications and Apty's products in the browser: reads the page, console and network, and answers with your AI provider.",
   "minimum_chrome_version": "116",
   "icons": {

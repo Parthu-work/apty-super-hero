@@ -1,7 +1,7 @@
 {
   "name": "@apty/browser-extension",
   "displayName": "Apty Agent",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "description": "Automate your browser with natural language commands - Apty's AI browser agent",
   "author": "Apty",

@@ -1,7 +1,7 @@
 {
   "name": "@apty/browser-agent",
   "displayName": "Apty Agent",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "private": true,
   "description": "Apty Agent: an AI browser debugging agent, packaged as a Chrome extension, that diagnoses Apty Widget and Studio issues on a live page",

@@ -42,6 +42,12 @@ Use a fresh browser profile. About 25 minutes per browser.
 | 27 | Rebuild the 5.x demo pack, press **Check now** again; then stop the server and press **Check now** | The build date changes; with the server stopped the row keeps the pack and says "The pack host could not be reached." |
 | 28 | On a fork with the repository variable `KB_PUBLISH_DRY_RUN=1`, run Actions → KB packs by hand | Both versions pass; the job summary shows counts, page ids and hashes only, no card title |
 | 29 | For real (IT and the KB owner): follow [KB_PACK_DELIVERY.md](KB_PACK_DELIVERY.md) end to end | One SE's Preflight shows "KB packs up to date" green |
+| 30 | K27: fresh profile, open the side panel | "Before you start" lists the 4.x and 5.x packs, the AI model, the Apty Client and the policy; **Use without an AI key** turns the AI row ready; importing both demo packs turns their rows ready |
+| 31 | K27: with an Anthropic key and both demo packs, ask "what does flow.json mean", then "where is the Gadget Activation toggle" | The first gets an answer, not "Too many strict tools"; the second shows "The KB has no setting called …" with the closest cards and no model request until **Ask the AI anyway** |
+| 32 | K27: ask a symptom on one site, switch the tab to another site, ask again | Two case ids; Options → Cases shows both with a Site column; **Show sites as customer-a, customer-b** hides the hosts |
+| 33 | K27: open a chat of 300 or more turns (`tooling/e2e/fixtures/long-chat.mjs`), scroll up for a minute and stop | The chat stays still when you stop; **Show earlier messages** keeps your place; **Scroll to the latest message** goes to the bottom |
+| 34 | K27: on a KB card, press L1 to L4; under a reply, press Copy beside "Why this answer" with it closed | Each layer's text shows; the clipboard holds "Why this answer" and four lines, no question or card text |
+| 35 | K27: Options → General → Feedback after a few cases | "Pilot measures on this device" shows counts by version and the median time; **Export pilot measures (CSV)** holds numbers only |
 
 ## Results
 
@@ -53,7 +59,7 @@ with the ID from step 2. Mark a step ✗ with a note on what happened; any ✗
 blocks the release until understood. Screenshots of a ✗ go in the pull
 request, never with customer data in them.
 
-| Release | Browser and version | OS | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | Tester | Date | Notes |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| | Chrome stable | | | | | | | | | | | | | | | | | | | | | | | | | | | | | |
-| | Edge stable | | | | | | | | | | | | | | | | | | | | | | | | | | | | | |
+| Release | Browser and version | OS | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 30 | 31 | 32 | 33 | 34 | 35 | Tester | Date | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| | Chrome stable | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | |
+| | Edge stable | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | |

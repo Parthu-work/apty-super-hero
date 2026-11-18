@@ -367,13 +367,13 @@ export class AptyAgent {
                 )?.response;
                 const outputItems = response?.output;
                 if (Array.isArray(outputItems)) {
-                  const functionCalls = outputItems.filter(
-                    (item: any) => item?.type === "function_call",
-                  );
+                  const functionCalls = (
+                    outputItems as Array<{ type?: string; name?: string }>
+                  ).filter((item) => item?.type === "function_call");
                   if (functionCalls.length > 0) {
                     log.debug(
                       `response_done contains ${functionCalls.length} function_call(s):`,
-                      functionCalls.map((fc: any) => fc.name),
+                      functionCalls.map((fc) => fc.name),
                     );
                   }
                 }

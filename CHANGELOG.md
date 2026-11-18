@@ -6,6 +6,22 @@ full commit-level history.
 
 ## Unreleased
 
+- **Version 0.2.0** (manifest, extension and root `package.json`): KB-RAG K25 to K27.
+
+- **KB-RAG K27: fixes from the first real-pack test, stable scrolling, pilot readiness** ([`FIXES-K27.md`](docs/tasks/kb-rag/FIXES-K27.md)):
+  - **F1**: a tool budget every provider accepts. Route-based tool sets (a file question at most 8 tools, a symptom at most 12, the whole investigation set once one is asked for or started) and a 20-strict-tool cap for Anthropic; the Apty question's tool schemas went from 4,464 to 1,913 tokens.
+  - **F2**: the model never invents Apty settings. A setting no card has is answered by the KB with the closest cards and no model call (Ask the AI anyway sends it with a fixed instruction); a model turn with no card is told not to describe settings, menus, prices or features, is labelled "Not from the KB or a check", and its menu paths are flagged.
+  - **F3**: "Start here" pages are routing cards whatever their layers.
+  - **F4**: a case belongs to one site: turns on another host open their own case; Site column, New case, customer-a/customer-b aliases; bundles never mix sites.
+  - **F5**: lookup questions ("is workflow X in segment Y") get the Client file tools.
+  - **F6**: each card shows its best of layers 1 to 3 unless the question asks about support; a layer switcher reaches every layer.
+  - **F7**: the decision record holds exactly the cards shown; each site's Apty version is resolved from the Client's file names and shown as a chip.
+  - **F8** to **F11**: a no-cause verdict shows its card's layers 1 and 2; a flicker or jump plan and one question per turn; "Why this answer" can be copied collapsed and is in copied and downloaded replies; dates on the timeline, routing and skipped counts on pack rows, no support bundle for an empty case.
+  - **U1, U2**: long chats no longer scroll by themselves: Streamdown's 200 px guess for off-screen code blocks is overridden, resizes are instant, and a chat over 100 turns renders its newest 60 with Show earlier messages. Tested at 320, 400 and 480 px in both themes with a 300-turn chat.
+  - **R1**: a captured body preview is redacted in the mode it is read in (Strict keeps a JSON body's shape only); relative and non-http URLs in free text are masked like absolute ones. The K25 audit was redone ([`K25-AUDIT.md`](docs/tasks/kb-rag/K25-AUDIT.md)); `trustedPackKeys` is the pilot route for the KB owner's key.
+  - **R2** to **R6**: documented commands without `pnpm -s` and with zsh forms; a first-run checklist in the side panel; pilot measures (first verdict time, counts by version and outcome, CSV) kept on the device; performance budgets in E2E; an Edge run script and axe in both themes on the new surfaces.
+  - **R8**, **R9**: [`docs/se-guide.md`](docs/se-guide.md), [`docs/support-runbook.md`](docs/support-runbook.md), and the 4.x Client bridge's hand-patch review in [`4X-BRIDGE.md`](docs/integrations/apty/4X-BRIDGE.md).
+
 - **KB-RAG K26 D5 follow-up**: `kb-packs.yml` set `KB_WORK` from the `runner` context in the job's `env`, where GitHub does not allow it, so the workflow could not start; a first step now sets it. actionlint (with shellcheck) passes on every workflow.
 
 - **KB-RAG K26: automatic pack delivery** ([`FIXES-K26.md`](docs/tasks/kb-rag/FIXES-K26.md); owner decisions D-DEL1 to D-DEL8, D-CHK1 to D-CHK3 and D-DOM1, all Proposed):
