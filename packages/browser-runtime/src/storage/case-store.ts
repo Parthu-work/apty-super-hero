@@ -29,6 +29,8 @@ export interface FeedbackRow {
   note?: string;
   /** The SE's question, Strict-redacted; exported only when the SE ticks "Include my question". */
   question?: string;
+  /** K27, E7: which mark the SE gave the card shown; an outcome row has none. */
+  mark?: "wrong_card" | "helped";
 }
 
 type StoreName = "cases" | "feedback";

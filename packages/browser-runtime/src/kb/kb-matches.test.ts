@@ -202,6 +202,31 @@ describe("every KB outcome is typed (KB-RAG K25, A2)", () => {
   });
 });
 
+describe("a question the KB does not cover (KB-RAG K27, E7)", () => {
+  it("names the closest cards by id, for the SE's suggestions, in the outcome and the decision", async () => {
+    const store = createKbPackStore({
+      assess: unsignedAllowed,
+      records: memoryRecords(),
+    });
+    await store.replace(fixtureV2PackText());
+    const outcome = await outcomeOf(
+      "tooltip kubernetes helm rollout canary upgrade cluster",
+      createKbIndexSource(store),
+      { version: "5.x" },
+    );
+    expect(outcome).toMatchObject({
+      kind: "not_covered",
+      reason: "low_coverage",
+      closestPageIds: ["202"],
+    });
+    expect(kbDecisionOf(outcome)).toMatchObject({
+      kind: "not_covered",
+      closestPageIds: ["202"],
+    });
+    expect(JSON.stringify(kbDecisionOf(outcome))).not.toContain("tooltip");
+  });
+});
+
 describe("a setting no card has (KB-RAG K27, F2)", () => {
   it("is answered by the KB with the closest cards, by title and link only", async () => {
     const store = createKbPackStore({

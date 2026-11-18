@@ -1,11 +1,16 @@
 /**
- * Wrong-card feedback and case outcomes for the KB owner (KB-RAG K25, L3):
+ * Wrong-card and "This helped" marks (K25, L3; K27, E7) and case outcomes
+ * for the KB owner:
  * each row holds ids, numbers and codes; the SE's question only Strict-
  * redacted, and exported only when they tick "Include my question". Kept
  * in apty-cases-db on this device; the exports are files the SE reviews,
  * then copies or downloads. Nothing is sent.
  */
-import type { CaseRecord } from "@apty/agent-core";
+import {
+  type CaseRecord,
+  proposeSynonyms,
+  type SynonymProposal,
+} from "@apty/agent-core";
 import { redactTextStrict } from "../runtime/redaction-mode.js";
 import type { CaseStore, FeedbackRow } from "../storage/case-store.js";
 
@@ -13,6 +18,15 @@ import type { CaseStore, FeedbackRow } from "../storage/case-store.js";
 export interface FeedbackPack {
   builtAt: string;
   sha256: string;
+}
+
+function packColumns(pack: FeedbackPack | undefined) {
+  return pack
+    ? {
+        packBuilt: pack.builtAt.slice(0, 10),
+        packSha256: pack.sha256.slice(0, 12),
+      }
+    : {};
 }
 
 /** A Wrong card mark on a KB matches hit or a verdict excerpt. */
@@ -45,12 +59,7 @@ export async function recordWrongCard(
     ...(aptyVersion || record?.aptyVersion
       ? { aptyVersion: aptyVersion ?? record?.aptyVersion }
       : {}),
-    ...(pack
-      ? {
-          packBuilt: pack.builtAt.slice(0, 10),
-          packSha256: pack.sha256.slice(0, 12),
-        }
-      : {}),
+    ...packColumns(pack),
     shownCardId,
     ...(shownLayer ? { shownLayer } : {}),
     ...(rightCardId && /^\d+$/.test(rightCardId) ? { rightCardId } : {}),
@@ -58,7 +67,42 @@ export async function recordWrongCard(
     ...(kb?.kind === "not_covered"
       ? { coverage: kb.coverage, reason: kb.reason }
       : {}),
+    mark: "wrong_card",
     ...(question ? { question: redactTextStrict(question).slice(0, 300) } : {}),
+  };
+  await store.addFeedback(row);
+  return row;
+}
+
+/** K27, E7: a This helped mark on a card shown; the question is not kept. */
+export async function recordHelped(
+  store: CaseStore,
+  {
+    record,
+    shownCardId,
+    shownLayer,
+    aptyVersion,
+    pack,
+    now = new Date(),
+  }: {
+    record?: CaseRecord;
+    shownCardId: string;
+    shownLayer?: number;
+    aptyVersion?: string;
+    pack?: FeedbackPack;
+    now?: Date;
+  },
+): Promise<FeedbackRow> {
+  const version = aptyVersion ?? record?.aptyVersion;
+  const row: FeedbackRow = {
+    at: now.toISOString(),
+    ...(record ? { caseId: record.id } : {}),
+    ...(version ? { aptyVersion: version } : {}),
+    ...packColumns(pack),
+    shownCardId,
+    ...(shownLayer ? { shownLayer } : {}),
+    ...(record ? { outcome: record.outcome } : {}),
+    mark: "helped",
   };
   await store.addFeedback(row);
   return row;
@@ -98,7 +142,10 @@ const CSV_COLUMNS = [
   "coverage",
   "reason",
   "note",
+  "mark",
 ] as const;
+
+const MARK_LABEL = { wrong_card: "wrong card", helped: "helped" } as const;
 
 function csvCell(value: string | number | undefined): string {
   const text = value === undefined ? "" : String(value);
@@ -125,6 +172,7 @@ export function feedbackCsv(rows: readonly FeedbackRow[]): string {
         row.coverage,
         row.reason,
         row.note,
+        row.mark ? MARK_LABEL[row.mark] : undefined,
       ]
         .map(csvCell)
         .join(","),
@@ -152,4 +200,32 @@ export function feedbackQuestions(
       q: row.question as string,
       expectedPageIds: [row.rightCardId as string],
     }));
+}
+
+/**
+ * K27, E7: for the KB owner, the words of wrong-card questions that the
+ * right card does not hold, as proposed synonyms. The words come from the
+ * SE's questions, so there are none unless they tick "Include my question".
+ * Proposals only: nothing changes a pack.
+ */
+export function feedbackSynonymProposals(
+  rows: readonly FeedbackRow[],
+  cardText: (pageId: string, aptyVersion?: string) => string | undefined,
+  { includeQuestions }: { includeQuestions: boolean },
+): SynonymProposal[] {
+  if (!includeQuestions) return [];
+  return proposeSynonyms(
+    rows.flatMap((row) =>
+      row.mark !== "helped" && row.rightCardId && row.question
+        ? [
+            {
+              question: row.question,
+              rightCardId: row.rightCardId,
+              ...(row.aptyVersion ? { aptyVersion: row.aptyVersion } : {}),
+            },
+          ]
+        : [],
+    ),
+    cardText,
+  );
 }
