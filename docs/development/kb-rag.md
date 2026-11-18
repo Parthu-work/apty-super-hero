@@ -347,7 +347,20 @@ mkdir -p ~/apty-kb
 ```
 
 ```bash
-export CONFLUENCE_EMAIL=<service-account-email> CONFLUENCE_TOKEN=<classic-read-only-token>
+export CONFLUENCE_EMAIL=<service-account-email>
+```
+
+Then type the token at a prompt, so it is neither shown nor kept in the
+shell history. In bash (Linux, Git Bash):
+
+```bash
+read -rsp "Confluence token: " CONFLUENCE_TOKEN && export CONFLUENCE_TOKEN && echo
+```
+
+In zsh (the macOS default), whose `read -p` means something else:
+
+```bash
+read -rs "CONFLUENCE_TOKEN?Confluence token: " && export CONFLUENCE_TOKEN && echo
 ```
 
 The space and root of each version are kept in one place,
@@ -459,7 +472,7 @@ expected card (K25, A4).
 ### Self-check (K25, A3)
 
 ```bash
-pnpm -s kb:eval --self-check --pack <file> [--json]
+pnpm kb:eval --self-check --pack <file> [--json]
 ```
 
 Needs no questions file. For every card but routing pages it searches the
@@ -568,7 +581,7 @@ pages", the time taken) goes to stderr; stdout keeps the summary.
   while a policy is set. The KB owner runs:
 
 ```bash
-pnpm -s kb:eval --pack <pack> --questions <exported questions file>
+pnpm kb:eval --pack <pack> --questions <exported questions file>
 ```
 
 Nothing in this section is sent anywhere by the extension.
