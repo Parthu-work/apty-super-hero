@@ -162,6 +162,8 @@ export interface ChatbotSlots {
     message: UIMessage;
     parts: UIMessage["parts"];
   }) => ReactNode;
+  /** K27, E7: under a model turn the KB did not cover, the closest cards as "closest, may not match" */
+  kbClosest?: (props: { pageIds: string[] }) => ReactNode;
   /** Custom header content */
   headerContent?: () => ReactNode;
   /** Custom footer content */
