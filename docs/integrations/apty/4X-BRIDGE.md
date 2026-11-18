@@ -81,3 +81,34 @@ and the 4.x check packs read its files like any other evidence.
 3. Open a 4.x tenant in Extension mode, ask "widget not showing": the
    verdict card reads "from the Apty Client's files" and names 4.x rules
    (`W4X-…`).
+
+## The first real-pack test's hand patch (KB-RAG K27, R9)
+
+**Partial:** this section is written from the reference
+([`apty-widget-service-worker.reference.ts`](apty-widget-service-worker.reference.ts))
+and the tester's description. The tester's diff against Client 4.29.13 is
+not attached; when it is, check each point below against it.
+
+For the test on 17 Nov 2026, a tester patched a 4.29.13 dev install of the
+Apty Client by hand:
+
+- the compiled reference recorder (the file above, built to JavaScript) was
+  appended to the Client's `background.js`;
+- `externally_connectable` with the Agent's development ID was added to its
+  `manifest.json`.
+
+With it the Agent answered `inspect_extension_network` on an Infor LN tab
+and read the 4.x file names (which is how F7 resolves the version). It is a
+test rig, not a release: before the apty-assist team ships the bridge,
+these five points from the review must be fixed in the Client.
+
+| # | What the review found | What to do in the Client |
+| --- | --- | --- |
+| 1 | `DEBUG_AGENT_EXTENSION_IDS` still holds the placeholder `"<the Agent's Chrome Web Store ID, once assigned>"` | Put the real Web Store ID there once it is assigned (owner item W8), and keep the list identical to `externally_connectable.ids` in the manifest; a test or a build check should compare the two |
+| 2 | Console capture (`CAPTURE_CONSOLE`) writes `apty_sw_log_buffer`, but the 4.29.13 Client's own logs handler answers `get-service-worker-logs` from `apty_diag_lifecycle_buffer`, so the Agent never sees what was captured | Either answer from the captured buffer (as the reference's handler does), or set `CAPTURE_CONSOLE = false`. Turning it off is safer: the Client's analytics retry logs whole events, so capture keeps payloads the Agent does not need |
+| 3 | `get-service-worker-status` always answers `running: true` | Answer from real state: whether the content load finished, the last error, and the player version (`version`), so Preflight and the Agent can tell a stuck worker from a healthy one |
+| 4 | The recorder keeps full URLs, query strings included, and up to 2,000,000 characters of bodies in `chrome.storage.session` | Before any release: strip token, signature and session parameters from URLs when recording, apply the body deny list in the Client (not only in the Agent), and agree the body budget with the Client team |
+| 5 | `bundle.js` defines no `window.__APTY_WIDGET__` or `window.__APTY_CLIENT__`, so the Agent's `get_apty_widget_diagnostics` and `get_apty_client_diagnostics` report `not_configured` on 4.x | Expose read-only status objects under those names (see [README.md](README.md)), or accept that those two diagnostics stay `not_configured` on 4.x; the network bridge does not need them |
+
+Until the bridge ships, an SE on a 4.x Extension-mode tenant uses the HAR
+route or page capture (README, "4.x tenants").
