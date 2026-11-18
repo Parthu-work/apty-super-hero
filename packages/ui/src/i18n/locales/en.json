@@ -230,6 +230,14 @@
         "checkNow": "Check now",
         "checked": "Every delivered pack was checked.",
         "checkFailed": "The check could not run. Reload the extension and try again."
+      },
+      "selfCheck": {
+        "label": "Self-check",
+        "running": "Checking each card against the pack…",
+        "failed": "The self-check could not run.",
+        "totals": "Titles: {{top3}} of {{titles}} find their own card in the top 3; symptom lines: {{symptomsTop3}} of {{symptoms}}.",
+        "failing": "Not in the top 3: {{ids}}",
+        "allFound": "Every title finds its own card in the top 3."
       }
     }
   },
@@ -2932,5 +2940,22 @@
     "csvDescription": "One row per entry: date, case id, Apty version, pack built, card shown, right card, outcome, coverage, reason, note. Review it, then copy or download it.",
     "questionsLabel": "Questions for kb:eval",
     "questionsDescription": "Entries whose right card is known and whose question you included, in the kb:eval questions format. Review it, then copy or download it."
+  },
+  "packFreshness": {
+    "line": "Packs: {{list}}",
+    "none": "Packs: none loaded",
+    "item": {
+      "ok": "{{version}} ok",
+      "expires": "{{version}} expires in {{count}} days",
+      "expiresOne": "{{version}} expires in 1 day",
+      "expired": "{{version}} expired",
+      "notUsed": "{{version}} not used"
+    },
+    "banner": {
+      "title": "New KB pack delivered",
+      "pack": "{{version}}: built {{date}}. New answers use it.",
+      "gotIt": "Got it",
+      "open": "Open Knowledge base"
+    }
   }
 }

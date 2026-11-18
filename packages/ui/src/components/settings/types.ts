@@ -4,6 +4,7 @@ import type {
   KbImportResult,
   KbPackInfo,
   KbPackUsability,
+  KbSelfCheckSummary,
   KbSyncRecord,
   KeyValueStorage,
   RedactionFloor,
@@ -101,6 +102,8 @@ export interface KnowledgeBaseAdapter {
   delivery?(): Promise<KbDeliveryView[]>;
   /** K26 (D3): check every delivered version now. */
   checkNow?(): Promise<void>;
+  /** K27 (E9): the loaded pack's self-check, as `pnpm kb:eval --self-check` reports it; null when none is loaded. */
+  selfCheck?(version: KbAptyVersion): Promise<KbSelfCheckSummary | null>;
 }
 
 /** A version the organization policy delivers (KB-RAG K26, D-DEL1). */
