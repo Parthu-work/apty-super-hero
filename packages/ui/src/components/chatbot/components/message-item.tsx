@@ -51,6 +51,7 @@ import {
   decisionText,
   TurnDecisionDetails,
   TurnDecisionLine,
+  TurnSourceChips,
 } from "./turn-decision-note";
 
 /**
@@ -204,6 +205,12 @@ export function DefaultMessageItem({
         </Sources>
       )}
 
+      {message.role === "assistant" && message.metadata?.decision && (
+        <TurnSourceChips
+          decision={message.metadata.decision}
+          kbCardsReturned={kbCards.texts.length > 0}
+        />
+      )}
       {message.role === "assistant" && message.metadata?.decision && (
         <TurnDecisionLine decision={message.metadata.decision} />
       )}
@@ -375,6 +382,9 @@ export function DefaultMessageItem({
             return null;
         }
       })}
+      {message.role === "assistant" &&
+        message.metadata?.decision &&
+        slots.turnActions?.({ message, parts: message.parts })}
       {message.role === "assistant" && message.metadata?.decision && (
         <TurnDecisionDetails decision={message.metadata.decision} />
       )}

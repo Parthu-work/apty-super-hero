@@ -2688,6 +2688,20 @@
     "clearLocked": "Your organization keeps this record, so it cannot be cleared here."
   },
   "turnDecision": {
+    "chip": {
+      "label": "Where this answer came from",
+      "check": "Check",
+      "kb": "KB card",
+      "file_fetch": "Apty Client file",
+      "model": "Model",
+      "modelWithCards": "Model, with KB cards",
+      "versionUnknown": "Apty version unknown",
+      "versionFiles": "{{version}}, from the files",
+      "versionChosen": "{{version}}, your choice",
+      "packExpiresInOne": "Pack expires in {{count}} day",
+      "packExpiresIn": "Pack expires in {{count}} days",
+      "packExpired": "Pack expired"
+    },
     "copy": "Copy why this answer",
     "kbNotSearched": "KB not searched: a check answered ({{packs}} loaded)",
     "noPacksLoaded": "no packs",

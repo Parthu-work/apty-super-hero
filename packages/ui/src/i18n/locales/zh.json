@@ -2688,6 +2688,20 @@
     "clearLocked": "您的组织保留此记录，因此无法在此清除。"
   },
   "turnDecision": {
+    "chip": {
+      "label": "此回答的来源",
+      "check": "检查",
+      "kb": "KB 卡片",
+      "file_fetch": "Apty Client 文件",
+      "model": "模型",
+      "modelWithCards": "模型（含 KB 卡片）",
+      "versionUnknown": "Apty 版本未知",
+      "versionFiles": "{{version}}，来自文件",
+      "versionChosen": "{{version}}，你的选择",
+      "packExpiresInOne": "包将在 {{count}} 天后到期",
+      "packExpiresIn": "包将在 {{count}} 天后到期",
+      "packExpired": "包已过期"
+    },
     "copy": "复制回答依据",
     "kbNotSearched": "未搜索 KB：由检查回答（已加载 {{packs}}）",
     "noPacksLoaded": "无包",
