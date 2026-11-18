@@ -51,6 +51,16 @@ export interface KbSearchedPack {
 
 export type KbOutcome =
   | { kind: "answer"; result: KbToolResult; packs: KbSearchedPack[] }
+  | {
+      /** K27, F2: the question names a setting no card has; answered by the KB with the closest cards, not by the model. */
+      kind: "unknown_setting";
+      result: KbToolResult;
+      coverage: number;
+      min: number;
+      topPageId?: string;
+      version: KbTabVersion;
+      packs: KbSearchedPack[];
+    }
   | { kind: "how_to" }
   | { kind: "non_english" }
   | { kind: "no_pack"; version: KbTabVersion; delivery?: KbDeliveryFailure }
@@ -150,6 +160,17 @@ export async function localKbMatches(
     ) {
       return { kind: "answer", result, packs };
     }
+    if (found.reason === "unknown_setting") {
+      return {
+        kind: "unknown_setting",
+        result,
+        coverage: Math.round(found.coverage * 100) / 100,
+        min: found.min ?? 0,
+        ...(found.topPageId ? { topPageId: found.topPageId } : {}),
+        version,
+        packs,
+      };
+    }
     return {
       kind: "not_covered",
       reason: found.reason ?? "no_match",
@@ -169,6 +190,28 @@ export function kbAnswerOf(outcome: KbOutcome): KbToolResult | undefined {
   return outcome.kind === "answer" ? outcome.result : undefined;
 }
 
+const CITE_PAGE = /^kb:\/\/(\d+)/;
+
+/**
+ * The card ids the KB matches card shows for `result`, in its order (K27,
+ * F7): the stub or the "not in this version" card first, then each result.
+ * The decision record holds exactly these.
+ * @internal exported for tests
+ */
+export function renderedPageIds(result: KbToolResult): string[] {
+  const cites = [
+    result.status === "stub" ? result.stub?.cite : undefined,
+    result.status === "not_in_version" ? result.absent?.cite : undefined,
+    ...result.results.map((hit) => hit.cite),
+  ];
+  const ids: string[] = [];
+  for (const cite of cites) {
+    const id = cite ? CITE_PAGE.exec(cite)?.[1] : undefined;
+    if (id && !ids.includes(id)) ids.push(id);
+  }
+  return ids;
+}
+
 /** The outcome as the decision record holds it: ids, numbers and codes only. */
 export function kbDecisionOf(outcome: KbOutcome): KbDecision {
   switch (outcome.kind) {
@@ -176,7 +219,16 @@ export function kbDecisionOf(outcome: KbOutcome): KbDecision {
       return {
         kind: "answer",
         status: outcome.result.status,
-        pageIds: outcome.result.cards.map((card) => card.pageId),
+        pageIds: renderedPageIds(outcome.result),
+      };
+    case "unknown_setting":
+      return {
+        kind: "not_covered",
+        reason: "unknown_setting",
+        coverage: outcome.coverage,
+        min: outcome.min,
+        ...(outcome.topPageId ? { topPageId: outcome.topPageId } : {}),
+        version: outcome.version,
       };
     case "not_covered":
       return {

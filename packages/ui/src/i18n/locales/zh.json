@@ -200,6 +200,8 @@
       },
       "notUsed": "此知识包未被使用。请向 KB 负责人索取新的知识包。",
       "expiringSoon": "此知识包将在 {{days}} 天后到期。请向 KB 负责人索取新的知识包。",
+      "routingCards": "{{routing}} 张导航卡片，不作为答案显示",
+      "skippedPages": "构建时跳过了 {{skipped}} 个页面",
       "absentCards": "{{absent}} 张在此版本中不存在",
       "sync": {
         "outcome": {
@@ -1351,6 +1353,9 @@
     "deny": "拒绝"
   },
   "chat": {
+    "notFromKb": "并非来自 KB 或检查",
+    "kbNotFoundTitle": "在 KB 中未找到",
+    "kbNotFound": "在 KB 中未找到：{{phrases}}",
     "copy": "复制",
     "saveAsSkill": "保存为技能",
     "retry": "重试",
@@ -1501,6 +1506,7 @@
       "category": {
         "generic": "通用检查清单",
         "retrieveResourceData": "获取资源数据",
+        "flickerOrJump": "闪烁或跳动",
         "tooltipNotShowing": "提示未显示",
         "studioCannotSelect": "Studio 无法选择元素",
         "studioVsProduction": "在 Studio 中正常，在生产环境中不正常",
@@ -1969,6 +1975,8 @@
     "scoreGrade": "{{score}} · {{grade}}"
   },
   "checkPack": {
+    "provenanceNoCause": "来自 4c406d5 版 5.x 代码，未在运行时验证。规则已正确读取这些文件；其中未发现原因。",
+    "noCauseCard": "KB 卡片接下来检查的内容",
     "titleItem": "“{{name}}”可能不可见的原因",
     "titleScan": "可见性检查：所有{{kind}}",
     "titleGeneric": "可见性检查",
@@ -2620,6 +2628,18 @@
     "fromCheck": "Apty 版本：{{version}}，来自检查读取的文件。"
   },
   "kbMatches": {
+    "versionChip": {
+      "client": "{{version}}，来自 Client 的文件",
+      "evidence": "{{version}}，来自检查的文件",
+      "user": "{{version}}，你的选择"
+    },
+    "layers": "卡片层",
+    "layerButton": "L{{layer}}",
+    "layerMissing": "已加载的包中没有这一层。",
+    "unknownSetting": "KB 中没有名为“{{phrase}}”的设置。",
+    "closestCards": "最接近的卡片，可能未提及该设置：",
+    "checkStudio": "请在 Studio 或 Admin 中查看，或询问 KB 负责人。",
+    "askAiAnyway": "仍然询问 AI",
     "title": "匹配的 KB 卡片",
     "layer": "卡片的第 {{layer}} 层",
     "stub": "KB 中有这张卡片，但其 {{version}} 版本的内容尚未编写。",
@@ -2658,6 +2678,9 @@
     "clearLocked": "您的组织保留此记录，因此无法在此清除。"
   },
   "turnDecision": {
+    "copy": "复制回答依据",
+    "kbNotSearched": "未搜索 KB：由检查回答（已加载 {{packs}}）",
+    "noPacksLoaded": "无包",
     "why": "为什么是这个回答",
     "notCovered": "没有匹配的 KB 卡片（覆盖率 {{coverage}}，需要 {{min}}）。",
     "noStrongTerm": "没有匹配的 KB 卡片：只匹配到常用词。",
@@ -2703,6 +2726,11 @@
     "deliveryFailed": "你的组织下发的 {{version}} 知识包上次更新失败（{{reason}}）。"
   },
   "cases": {
+    "site": "站点：{{site}}",
+    "newCase": "新建案例",
+    "siteAliases": "将站点显示为 customer-a、customer-b",
+    "fromSite": "来自 {{site}}",
+    "otherSiteNote": "这来自与当前标签页不同的站点。",
     "label": "案例",
     "copyId": "复制案例编号 {{id}}",
     "continue": "继续 {{id}}",
@@ -2722,6 +2750,7 @@
     "deleteAll": "删除所有案例",
     "deleteAllConfirm": "删除本设备上的所有案例？",
     "columns": {
+      "site": "站点",
       "id": "案例",
       "date": "日期",
       "version": "版本",
@@ -2738,6 +2767,7 @@
     }
   },
   "supportBundle": {
+    "nothingYet": "暂无可打包内容：请先运行检查或打开 KB 卡片",
     "prepare": "准备支持包",
     "label": "支持包",
     "description": "Apty 支持处理此案例所需的信息，已按严格模式脱敏：KB 卡片仅含编号和链接，不含客户名称、用户编号、邮箱或令牌。请先查看，再复制或下载；扩展不会发送任何内容。",

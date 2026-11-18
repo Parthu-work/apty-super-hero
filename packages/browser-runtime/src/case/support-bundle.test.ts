@@ -1,4 +1,4 @@
-import { newCase } from "@apty/agent-core";
+import { newCase, siteKeyOf } from "@apty/agent-core";
 import { describe, expect, it } from "vitest";
 import { supportFieldsFor } from "../apty/diagnosis/support-fields.js";
 import type { DiagnosisResult } from "../apty/diagnosis/types.js";
@@ -252,5 +252,18 @@ describe("the DOM Config block (KB-RAG K26 C4)", () => {
 
   it("has no block for a case with no DOM Config run", () => {
     expect(build().bundle.domConfig).toBeUndefined();
+  });
+});
+
+describe("one site per bundle (KB-RAG K27, F4)", () => {
+  it("leaves out a check that ran on another site than the case's", () => {
+    const same = build({ resultSite: siteKeyOf("crm.acme-corp.com") });
+    expect(same.bundle.statusCodes).toEqual({ "workflows.json": 200 });
+    const other = build({
+      resultSite: siteKeyOf("erp.other-customer.example"),
+    });
+    expect(other.bundle.statusCodes).toEqual({});
+    expect(other.bundle.fileEntries).toEqual([]);
+    expect(other.json).not.toContain("wf-1001");
   });
 });

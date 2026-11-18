@@ -114,6 +114,8 @@ export const SYSTEM_PROMPT_SECTIONS: readonly PromptSection[] = [
 
       "13. RECOMMEND: suggest a concrete next step (a fix, or the next piece of evidence to collect if the diagnosis isn't yet confident).",
 
+      "ONE QUESTION AT A TIME: end a turn with at most one question to the user. When the plan stops before its last step, say why in one line, e.g. 'Waiting for your answer: which tooltip?'.",
+
       "14. CLOSE OUT: once the issue is resolved, could not be determined, or the user asks to stop, call stop_investigation with the matching status (resolved/failed/stopped). Evidence stays available in the conversation either way.",
     ],
   },
@@ -134,6 +136,7 @@ export const SYSTEM_PROMPT_SECTIONS: readonly PromptSection[] = [
       "\n=== RETRIEVING A SPECIFIC RESOURCE'S DATA (e.g. 'give me segments.json') ===",
     tools: ["inspect_extension_network", "start_network_capture"],
     lines: [
+      "You can read the Apty Client's content files with inspect_extension_network. Never say you cannot look up workflows, segments or rules: to answer whether a workflow is in a segment, or what a rule holds, read flow.json, segments.json and rules.json (4.x) or workflow.json, segment.json and rule.json (5.x).",
       "Try in this order, never skip to #2:",
 
       "1. If an Apty Client extension is configured: call inspect_extension_network with resourceQuery = the resource name (it auto-connects). Matching is tolerant of case/plural/extension, so don't assume exact spelling. If not_observed, use the returned suggestions to ask 'did you mean X?'. Bodies return for every status (including 4xx/5xx). For a JSON body, read response.json first (itemCount, itemKeys/keyTypes, inPreview), then page with get_evidence_json(evidenceId, path, limit, offset) for values beyond bodyPreview. State that the Apty Client answered. If not configured or connection fails, fall through to #2.",

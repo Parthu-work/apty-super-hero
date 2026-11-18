@@ -80,6 +80,46 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
     ],
   },
   {
+    // K27, F9: a tooltip or balloon that flickers is not one that is not
+    // showing; it is checked for what moves it.
+    category: "flicker-or-jump",
+    matches: (p) =>
+      /\b(?:flicker(?:s|ing)?|jump(?:s|ing)?|blink(?:s|ing)?|shift(?:s|ing)?|moves?|moving)\b/.test(
+        p,
+      ),
+    steps: [
+      step("identify-page", "Identify the current page/application", [
+        "get_page_metadata",
+      ]),
+      step(
+        "check-selection-method",
+        "Check how the item finds its element: a selector that matches several elements, or one that changes as the page renders, makes it move between them",
+        ["analyze_element_selectors"],
+      ),
+      step(
+        "check-position-over-time",
+        "Check whether the target element's position or size changes over a few seconds (late-loading content, resizing panels, scrolling containers)",
+        ["search_elements", "capture_screenshot"],
+      ),
+      step(
+        "check-animations",
+        "Check for page animations, transitions or re-renders on the target and its parents",
+        ["get_runtime_diagnostics", "get_apty_page_logs"],
+      ),
+      step(
+        "check-frame-boundaries",
+        "Check whether the target is inside an iframe or Shadow DOM that reloads or scrolls on its own",
+        ["analyze_element_selectors"],
+      ),
+      step("correlate", "Correlate the collected evidence", [
+        "get_investigation_timeline",
+      ]),
+      step("form-and-verify", "Form and verify a hypothesis", [
+        "record_verification_attempt",
+      ]),
+    ],
+  },
+  {
     category: "tooltip-not-showing",
     matches: (p) => p.includes("tooltip"),
     steps: [

@@ -48,6 +48,7 @@ import { SupportBundleButton } from "../cases/support-bundle-button";
 import { DaptyEvidenceExport } from "./dapty-evidence-export";
 import { KbCardExcerpt, useKbCardUrl } from "./kb-card-excerpt";
 import { KbVersionControl, useActiveSiteHost } from "./kb-version-control";
+import { NoCauseCardLayers } from "./no-cause-card-layers";
 
 const PACKS = new Set([
   "content-not-visible",
@@ -934,6 +935,10 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
         </ul>
       )}
 
+      {verdict.status === "no_cause_in_data" && result.cardPageId && (
+        <NoCauseCardLayers pageId={result.cardPageId} />
+      )}
+
       {verdict.nextCheck && (
         <p className="text-sm text-foreground">
           <span className="font-medium">{t("checkPack.nextCheck")}: </span>
@@ -945,7 +950,9 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
           <SupportBundleButton
             result={result}
             loadRecord={async () =>
-              sessionId ? caseRecorder().current(sessionId) : undefined
+              sessionId
+                ? caseRecorder().current(sessionId, result.siteKey)
+                : undefined
             }
           />
         </div>
@@ -994,7 +1001,13 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
       <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
         {result.cardPageId ? (
           <>
-            <span>{t("checkPack.provenance")}</span>
+            <span>
+              {t(
+                verdict.status === "no_cause_in_data"
+                  ? "checkPack.provenanceNoCause"
+                  : "checkPack.provenance",
+              )}
+            </span>
             <KbCardLink
               pageId={result.cardPageId}
               aptyVersion={result.aptyVersion}

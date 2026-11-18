@@ -148,9 +148,12 @@ describe("createKbIndexSet", () => {
     );
     expect(result.status).toBe("ok");
     expect(result.hits[0]?.chunk.pageId).toBe("52");
-    expect(set.search("turn on the FIXTURE Glow Pulse Switch").reason).toBe(
-      "unknown_setting",
-    );
+    const unknown = set.search("turn on the FIXTURE Glow Pulse Switch", {
+      topK: 2,
+    });
+    expect(unknown.reason).toBe("unknown_setting");
+    expect(unknown.closest?.length).toBeGreaterThan(0);
+    expect(unknown.closest?.length).toBeLessThanOrEqual(2);
   });
 
   it("F2: another pack's stub sharing one generic word does not beat a covering card", () => {

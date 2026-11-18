@@ -102,3 +102,29 @@ describe("planInvestigation", () => {
     }
   });
 });
+
+describe("a flicker or a jump (KB-RAG K27, F9)", () => {
+  it.each([
+    "the tooltip balloon flickers",
+    "the launcher jumps when the page loads",
+    "the beacon blinks on hover",
+    "the balloon moves around while scrolling",
+  ])("plans for what moves it, not for a tooltip that is not showing: %s", (problem) => {
+    const plan = planInvestigation(problem);
+    expect(plan.category).toBe("flicker-or-jump");
+    expect(plan.steps.map((s) => s.id)).toEqual(
+      expect.arrayContaining([
+        "check-selection-method",
+        "check-position-over-time",
+        "check-animations",
+        "check-frame-boundaries",
+      ]),
+    );
+  });
+
+  it("keeps the tooltip plan for a tooltip that is not showing", () => {
+    expect(planInvestigation("the tooltip is not showing").category).toBe(
+      "tooltip-not-showing",
+    );
+  });
+});

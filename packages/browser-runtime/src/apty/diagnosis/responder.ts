@@ -1,10 +1,18 @@
-import type {
-  LocalResponder,
-  TabVersionSource,
-  TurnDecision,
+import {
+  KB_NO_CARD_INSTRUCTION,
+  type LocalResponder,
+  packIdOf,
+  siteKeyOf,
+  type TabVersionSource,
+  type TurnDecision,
 } from "@apty/agent-core";
 import { siteHostOf } from "../../conversation/site-host.js";
-import type { KbTabVersion, KbToolResult } from "../../kb/kb-index.js";
+import {
+  type KbTabVersion,
+  type KbToolResult,
+  sharedKbIndexSource,
+} from "../../kb/kb-index.js";
+import { looksLikeProductQuestion } from "../../kb/kb-intent.js";
 import {
   type KbMatchesOptions,
   type KbOutcome,
@@ -13,8 +21,9 @@ import {
 } from "../../kb/kb-matches.js";
 import {
   kbVersionForHost,
-  kbVersionFromEvidence,
+  kbVersionSourceForHost,
   rememberKbVersion,
+  resolveKbVersionFromClient,
 } from "../../kb/kb-version.js";
 import { getRedactionMode } from "../../runtime/redaction-mode.js";
 import { applyResultPrivacy } from "../../runtime/result-privacy.js";
@@ -22,6 +31,7 @@ import { currentValuePolicy } from "../../runtime/value-policy.js";
 import { getAptyIntegrationConfig } from "../config.js";
 import type { DomHealthAuditOutcome } from "../dom-health.js";
 import { tabElementProbeOf } from "../element-probe.js";
+import { listObservedResources } from "../extension-network-inspector.js";
 import { readAptyFilesForTab } from "./apty-files.js";
 import { diagnoseContentNotVisible, filesFor } from "./content-not-visible.js";
 import {
@@ -473,6 +483,12 @@ export interface ResponderSources {
   ) => Promise<KbOutcome>;
   /** Whether a model is configured: a question the cards cannot match then goes to it. */
   modelAvailable?: () => boolean;
+  /** K27, F8: the KB packs in use, named on a check's record (the KB was not searched). */
+  loadedPacksOf?: () => Promise<TurnDecision["packs"]>;
+  /** K27, F7: the file names the Apty Client observed for the conversation, or undefined while none answers. */
+  observedNamesOf?: (
+    runContext: unknown,
+  ) => Promise<readonly string[] | undefined>;
   /** Every other check's content files for the tab; undefined reads the Apty Client's. */
   filesOf?: (
     runContext: unknown,
@@ -492,6 +508,23 @@ const DEFAULT_SOURCES: ResponderSources = {
   daptyFilesOf: readDaptyFilesForTab,
   filesOf: readAptyFilesForTab,
   kbMatchesOf: (input, options) => localKbMatches(input, undefined, options),
+  loadedPacksOf: async () =>
+    (await sharedKbIndexSource().current())?.info.packs.map((pack) => ({
+      version: pack.aptyVersion,
+      sha256: packIdOf(pack.sha256),
+      ...(pack.keyId ? { keyId: pack.keyId } : {}),
+      ...(pack.expiresAt ? { expiresAt: pack.expiresAt } : {}),
+    })) ?? [],
+  observedNamesOf: async (runContext) => {
+    const id = (runContext as { conversationId?: unknown } | undefined)
+      ?.conversationId;
+    const listed = await listObservedResources(
+      typeof id === "string" ? id : undefined,
+    );
+    return listed.connected
+      ? listed.resources.map((resource) => resource.resourceName)
+      : undefined;
+  },
 };
 
 const SEARCH_KB = "search_kb";
@@ -505,12 +538,37 @@ export function tabVersionOf(url: string | undefined): {
   const version = kbVersionForHost(host);
   return {
     version,
-    versionSource: kbVersionFromEvidence(host)
-      ? "files"
-      : version === "unknown"
+    versionSource:
+      version === "unknown"
         ? "unknown"
-        : "user",
+        : kbVersionSourceForHost(host) === "user"
+          ? "user"
+          : "files",
   };
+}
+
+const PRODUCT_OUTCOMES: ReadonlySet<KbOutcome["kind"]> = new Set([
+  "no_pack",
+  "pack_unusable",
+  "error",
+  "how_to",
+  "non_english",
+]);
+
+/**
+ * K27, F2: the KB searched and returned no card, or could not search and
+ * the question asks about Apty's configuration, menus or prices. The model
+ * then must not describe Apty settings, menus, paths, prices or features.
+ */
+function needsNoCardInstruction(outcome: KbOutcome, input: string): boolean {
+  if (outcome.kind === "not_covered") return true;
+  return PRODUCT_OUTCOMES.has(outcome.kind) && looksLikeProductQuestion(input);
+}
+
+/** K27, F4: the tab's site as a key, so an answer never holds the host. */
+function siteKeyFor(url: string | undefined): string | undefined {
+  const host = siteHostOf(url);
+  return host ? siteKeyOf(host) : undefined;
 }
 
 /**
@@ -522,17 +580,28 @@ async function kbAnswer(
   sources: ResponderSources,
   runContext: unknown,
 ) {
-  const tab = tabVersionOf(await sources.pageUrlOf(runContext));
+  const pageUrl = await sources.pageUrlOf(runContext);
+  const observed = sources.observedNamesOf;
+  if (observed) {
+    await resolveKbVersionFromClient(siteHostOf(pageUrl), () =>
+      observed(runContext),
+    );
+  }
+  const tab = tabVersionOf(pageUrl);
+  const siteKey = siteKeyFor(pageUrl);
   const outcome = (await sources.kbMatchesOf?.(input, {
     modelAvailable: sources.modelAvailable?.() ?? false,
     version: tab.version,
   })) ?? { kind: "no_pack" as const, version: tab.version };
-  const answered = outcome.kind === "answer";
+  const answered =
+    outcome.kind === "answer" || outcome.kind === "unknown_setting";
   const decision: TurnDecision = {
     route: answered ? "kb" : "model",
     ...tab,
     packs:
-      outcome.kind === "answer" || outcome.kind === "not_covered"
+      outcome.kind === "answer" ||
+      outcome.kind === "not_covered" ||
+      outcome.kind === "unknown_setting"
         ? outcome.packs.map((pack) => ({
             version: pack.version as TurnDecision["packs"][number]["version"],
             sha256: pack.sha256,
@@ -542,7 +611,11 @@ async function kbAnswer(
         : [],
     kb: kbDecisionOf(outcome),
   };
-  if (outcome.kind !== "answer") return { decision };
+  if (!answered) {
+    return needsNoCardInstruction(outcome, input)
+      ? { decision, modelInstruction: KB_NO_CARD_INSTRUCTION }
+      : { decision };
+  }
   await getRedactionMode();
   const policy = currentValuePolicy();
   const shown = applyResultPrivacy(outcome.result, policy) as KbToolResult;
@@ -552,7 +625,7 @@ async function kbAnswer(
       { query: input.slice(0, 300), topK: 3 },
       policy,
     ) as { query: string; topK: number },
-    result: shown,
+    result: siteKey ? { ...shown, siteKey } : shown,
     transcript: JSON.stringify(shown),
     decision,
   };
@@ -611,17 +684,19 @@ export function createDiagnosisResponder(
     await getRedactionMode();
     const policy = currentValuePolicy();
     const shown = applyResultPrivacy(result, policy) as DiagnosisResult;
+    const pageUrl = await sources.pageUrlOf(runContext);
+    const siteKey = siteKeyFor(pageUrl);
     return {
       toolName: RUN_DIAGNOSIS,
       params: applyResultPrivacy(paramsOf(route), policy) as ReturnType<
         typeof paramsOf
       >,
-      result: shown,
+      result: siteKey ? { ...shown, siteKey } : shown,
       transcript: applyResultPrivacy(transcriptOf(shown), policy) as string,
       decision: {
         route: "check",
-        ...tabVersionOf(await sources.pageUrlOf(runContext)),
-        packs: [],
+        ...tabVersionOf(pageUrl),
+        packs: (await sources.loadedPacksOf?.().catch(() => [])) ?? [],
         checkPackId: route.packId,
       } satisfies TurnDecision,
     };

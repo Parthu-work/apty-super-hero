@@ -279,6 +279,24 @@ describe("parseCard", () => {
     );
   });
 
+  it("makes a four-layer Start here page routing, and keeps a card that only mentions start here later in its title full (K27 F3)", () => {
+    const options = { site: SITE, space: "FX" };
+    const routing = parseCard(
+      page("35", { title: "RAG Card: start HERE, FIXTURE gadgets" }),
+      options,
+    );
+    assert.equal(routing.card.status, "routing");
+    assert.equal(routing.card.title, "start HERE, FIXTURE gadgets");
+    assert.equal(routing.card.symptom, "the FIXTURE banner never glows.");
+    assert.deepEqual(routing.chunks, []);
+    const full = parseCard(
+      page("36", { title: "RAG Card: FIXTURE gadgets, start here first" }),
+      options,
+    );
+    assert.equal(full.card.status, "full");
+    assert.equal(full.chunks.length, 4);
+  });
+
   it("gives null for a card with no Verified on line", () => {
     const parsed = parseCard(
       page("4", { body: cardBody({ verified: false }) }),
@@ -444,6 +462,7 @@ describe("buildPack", () => {
       space: "FX",
       label: "rag-card",
       cardCount: 2,
+      skipped: { malformed: 1, otherFormat: 0 },
     });
     assert.deepEqual(pack.retrieval, { bm25: true, coverage });
     const { sha256, ...rest } = pack;
@@ -462,6 +481,28 @@ describe("buildPack", () => {
       packSha256({ z: 1, a: { y: "é", b: [true] }, sha256: "ignored" }),
       "07fffc8e05a1ca99dcc9aee6659de41c76190270b19b59e1ea7a0bfd11a5ebe3",
     );
+  });
+});
+
+describe("skipped pages in the pack (K27, F11)", () => {
+  it("writes the skipped counts into source.skipped, and leaves it out when none was skipped", () => {
+    const options = {
+      site: SITE,
+      space: "FX",
+      label: "rag-card",
+      builtAt: "2026-03-04T00:00:00.000Z",
+    };
+    const { pack } = buildPack({
+      ...options,
+      pages: [
+        page("41"),
+        page("42", { body: cardBody({ layers: 3 }) }),
+        page("43", { body: "<h2>FIXTURE notes</h2><p>FIXTURE.</p>" }),
+      ],
+    });
+    assert.deepEqual(pack.source.skipped, { malformed: 1, otherFormat: 1 });
+    const clean = buildPack({ ...options, pages: [page("41")] }).pack;
+    assert.equal("skipped" in clean.source, false);
   });
 });
 

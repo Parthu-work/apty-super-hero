@@ -10,12 +10,25 @@
  */
 import { DefaultToolDisplay } from "@apty/ui/components/chatbot";
 import type { ToolDisplaySlotProps } from "@apty/ui/types";
+import { OtherSiteFold } from "../cases/other-site-fold";
 import { CheckResultCard } from "./check-result-card";
 import { isKbMatches, KbMatchesCard } from "./kb-matches-card";
 import { evidenceIdOf, ResponseBodyViewer } from "./response-body-viewer";
 import { SelectorAnalysisDisplay } from "./selector-analysis-display";
 
 export function AptyToolDisplay(props: ToolDisplaySlotProps) {
+  const siteKey = (props.tool.output as { siteKey?: unknown } | null)?.siteKey;
+  if (typeof siteKey === "string") {
+    return (
+      <OtherSiteFold siteKey={siteKey}>
+        <ToolDisplay {...props} />
+      </OtherSiteFold>
+    );
+  }
+  return <ToolDisplay {...props} />;
+}
+
+function ToolDisplay(props: ToolDisplaySlotProps) {
   if (
     props.tool.toolName === "analyze_element_selectors" &&
     props.tool.state === "completed"

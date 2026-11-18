@@ -7,7 +7,7 @@
  * ids and links only. Nothing here is sent: the SE reviews it, then copies
  * or downloads it.
  */
-import type { CaseRecord } from "@apty/agent-core";
+import { type CaseRecord, otherSite } from "@apty/agent-core";
 import {
   type SupportField,
   supportFieldsFor,
@@ -70,6 +70,8 @@ export interface SupportBundleInput {
   record: CaseRecord;
   /** The check the verdict card shows, when the bundle is made from it. */
   result?: DiagnosisResult;
+  /** K27, F4: the site the check ran on (a host or `siteKeyOf`); a check from another site than the case's is never bundled. */
+  resultSite?: string;
   /** Apty console errors the case saw (already captured, not read here). */
   consoleErrors?: readonly string[];
   /** The browser's user agent; only its name and major version are kept. */
@@ -205,7 +207,10 @@ export function buildSupportBundle(input: SupportBundleInput): {
   missing: string[];
   markdown: string;
 } {
-  const { record, result, redact, denyList = [] } = input;
+  const { record, redact, denyList = [] } = input;
+  const result = otherSite(record.tabHost, input.resultSite)
+    ? undefined
+    : input.result;
   const ruleId = record.finding?.ruleId ?? result?.verdict.causes[0]?.ruleId;
   const wanted: SupportField[] = ruleId
     ? supportFieldsFor(ruleId)

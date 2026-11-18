@@ -26,6 +26,34 @@ That costs about 690 tokens on an Apty question (7,174 before): `apty-question` 
 at most 4,000 characters of card text. The `kb-followup` scenario measures
 a follow-up after a full result.
 
+### Tool routes and the strict cap (KB-RAG K27, F1)
+
+Anthropic refuses a request with more than 20 strict tools ("Too many
+strict tools (22). The maximum number of strict tools is 20"). Two
+safeguards:
+
+- **Routes** (`toolRouteOf`, `TOOL_ROUTE_BUDGETS` in `tool-relevance.ts`).
+  A question about a content file's meaning or contents (`file`) gets
+  `search_kb` and the Client file-read tools only, at most 8. A symptom
+  (`symptom`) gets the investigation basics, at most 12: the Apty and
+  investigation groups are cut to `SYMPTOM_TOOLS`. The whole investigation
+  set (`investigation`) is offered once the SE asks for one ("investigate",
+  "debug", "diagnose", …) or the chat has one started, and stays for the
+  chat.
+- **The cap** (`maxStrictTools` in `PROVIDER_SCHEMA_RULES`,
+  `capStrictTools`). Above 20, the first 20 tools (the registry's order) are
+  sent strict and the rest without strict; each still validates its input
+  with its own schema when it runs.
+
+`tool-schemas.test.ts` checks every probe question of the K27 grid on every
+provider against both. Before and after, as sent:
+
+| Scenario | Tools before | Schema tokens before | Tools after | Schema tokens after |
+|---|---|---|---|---|
+| `apty-question` | 16 | 4,464 | 7 | 1,913 |
+| `investigation-10-turns` | 16 | 4,464 | 7 | 1,913 |
+| `file-question` ("what does flow.json mean") | 23 | about 5,560 | 8 | 2,012 |
+
 On Anthropic, the system prompt (which covers the tools before it) and the
 newest message are cache breakpoints (`ai-provider.ts`). The fixed tool
 order and the byte-stable core keep the start of each request the same.

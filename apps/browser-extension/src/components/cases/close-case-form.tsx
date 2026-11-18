@@ -41,12 +41,17 @@ export function CloseCaseForm({
   ];
 
   const close = async () => {
-    const closed = await caseRecorder().close(record.conversationId, outcome, {
-      ...(asks && right ? { findingRight: right } : {}),
-      ...(asks && right && right !== "yes" && card
-        ? { rightCardId: card }
-        : {}),
-    });
+    const closed = await caseRecorder().close(
+      record.conversationId,
+      outcome,
+      {
+        ...(asks && right ? { findingRight: right } : {}),
+        ...(asks && right && right !== "yes" && card
+          ? { rightCardId: card }
+          : {}),
+      },
+      record.tabHost,
+    );
     if (closed) await recordOutcome(caseStore(), closed);
     onDone();
   };

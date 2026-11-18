@@ -484,6 +484,57 @@ describe("DefaultMessageItem — KB grounding (K18)", () => {
   });
 });
 
+describe("DefaultMessageItem — a model answer with no KB card (KB-RAG K27, F2)", () => {
+  const decision = {
+    route: "model" as const,
+    version: "unknown" as const,
+    versionSource: "unknown" as const,
+    packs: [],
+    kb: {
+      kind: "not_covered" as const,
+      reason: "no_match" as const,
+      coverage: 0,
+      min: 0.5,
+      version: "unknown" as const,
+    },
+  };
+
+  it("is labelled, and a menu path in it is flagged as not found in the KB", async () => {
+    render(
+      <DefaultMessageItem
+        message={{
+          ...assistantMessage(
+            "Go to Admin Portal → Applications → Settings to change it.",
+          ),
+          metadata: { decision },
+        }}
+        isLast
+      />,
+    );
+    expect(screen.getByTestId("not-from-kb")).toHaveTextContent(
+      "Not from the KB or a check",
+    );
+    expect(
+      await screen.findByText(
+        "Not found in the KB: Admin Portal → Applications → Settings",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("is not labelled when the KB or a check answered", () => {
+    render(
+      <DefaultMessageItem
+        message={{
+          ...assistantMessage("From a check"),
+          metadata: { decision: { ...decision, route: "check" as const } },
+        }}
+        isLast
+      />,
+    );
+    expect(screen.queryByTestId("not-from-kb")).toBeNull();
+  });
+});
+
 describe("DefaultMessageItem — the turn's decision (KB-RAG K25, A2)", () => {
   const base = {
     version: "4.x" as const,
@@ -583,5 +634,75 @@ describe("DefaultMessageItem — the turn's decision (KB-RAG K25, A2)", () => {
     expect(details).toHaveTextContent(
       "KB: not covered (low_coverage), coverage 0.42, needs 0.50, closest card 202",
     );
+  });
+});
+
+describe('DefaultMessageItem — copying "Why this answer" (KB-RAG K27, F10)', () => {
+  const decision = {
+    route: "kb" as const,
+    version: "4.x" as const,
+    versionSource: "files" as const,
+    packs: [{ version: "4.x" as const, sha256: "0123456789ab" }],
+    kb: { kind: "answer" as const, status: "ok", pageIds: ["101"] },
+  };
+
+  it("copies the record's lines while the disclosure is collapsed, with no question or card text", async () => {
+    const writeText = vi.fn(async () => {});
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(
+      <DefaultMessageItem
+        message={{
+          ...assistantMessage("FIXTURE answer text"),
+          metadata: { decision },
+        }}
+        isLast
+      />,
+    );
+    expect(screen.getByTestId("turn-decision")).not.toHaveAttribute("open");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Copy why this answer" }),
+    );
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    const copied = String(writeText.mock.calls[0]?.[0 as never]);
+    expect(copied.split("\n")).toHaveLength(5);
+    expect(copied.startsWith("Why this answer\n- ")).toBe(true);
+    expect(copied).not.toContain("FIXTURE answer text");
+  });
+
+  it("shows the record on a turn that ended in a model error", () => {
+    render(
+      <DefaultMessageItem
+        message={{
+          ...assistantMessage(""),
+          metadata: {
+            decision,
+            errorCode: "PROVIDER_ERROR",
+            error: { kind: "provider", message: "FIXTURE failure" },
+          } as never,
+        }}
+        isLast
+      />,
+    );
+    expect(screen.getByTestId("turn-decision")).toBeInTheDocument();
+  });
+
+  it("puts the record's lines in a copied reply", async () => {
+    const onCopy = vi.fn(async () => true);
+    render(
+      <DefaultMessageItem
+        message={{
+          ...assistantMessage("FIXTURE answer text"),
+          metadata: { decision },
+        }}
+        isLast
+        onCopy={onCopy}
+      />,
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Copy" }).at(-1) as HTMLElement,
+    );
+    await waitFor(() => expect(onCopy).toHaveBeenCalled());
+    const exported = String(onCopy.mock.calls[0]?.[0 as never]);
+    expect(exported).toMatch(/^FIXTURE answer text\n\nWhy this answer\n- /);
   });
 });

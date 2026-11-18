@@ -5,8 +5,11 @@ import {
   caseExpired,
   caseToContinue,
   closeCase,
+  hostAlias,
   newCase,
   newCaseId,
+  otherSite,
+  siteKeyOf,
   turnStartsCase,
   withTurn,
 } from "./case.js";
@@ -190,5 +193,35 @@ describe("closing, retention and continuity", () => {
     });
     expect(parseOrgPolicy({ caseRetentionDays: 0 }).ok).toBe(false);
     expect(parseOrgPolicy({ caseRetentionDays: 400 }).ok).toBe(false);
+  });
+});
+
+describe("sites (KB-RAG K27, F4)", () => {
+  const at = (day: number, tabHost?: string) => ({
+    createdAt: `2026-11-${String(day).padStart(2, "0")}T00:00:00.000Z`,
+    ...(tabHost ? { tabHost } : {}),
+  });
+
+  it("names hosts customer-a, customer-b in the order first seen, and a new one the next letter", () => {
+    const records = [at(3, "two.example.com"), at(1, "one.example.com"), at(5)];
+    expect(hostAlias("one.example.com", records)).toBe("customer-a");
+    expect(hostAlias("two.example.com", records)).toBe("customer-b");
+    expect(hostAlias("three.example.com", records)).toBe("customer-c");
+    const many = Array.from({ length: 27 }, (_, i) =>
+      at(1, `h${String(i).padStart(2, "0")}.example.com`),
+    );
+    expect(hostAlias("h26.example.com", many)).toBe("customer-aa");
+  });
+
+  it("treats an unknown host as the same site, and a host and its key as one", () => {
+    expect(otherSite("a.example.com", "b.example.com")).toBe(true);
+    expect(otherSite("a.example.com", "a.example.com")).toBe(false);
+    expect(otherSite(undefined, "b.example.com")).toBe(false);
+    const key = siteKeyOf("a.example.com");
+    expect(key).toMatch(/^site-[0-9a-f]{8}$/);
+    expect(key).not.toContain("example");
+    expect(siteKeyOf(key)).toBe(key);
+    expect(otherSite("A.example.com", key)).toBe(false);
+    expect(otherSite("b.example.com", key)).toBe(true);
   });
 });

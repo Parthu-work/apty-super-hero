@@ -200,6 +200,8 @@
       },
       "notUsed": "This pack is not used. Ask the KB owner for a new pack.",
       "expiringSoon": "This pack expires in {{days}} days. Ask the KB owner for a new one.",
+      "routingCards": "{{routing}} routing, never shown as an answer",
+      "skippedPages": "{{skipped}} pages skipped by the builder",
       "absentCards": "{{absent}} not in this version",
       "sync": {
         "outcome": {
@@ -1351,6 +1353,9 @@
     "deny": "Deny"
   },
   "chat": {
+    "notFromKb": "Not from the KB or a check",
+    "kbNotFoundTitle": "Not found in the KB",
+    "kbNotFound": "Not found in the KB: {{phrases}}",
     "copy": "Copy",
     "saveAsSkill": "Save as skill",
     "retry": "Retry",
@@ -1501,6 +1506,7 @@
       "category": {
         "generic": "General checklist",
         "retrieveResourceData": "Retrieve resource data",
+        "flickerOrJump": "Flickers or jumps",
         "tooltipNotShowing": "Tooltip not showing",
         "studioCannotSelect": "Studio can't select an element",
         "studioVsProduction": "Works in Studio, not in production",
@@ -1969,6 +1975,8 @@
     "scoreGrade": "{{score}} · {{grade}}"
   },
   "checkPack": {
+    "provenanceNoCause": "From 5.x code at 4c406d5, not runtime-verified. The rules read these files correctly; no cause found in them.",
+    "noCauseCard": "What the KB card checks next",
     "titleItem": "Why “{{name}}” may not be visible",
     "titleScan": "Visibility check: every {{kind}}",
     "titleGeneric": "Visibility check",
@@ -2620,6 +2628,18 @@
     "fromCheck": "Apty version: {{version}}, from the check's files."
   },
   "kbMatches": {
+    "versionChip": {
+      "client": "{{version}}, from the Client's files",
+      "evidence": "{{version}}, from a check's files",
+      "user": "{{version}}, your choice"
+    },
+    "layers": "Card layers",
+    "layerButton": "L{{layer}}",
+    "layerMissing": "This layer is not in the loaded pack.",
+    "unknownSetting": "The KB has no setting called \"{{phrase}}\".",
+    "closestCards": "Closest cards, they may not mention it:",
+    "checkStudio": "Check Studio or Admin, or ask the KB owner.",
+    "askAiAnyway": "Ask the AI anyway",
     "title": "KB cards that match",
     "layer": "Layer {{layer}} of the card",
     "stub": "The KB has a card for this, but its {{version}} text is not written yet.",
@@ -2658,6 +2678,9 @@
     "clearLocked": "Your organization keeps this record, so it cannot be cleared here."
   },
   "turnDecision": {
+    "copy": "Copy why this answer",
+    "kbNotSearched": "KB not searched: a check answered ({{packs}} loaded)",
+    "noPacksLoaded": "no packs",
     "why": "Why this answer",
     "notCovered": "No KB card matched (coverage {{coverage}}, needs {{min}}).",
     "noStrongTerm": "No KB card matched: only common words matched.",
@@ -2703,6 +2726,11 @@
     "deliveryFailed": "The last update of the {{version}} pack from your organization failed ({{reason}})."
   },
   "cases": {
+    "site": "Site: {{site}}",
+    "newCase": "New case",
+    "siteAliases": "Show sites as customer-a, customer-b",
+    "fromSite": "From {{site}}",
+    "otherSiteNote": "This came from another site than the current tab.",
     "label": "Case",
     "copyId": "Copy case id {{id}}",
     "continue": "Continue {{id}}",
@@ -2722,6 +2750,7 @@
     "deleteAll": "Delete all cases",
     "deleteAllConfirm": "Delete every case on this device?",
     "columns": {
+      "site": "Site",
       "id": "Case",
       "date": "Date",
       "version": "Version",
@@ -2738,6 +2767,7 @@
     }
   },
   "supportBundle": {
+    "nothingYet": "Nothing to bundle yet: run a check or open a KB card",
     "prepare": "Prepare support bundle",
     "label": "Support bundle",
     "description": "What Apty support needs for this case, with Strict redaction: KB cards as ids and links only, and no customer names, user ids, emails or tokens. Review it, then copy or download it; the extension sends nothing.",

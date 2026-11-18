@@ -5,7 +5,7 @@
  * symptom no check pack claims, and for the model's search_kb calls. The
  * card text is rendered as text.
  */
-import { kbCardUrl } from "@apty/agent-core";
+import { type KbLayer, kbCardUrl } from "@apty/agent-core";
 import type {
   KbTabVersion,
   KbToolResult,
@@ -21,6 +21,8 @@ import { ExternalLinkIcon } from "lucide-react";
 import { useState } from "react";
 import { WrongCardButton } from "../cases/wrong-card-button";
 import { KbEgressNote } from "./kb-egress-note";
+import { KbLayerSwitcher } from "./kb-layer-switcher";
+import { UnknownSettingCard } from "./kb-unknown-setting";
 import { KbVersionControl, useActiveSiteHost } from "./kb-version-control";
 
 const CITE = /^kb:\/\/(\d+)#L([1-4])$/;
@@ -33,6 +35,15 @@ function isKbStub(result: Partial<KbToolResult>): boolean {
   return result.status === "stub" && STUB_CITE.test(String(result.stub?.cite));
 }
 
+/** K27, F2: the question names a setting no card has, with the closest cards. */
+function isUnknownSetting(result: Partial<KbToolResult>): boolean {
+  return (
+    result.status === "not_covered" &&
+    result.reason === "unknown_setting" &&
+    Array.isArray(result.closest)
+  );
+}
+
 /** A search_kb result with cards to show; anything else keeps the default display. */
 export function isKbMatches(output: unknown): output is KbToolResult {
   const result = output as Partial<KbToolResult> | null;
@@ -40,6 +51,7 @@ export function isKbMatches(output: unknown): output is KbToolResult {
     typeof result === "object" &&
     result !== null &&
     (isKbStub(result) ||
+      isUnknownSetting(result) ||
       result.status === "non_english" ||
       (result.status === "pack_unusable" && result.unusable !== undefined) ||
       (result.status === "not_in_version" &&
@@ -118,6 +130,16 @@ export function KbMatchesCard({ tool }: ToolDisplaySlotProps) {
           })} ${t("kbMatches.askForNewPack")}`}
         </p>
       </section>
+    );
+  }
+  if (isUnknownSetting(output)) {
+    return (
+      <UnknownSettingCard
+        title={title}
+        query={query}
+        missing={output.missingPhrases ?? []}
+        closest={output.closest ?? []}
+      />
     );
   }
   if (output.status === "non_english") {
@@ -214,18 +236,14 @@ export function KbMatchesCard({ tool }: ToolDisplaySlotProps) {
                 {hit.aptyVersion && (
                   <StatusBadge tone="neutral">{hit.aptyVersion}</StatusBadge>
                 )}
-                {hit.notVerified && (
-                  <StatusBadge tone="warning">
-                    {t("checkPack.kbCard.notVerified")}
-                  </StatusBadge>
-                )}
               </div>
-              <p className="text-xs text-muted-foreground">
-                {t("kbMatches.layer", { layer })}
-              </p>
-              <p className="whitespace-pre-line text-sm text-foreground">
-                {excerpt(hit.text)}
-              </p>
+              <KbLayerSwitcher
+                pageId={pageId}
+                layer={Number(layer) as KbLayer}
+                text={hit.text}
+                notVerified={hit.notVerified}
+                render={excerpt}
+              />
               {hit.verifiedOn && (
                 <p className="text-xs text-muted-foreground">
                   {hit.verifiedOn}

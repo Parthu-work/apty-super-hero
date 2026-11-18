@@ -157,6 +157,8 @@ export interface LocalAnswer {
 /** No local answer: the model takes the turn, and the chat shows why. */
 export interface LocalDecision {
   decision: TurnDecision;
+  /** A fixed instruction added to this turn's system prompt, such as `KB_NO_CARD_INSTRUCTION` (K27, F2). */
+  modelInstruction?: string;
 }
 
 export type LocalResponder = (
@@ -267,6 +269,10 @@ export interface ChatOptions {
    * the agent's default tools.
    */
   tools?: FunctionTool[];
+  /** Send the message to the model even when the local responder would answer it ("Ask the AI anyway", K27 F2). */
+  skipLocalResponder?: boolean;
+  /** A fixed instruction added to this turn's system prompt. */
+  turnInstruction?: string;
 }
 
 export interface AgentMetrics {

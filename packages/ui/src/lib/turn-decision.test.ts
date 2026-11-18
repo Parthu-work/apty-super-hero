@@ -72,3 +72,32 @@ describe("the KB decision line with pack delivery (KB-RAG K26 D4)", () => {
     );
   });
 });
+
+describe("a check's record (KB-RAG K27, F8)", () => {
+  const check = {
+    route: "check" as const,
+    version: "4.x" as const,
+    versionSource: "files" as const,
+    checkPackId: "content-not-visible",
+  };
+
+  it("says the KB was not searched and names the loaded packs", () => {
+    const lines = decisionDetails(
+      {
+        ...check,
+        packs: [
+          { version: "4.x", sha256: "0123456789ab" },
+          { version: "5.x", sha256: "fedcba987654" },
+        ],
+      },
+      t,
+    );
+    expect(lines).toContain(
+      "KB not searched: a check answered (4.x and 5.x loaded)",
+    );
+    expect(lines.join("\n")).not.toMatch(/Packs searched/);
+    expect(decisionDetails({ ...check, packs: [] }, t)).toContain(
+      "KB not searched: a check answered (no packs loaded)",
+    );
+  });
+});

@@ -26,6 +26,8 @@ export interface ProviderSchemaRules {
   readonly noStrictWithoutProperties?: boolean;
   /** Strict needs `additionalProperties: false` (or absent) on every object. */
   readonly strictNeedsClosedObjects?: boolean;
+  /** The most tools one request may mark strict; the rest are sent without it. */
+  readonly maxStrictTools?: number;
 }
 
 /**
@@ -35,7 +37,9 @@ export interface ProviderSchemaRules {
  * `exclusiveMaximum`, `multipleOf`), string constraints (`minLength`,
  * `maxLength`), complex array constraints (`maxItems`, `minItems` other than
  * 0 or 1) and `additionalProperties` other than `false` are not supported;
- * a request offering such a tool fails with a 400.
+ * a request offering such a tool fails with a 400. The same page limits a
+ * request to 20 strict tools; with more it fails with "Too many strict tools
+ * (22). The maximum number of strict tools is 20" (KB-RAG K27, F1).
  */
 const ANTHROPIC: ProviderSchemaRules = {
   unsupportedKeywords: [
@@ -50,6 +54,7 @@ const ANTHROPIC: ProviderSchemaRules = {
   ],
   maxSupportedMinItems: 1,
   strictNeedsClosedObjects: true,
+  maxStrictTools: 20,
 };
 
 /**
@@ -282,4 +287,26 @@ export function schemaViolations(
         schemaViolations(value, rules, `${path}.${key}`),
       ),
   ];
+}
+
+/**
+ * `tools` with `strict` kept on the first `rules.maxStrictTools` strict ones
+ * and removed from the rest. Tools come most relevant first, so the cap
+ * drops strict from the least relevant; each still validates its input with
+ * its own schema when it runs.
+ */
+export function capStrictTools<T extends object>(
+  tools: readonly T[],
+  rules: ProviderSchemaRules,
+): T[] {
+  const max = rules.maxStrictTools;
+  if (max === undefined) return [...tools];
+  let strictCount = 0;
+  return tools.map((tool) => {
+    if (!("strict" in tool) || tool.strict !== true) return tool;
+    strictCount += 1;
+    if (strictCount <= max) return tool;
+    const { strict: _strict, ...withoutStrict } = tool;
+    return withoutStrict as T;
+  });
 }

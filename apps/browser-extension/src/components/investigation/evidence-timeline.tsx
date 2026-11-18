@@ -68,15 +68,26 @@ const SOURCE_META: Record<
   },
 };
 
-function formatClockTime(timestampMs: number): string {
-  try {
-    return new Date(timestampMs).toLocaleTimeString(undefined, {
-      hour12: false,
-    });
-  } catch {
-    return String(timestampMs);
-  }
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/**
+ * The local date and time, "2026-11-17 14:03:09" (K27, F11): a long
+ * investigation crosses midnight, and a pasted timeline needs its day.
+ * @internal exported for tests
+ */
+export function formatDateTime(timestampMs: number): string {
+  const date = new Date(timestampMs);
+  if (Number.isNaN(date.getTime())) return String(timestampMs);
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
+
+const isoOf = (timestampMs: number) => {
+  const date = new Date(timestampMs);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+};
+
+const byTime = <T,>(items: readonly T[], at: (item: T) => number): T[] =>
+  [...items].sort((a, b) => at(a) - at(b));
 
 function isFailure(type: string): boolean {
   return /error|fail|exception|reject/i.test(type);
@@ -105,7 +116,9 @@ function EvidenceItem({ item }: { item: DiagnosticEvidence }) {
         <span aria-hidden="true">·</span>
         <span className="font-mono">{item.type}</span>
         <span aria-hidden="true">·</span>
-        <time className="font-mono">{formatClockTime(item.timestamp)}</time>
+        <time className="font-mono" dateTime={isoOf(item.timestamp)}>
+          {formatDateTime(item.timestamp)}
+        </time>
       </p>
       {item.url && (
         <p className="break-all font-mono text-xs text-muted-foreground">
@@ -127,8 +140,8 @@ function TimelineCluster({ cluster }: { cluster: CorrelationCluster }) {
         className="absolute top-0.5 -left-5 size-3 rounded-full border-2 border-input bg-background"
       />
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <time className="font-mono">
-          {formatClockTime(cluster.startTimestamp)}
+        <time className="font-mono" dateTime={isoOf(cluster.startTimestamp)}>
+          {formatDateTime(cluster.startTimestamp)}
         </time>
         {sources.map((source) => {
           const Icon = SOURCE_META[source]?.Icon ?? LinkIcon;
@@ -164,9 +177,11 @@ function TimelineCluster({ cluster }: { cluster: CorrelationCluster }) {
           </CollapsibleTrigger>
           <CollapsibleContent>
             <ul className="divide-y divide-border">
-              {cluster.evidence.map((item) => (
-                <EvidenceItem key={item.evidenceId} item={item} />
-              ))}
+              {byTime(cluster.evidence, (item) => item.timestamp).map(
+                (item) => (
+                  <EvidenceItem key={item.evidenceId} item={item} />
+                ),
+              )}
             </ul>
           </CollapsibleContent>
         </Collapsible>
@@ -194,7 +209,7 @@ export function EvidenceTimeline({
       className="relative space-y-4 pl-5 before:absolute before:top-2 before:bottom-2 before:left-1.5 before:w-px before:bg-border"
       aria-label={t("investigation.timeline.label")}
     >
-      {clusters.map((cluster) => (
+      {byTime(clusters, (cluster) => cluster.startTimestamp).map((cluster) => (
         <TimelineCluster key={cluster.clusterId} cluster={cluster} />
       ))}
     </ol>

@@ -211,6 +211,16 @@ function PackRow({
                 absent: info.absentCount,
               })}`
             : ""}
+          {info.routingCount
+            ? ` · ${t("settings.knowledgeBase.routingCards", {
+                routing: info.routingCount,
+              })}`
+            : ""}
+          {info.skippedCount
+            ? ` · ${t("settings.knowledgeBase.skippedPages", {
+                skipped: info.skippedCount,
+              })}`
+            : ""}
         </dd>
         <dt className="text-muted-foreground">
           {t("settings.knowledgeBase.built")}

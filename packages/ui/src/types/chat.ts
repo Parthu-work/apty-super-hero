@@ -279,3 +279,9 @@ export interface ChatbotEventHandlers {
 
 // Re-export AgentMetrics for convenience
 export type { AgentMetrics } from "@apty/agent-core";
+
+/** How one message is sent (KB-RAG K27, F2): "Ask the AI anyway" skips the local answer and adds a fixed instruction. */
+export interface SendMessageOptions {
+  skipLocalResponder?: boolean;
+  turnInstruction?: string;
+}

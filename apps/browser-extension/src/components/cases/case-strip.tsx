@@ -12,15 +12,16 @@ import { useEffect, useState } from "react";
 import { caseRecorder, setActiveConversation } from "../../services/cases";
 import { useReadiness } from "../connections/use-readiness";
 import { CloseCaseForm } from "./close-case-form";
+import { useSiteLabels } from "./use-site-label";
 
 /** Whether the panel already offered a case to continue: once per panel. */
 let offered = false;
 
-/** The conversation's case, re-read whenever a turn or a close changes it. */
-function useConversationCase(sessionId: string | null) {
+/** The conversation's case on the tab's site, re-read whenever a turn or a close changes it (K27, F4). */
+function useConversationCase(sessionId: string | null, site?: string) {
   const [record, setRecord] = useState<CaseRecord | undefined>();
   useEffect(() => {
-    setActiveConversation(sessionId);
+    setActiveConversation(sessionId, site);
     if (!sessionId) {
       setRecord(undefined);
       return undefined;
@@ -28,7 +29,7 @@ function useConversationCase(sessionId: string | null) {
     let live = true;
     const load = () => {
       caseRecorder()
-        .current(sessionId)
+        .current(sessionId, site)
         .then((found) => live && setRecord(found))
         .catch(() => live && setRecord(undefined));
     };
@@ -38,7 +39,7 @@ function useConversationCase(sessionId: string | null) {
       live = false;
       unsubscribe();
     };
-  }, [sessionId]);
+  }, [sessionId, site]);
   return record;
 }
 
@@ -46,7 +47,8 @@ function useConversationCase(sessionId: string | null) {
 export function InlineCaseId() {
   const { sessionId } = useChatContext();
   const { t } = useTranslation();
-  const record = useConversationCase(sessionId);
+  const { target } = useReadiness();
+  const record = useConversationCase(sessionId, target.hostname ?? undefined);
   const [copied, setCopied] = useState(false);
   if (!record) return null;
   const Icon = copied ? CheckIcon : CopyIcon;
@@ -81,8 +83,10 @@ export function InlineCaseId() {
 export function CaseStrip({ children }: { children?: React.ReactNode }) {
   const { sessionId } = useChatContext();
   const { t } = useTranslation();
-  const record = useConversationCase(sessionId);
   const { target } = useReadiness();
+  const site = target.hostname ?? undefined;
+  const record = useConversationCase(sessionId, site);
+  const { label } = useSiteLabels();
   const [copied, setCopied] = useState(false);
   const [offer, setOffer] = useState<CaseRecord | undefined>();
   const [closing, setClosing] = useState(false);
@@ -158,6 +162,20 @@ export function CaseStrip({ children }: { children?: React.ReactNode }) {
       >
         {t(copied ? "common.copied" : "common.copy")}
       </Button>
+      {record.tabHost && (
+        <span className="text-muted-foreground" data-testid="case-site">
+          {t("cases.site", { site: label(record.tabHost) ?? "" })}
+        </span>
+      )}
+      {sessionId && (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => void caseRecorder().startNew(sessionId, site)}
+        >
+          {t("cases.newCase")}
+        </Button>
+      )}
       {record.outcome !== "open" && (
         <span className="text-muted-foreground" data-testid="case-outcome">
           {t(`cases.outcome.${record.outcome}`)}

@@ -130,14 +130,23 @@ export function createKbIndexSet(
         ...(contextIgnored ? { contextIgnored } : {}),
       });
     }
-    return (
-      closest(results) ?? {
+    const nearest = closest(results);
+    if (!nearest) {
+      return {
         status: "not_covered",
         hits: [],
         coverage: 0,
         reason: "no_match",
-      }
-    );
+      };
+    }
+    if (nearest.reason !== "unknown_setting") return nearest;
+    return {
+      ...nearest,
+      closest: roundRobin(results.map((r) => r.closest ?? [])).slice(
+        0,
+        Math.max(1, Math.floor(topK)),
+      ),
+    };
   }
 
   const owner = (pageId: string) =>

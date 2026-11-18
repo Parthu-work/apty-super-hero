@@ -24,6 +24,7 @@ export type {
   MessageItemProps,
   MessageListProps,
   ModelSelectorSlotProps,
+  SendMessageOptions,
   ToolDisplaySlotProps,
   WelcomeScreenProps,
 } from "./chat";

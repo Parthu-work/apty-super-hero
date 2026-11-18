@@ -66,3 +66,10 @@ export interface TurnDecision {
   /** With `check`: the check pack that answered. */
   checkPackId?: string;
 }
+
+/**
+ * Added to the system prompt of a model turn the KB returned no card for
+ * (KB-RAG K27, F2): the model must not state an Apty fact it was not given.
+ */
+export const KB_NO_CARD_INSTRUCTION =
+  "The Apty KB has no card for this. Do not describe Apty settings, menus, paths, prices or features. Say you do not know, and suggest the KB owner or Studio and Admin.";

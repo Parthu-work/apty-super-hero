@@ -108,3 +108,23 @@ describe("F11: the KB section sends how-to questions to the docs, not Ask Dapty"
     expect(section).not.toMatch(/Ask Dapty/);
   });
 });
+
+describe("the Client file lookups (KB-RAG K27, F5)", () => {
+  it("tells the model it can read the content files whenever inspect_extension_network is offered", () => {
+    const prompt = composeSystemPrompt([{ name: "inspect_extension_network" }]);
+    expect(prompt).toContain(
+      "You can read the Apty Client's content files with inspect_extension_network. Never say you cannot look up workflows, segments or rules",
+    );
+    expect(composeSystemPrompt([{ name: "click" }])).not.toContain(
+      "Never say you cannot look up workflows",
+    );
+  });
+});
+
+describe("one question at a time (KB-RAG K27, F9)", () => {
+  it("tells the model to end a turn with at most one question and say why a plan stopped", () => {
+    const prompt = composeSystemPrompt([{ name: "start_investigation" }]);
+    expect(prompt).toContain("end a turn with at most one question");
+    expect(prompt).toContain("Waiting for your answer: which tooltip?");
+  });
+});

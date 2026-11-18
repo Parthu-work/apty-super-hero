@@ -12,6 +12,19 @@ const MARKDOWN_LINK = /\[([^\]\n]*)\]\([^)\n]*\)/g;
 const CITATION = /kb:\/\/\d+(?:#L[1-4])?/g;
 const HEADING_MARK = /^#{1,6}\s+/gm;
 
+const TITLE_WORDS = "[A-Z][\\w-]*(?: [A-Z][\\w-]*)*";
+/** A menu path such as "Admin Portal → Applications → Settings" (K27, F2). */
+const MENU_PATH = new RegExp(
+  `${TITLE_WORDS}(?:\\s*(?:→|->|›|>|»)\\s*${TITLE_WORDS})+`,
+  "g",
+);
+const PATH_SEPARATOR = /\s*(?:→|->|›|>|»)\s*/g;
+
+/**
+ * The menu paths and setting-like phrases an answer names (quoted, or two
+ * or more Title Case words) that no chunk holds. With no chunks, as on a
+ * model turn the KB returned no card for, every one is named.
+ */
 export function ungroundedPhrases(
   answer: string,
   chunks: readonly string[],
@@ -23,9 +36,25 @@ export function ungroundedPhrases(
     .replace(CITATION, " ")
     .replace(HEADING_MARK, "");
   const chunkTerms = chunks.map(kbTerms);
-  return namedPhrases(prose, { everyRun: true }).filter(
-    (phrase) => !chunkTerms.some((terms) => kbContainsPhrase(terms, phrase)),
+  const held = (phrase: string) =>
+    chunkTerms.some((terms) => kbContainsPhrase(terms, phrase));
+  // A path is grounded when a chunk holds each step; a step's first word
+  // may be the sentence's verb ("Open Studio").
+  const stepHeld = (step: string) =>
+    held(step) || held(step.split(" ").slice(1).join(" "));
+  const allPaths = [...prose.matchAll(MENU_PATH)].map((match) => match[0]);
+  const paths = allPaths.filter(
+    (path) => !path.split(PATH_SEPARATOR).every(stepHeld),
   );
+  const pathWords = allPaths.map((path) =>
+    path.replace(PATH_SEPARATOR, " ").toLowerCase(),
+  );
+  const phrases = namedPhrases(prose, { everyRun: true }).filter(
+    (phrase) =>
+      !held(phrase) &&
+      !pathWords.some((words) => words.includes(phrase.toLowerCase())),
+  );
+  return [...new Set([...paths, ...phrases])];
 }
 
 const SKIPPED = "code, pre, a, [data-kb-ungrounded]";

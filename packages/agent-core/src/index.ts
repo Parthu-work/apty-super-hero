@@ -19,8 +19,11 @@ export {
   caseExpired,
   caseToContinue,
   closeCase,
+  hostAlias,
   newCase,
   newCaseId,
+  otherSite,
+  siteKeyOf,
   turnStartsCase,
   withTurn,
 } from "./case/case.js";
@@ -133,6 +136,7 @@ export { SessionStorage } from "./conversation/storage.js";
 export { isSummaryItem } from "./conversation/summary-item.js";
 export {
   type DecisionPack,
+  KB_NO_CARD_INSTRUCTION,
   type KbDecision,
   type KbDeliveryFailure,
   packIdOf,
@@ -254,6 +258,7 @@ export { calculatorTool } from "./tools/calculator.js";
 export { httpFetchTool } from "./tools/http-fetch.js";
 export { tool } from "./tools/index.js";
 export {
+  capStrictTools,
   hasNoProperties,
   PROVIDER_SCHEMA_RULES,
   type ProviderSchemaRules,

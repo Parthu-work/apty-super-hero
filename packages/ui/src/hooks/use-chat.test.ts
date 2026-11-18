@@ -187,6 +187,30 @@ describe("useChat", () => {
     expect(result.current.messages[0]?.role).toBe("user");
   });
 
+  it("Ask the AI anyway: forwards the send options to the agent (K27, F2)", async () => {
+    const { agent } = setupDefaultAgent();
+    const { result } = await renderUseChat(agent);
+
+    await act(async () => {
+      await result.current.sendMessage(
+        "where is the FIXTURE switch",
+        undefined,
+        undefined,
+        {
+          skipLocalResponder: true,
+          turnInstruction: "FIXTURE: say you do not know.",
+        },
+      );
+    });
+
+    expect(agent.chat).toHaveBeenCalledWith("where is the FIXTURE switch", {
+      sessionId: undefined,
+      contexts: undefined,
+      skipLocalResponder: true,
+      turnInstruction: "FIXTURE: say you do not know.",
+    });
+  });
+
   it("should resolve and forward runContext via config.getRunContext", async () => {
     const { agent } = setupDefaultAgent();
     const getRunContext = vi.fn().mockResolvedValue({

@@ -521,6 +521,8 @@ export interface DaptySummary {
 
 export interface DiagnosisResult {
   packId: PackId;
+  /** K27, F4: the site the check ran on, as `siteKeyOf(host)`; never the host itself. */
+  siteKey?: string;
   /** The KB card the rules come from, and how far they were verified. */
   cardPageId: string;
   verifiedOn: string;

@@ -5,6 +5,7 @@ import {
   kbAnswerOf,
   kbDecisionOf,
   localKbMatches as outcomeOf,
+  renderedPageIds,
 } from "./kb-matches.js";
 import { unsignedAllowed } from "./kb-test-utils.js";
 
@@ -198,5 +199,64 @@ describe("every KB outcome is typed (KB-RAG K25, A2)", () => {
       status: "ok",
       pageIds: expect.arrayContaining(["202"]),
     });
+  });
+});
+
+describe("a setting no card has (KB-RAG K27, F2)", () => {
+  it("is answered by the KB with the closest cards, by title and link only", async () => {
+    const store = createKbPackStore({
+      assess: unsignedAllowed,
+      records: memoryRecords(),
+    });
+    await store.replace(fixtureV2PackText());
+    const outcome = await outcomeOf(
+      "the banner never glows after I turn on the FIXTURE Glow Pulse Switch",
+      createKbIndexSource(store),
+    );
+    expect(outcome.kind).toBe("unknown_setting");
+    if (outcome.kind !== "unknown_setting") return;
+    expect(outcome.result).toMatchObject({
+      status: "not_covered",
+      reason: "unknown_setting",
+      missingPhrases: ["FIXTURE Glow Pulse Switch"],
+      results: [],
+    });
+    expect(outcome.result.closest?.[0]).toMatchObject({
+      cite: "kb://101",
+      title: "FIXTURE banner never glows",
+    });
+    expect(JSON.stringify(outcome.result.closest)).not.toMatch(/Studio/);
+    expect(kbDecisionOf(outcome)).toMatchObject({
+      kind: "not_covered",
+      reason: "unknown_setting",
+    });
+  });
+});
+
+describe("the record holds what was shown (KB-RAG K27, F7)", () => {
+  it("lists exactly the shown card ids, in their order", async () => {
+    const outcome = await outcomeOf("the tooltip opens twice", await source());
+    expect(outcome.kind).toBe("answer");
+    if (outcome.kind !== "answer") return;
+    const shown = outcome.result.results.map(
+      (hit) => /^kb:\/\/(\d+)/.exec(hit.cite)?.[1],
+    );
+    expect(kbDecisionOf(outcome)).toMatchObject({ pageIds: shown });
+    expect(
+      renderedPageIds({
+        status: "not_in_version",
+        source: "kb",
+        cards: [],
+        absent: {
+          cite: "kb://909",
+          title: "FIXTURE",
+          site: "s",
+          space: "S",
+          aptyVersion: "4.x",
+          absentReason: null,
+        },
+        results: [{ cite: "kb://202#L1" } as never],
+      }),
+    ).toEqual(["909", "202"]);
   });
 });

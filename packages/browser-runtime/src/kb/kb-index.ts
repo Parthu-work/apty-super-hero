@@ -98,6 +98,16 @@ export interface KbToolHit {
   text: string;
 }
 
+/** A card that came close to a question naming a setting no card has: its title and link only. */
+export interface KbClosestCard {
+  /** `kb://<pageId>`: the card, with no layer. */
+  cite: string;
+  title: string;
+  site: string;
+  space: string;
+  aptyVersion: KbAptyVersion;
+}
+
 /** A card that covers the question but whose text for its version is not written yet. */
 export interface KbStubHit {
   /** `kb://<pageId>`: the card, with no layer. */
@@ -133,9 +143,13 @@ export interface KbToolResult extends KbSourceTag {
   reason?: KbNotCoveredReason;
   /** With `unknown_setting`: the phrases no card has. */
   missingPhrases?: string[];
+  /** With `unknown_setting` (K27, F2): the closest cards by title and link, no text; they may not mention the setting. */
+  closest?: KbClosestCard[];
   /** The top two cards are for different Apty versions: ask which one the tenant runs. */
   mixedVersions?: boolean;
   results: KbToolHit[];
+  /** K27, F4: a local answer's site, as `siteKeyOf(host)`; never the host itself, never sent to the model. */
+  siteKey?: string;
 }
 
 /** A card saying a feature has no equivalent in its Apty version. */
@@ -208,7 +222,11 @@ export function kbToolResult(
   } = {},
 ): KbToolResult {
   if (!index) return { status: "no_pack", ...kbSourceTag([]), results: [] };
-  return kbToolResultOf(index.search(query, options));
+  // The closest cards are for the SE's screen (K27, F2), not the model.
+  const { closest: _closest, ...result } = kbToolResultOf(
+    index.search(query, options),
+  );
+  return result;
 }
 
 /** A search's result as `search_kb` returns it. */
@@ -255,6 +273,16 @@ export function kbToolResultOf(found: KbSearchResult): KbToolResult {
       ...kbSourceTag([]),
       ...(found.reason ? { reason: found.reason } : {}),
       ...(found.missingPhrases ? { missingPhrases: found.missingPhrases } : {}),
+      ...(found.closest
+        ? {
+            closest: found.closest.map((hit) => ({
+              cite: `kb://${hit.chunk.pageId}`,
+              title: hit.card.title,
+              ...kbCardLocation(hit.card),
+              aptyVersion: hit.aptyVersion,
+            })),
+          }
+        : {}),
       results: [],
     };
   }

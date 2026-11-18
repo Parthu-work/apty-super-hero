@@ -47,7 +47,11 @@ import { useCopiedFlag } from "../../ui/copy-button";
 import { useComponentsContext } from "../context";
 import { ChatErrorNotice } from "./chat-error-notice";
 import { DefaultToolDisplay } from "./slots/tool-display";
-import { TurnDecisionDetails, TurnDecisionLine } from "./turn-decision-note";
+import {
+  decisionText,
+  TurnDecisionDetails,
+  TurnDecisionLine,
+} from "./turn-decision-note";
 
 /**
  * Get icon for context type
@@ -74,13 +78,18 @@ function getContextIcon(contextType: string) {
 function GroundedResponse({
   text,
   ungrounded,
+  withoutCards = false,
 }: {
   text: string;
   ungrounded: string[];
+  /** A model turn the KB returned no card for (K27, F2): nothing it names is grounded. */
+  withoutCards?: boolean;
 }) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
-  const title = t("chat.kbUngroundedTitle");
+  const title = t(
+    withoutCards ? "chat.kbNotFoundTitle" : "chat.kbUngroundedTitle",
+  );
   const key = ungrounded.join("\n");
   useEffect(() => {
     const root = ref.current;
@@ -100,7 +109,9 @@ function GroundedResponse({
       </div>
       {ungrounded.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          {t("chat.kbUngrounded", { phrases: ungrounded.join(", ") })}
+          {t(withoutCards ? "chat.kbNotFound" : "chat.kbUngrounded", {
+            phrases: ungrounded.join(", "),
+          })}
         </p>
       )}
     </>
@@ -152,9 +163,23 @@ export function DefaultMessageItem({
   const text = message.parts
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join("\n");
+  // K27, F10: a copied or downloaded reply carries its turn's record.
+  const decision = message.metadata?.decision;
+  const withRecord = (body: string) =>
+    message.role === "assistant" && decision
+      ? `${body}\n\n${decisionText(decision, t)}`
+      : body;
+  const copyWithRecord = onCopy
+    ? (body: string) => onCopy(withRecord(body))
+    : undefined;
 
   // The cards this turn's search_kb calls returned: the citations link to them.
   const kbCards = turnKbCards ?? kbReturnedCards(message.parts);
+  // K27, F2: the model answered and no KB card came back this turn.
+  const withoutCards =
+    message.role === "assistant" &&
+    message.metadata?.decision?.route === "model" &&
+    kbCards.texts.length === 0;
 
   // The user's chips and attachments sit under their words.
   const parts =
@@ -181,6 +206,14 @@ export function DefaultMessageItem({
 
       {message.role === "assistant" && message.metadata?.decision && (
         <TurnDecisionLine decision={message.metadata.decision} />
+      )}
+      {withoutCards && text.trim() && (
+        <p
+          className="text-small font-medium text-muted-foreground"
+          data-testid="not-from-kb"
+        >
+          {t("chat.notFromKb")}
+        </p>
       )}
 
       {/* Message parts */}
@@ -217,9 +250,11 @@ export function DefaultMessageItem({
                 from={message.role as "user" | "assistant" | "system"}
               >
                 <MessageContent>
-                  {message.role === "assistant" && kbCards.searched ? (
+                  {message.role === "assistant" &&
+                  (kbCards.searched || withoutCards) ? (
                     <GroundedResponse
                       text={processedText}
+                      withoutCards={withoutCards}
                       ungrounded={
                         isStreaming && isLast
                           ? []
@@ -362,7 +397,7 @@ export function DefaultMessageItem({
               message,
               isLast,
               onRegenerate: isLast ? onRegenerate : undefined,
-              onCopy,
+              onCopy: copyWithRecord,
             })
           ) : (
             <Actions>
@@ -374,7 +409,7 @@ export function DefaultMessageItem({
               {onCopy && (
                 <Action
                   onClick={async () => {
-                    const result = await onCopy(text);
+                    const result = await onCopy(withRecord(text));
                     if (result === undefined || result) flashCopied();
                   }}
                   tooltip={t(copied ? "common.copied" : "common.copy")}
@@ -390,7 +425,9 @@ export function DefaultMessageItem({
                 onClick={() =>
                   downloadText(
                     timestampedFilename("message", "md"),
-                    formatExport ? formatExport(text) : text,
+                    formatExport
+                      ? formatExport(withRecord(text))
+                      : withRecord(text),
                     "text/markdown",
                   )
                 }

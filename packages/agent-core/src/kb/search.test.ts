@@ -266,6 +266,10 @@ describe("coverage (schema v2)", () => {
       missingPhrases: ["Glowing Toggle"],
       hits: [],
     });
+    expect(invented.closest?.[0]?.chunk.pageId).toBe("101");
+    expect(new Set(invented.closest?.map((hit) => hit.chunk.pageId)).size).toBe(
+      invented.closest?.length,
+    );
     const quoted = index.search('banner "glow switch" does not glow');
     expect(quoted.missingPhrases).toEqual(["glow switch"]);
 
@@ -1314,5 +1318,56 @@ describe('"not in this version" cards (KB-RAG K25, A4)', () => {
     expect(
       fourTab.search("where is the drop-off funnel chart for workflows").hits,
     ).toEqual([]);
+  });
+});
+
+describe("the shown layer (KB-RAG K27, F6)", () => {
+  const LAYERED = [
+    card("701", "FIXTURE ribbon wobbles", [
+      "- In Studio, set the FIXTURE ribbon anchor to fixed.",
+      "- The FIXTURE ribbon element moves when the page scrolls.",
+      "- ribbon.json lists anchorMode (FIXTURE).",
+      "- The ribbon wobbles and shakes on scroll: wobbles shakes ribbon wobbles.",
+    ]),
+    card("702", "FIXTURE gauge is empty", [
+      "- In Admin, pick a FIXTURE gauge source.",
+      "- The FIXTURE gauge frame loads.",
+      "- gauge.json lists sources (FIXTURE).",
+      "- Send support the FIXTURE gauge id.",
+    ]),
+  ];
+  const index = createKbIndex(
+    syntheticPack(
+      LAYERED,
+      { coverage: { min: 0.3, minIdf: 0.1, minTerms: 1 } },
+      V2,
+    ),
+  );
+
+  it("shows the best of layers 1 to 3 for a symptom, even when layer 4 matches best", () => {
+    const result = index.search("the ribbon wobbles", {
+      topK: 3,
+      onePerCard: true,
+    });
+    expect(result.hits[0]?.chunk.pageId).toBe("701");
+    expect(result.hits[0]?.chunk.layer).not.toBe(4);
+    const all = index.search("the ribbon wobbles", { topK: 8 });
+    expect(all.hits[0]?.chunk.layer).toBe(4);
+  });
+
+  it("shows layer 4 when the question asks about support or escalation", () => {
+    const result = index.search(
+      "the ribbon wobbles, what do I send to support",
+      { topK: 3, onePerCard: true },
+    );
+    expect(result.hits[0]?.chunk).toMatchObject({ pageId: "701", layer: 4 });
+  });
+
+  it("still shows layer 3 first for a file question", () => {
+    const result = index.search("what does ribbon.json mean", {
+      topK: 3,
+      onePerCard: true,
+    });
+    expect(result.hits[0]?.chunk).toMatchObject({ pageId: "701", layer: 3 });
   });
 });

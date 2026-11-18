@@ -258,3 +258,74 @@ describe("DOM Config in a case (KB-RAG K26 C4)", () => {
     });
   });
 });
+
+describe("a case belongs to one site (KB-RAG K27, F4)", () => {
+  it("gives two hosts in one conversation two cases, each with its own version and checks", async () => {
+    let url = "https://one.example.com/app";
+    let tick = 0;
+    const store = createCaseStore({
+      records: memoryCaseRecords(),
+      now: () => NOW,
+    });
+    const recorder = createCaseRecorder({
+      store,
+      now: () => new Date(NOW.getTime() + 1000 * tick++),
+      tabUrlOf: async () => url,
+      random: () => tick / 100,
+    });
+    await recorder.wrap(async () => CHECK)("my workflow is not visible", ctx);
+    url = "https://two.example.com/app";
+    await recorder.wrap(async () => ({
+      ...KB,
+      decision: { ...decision("kb"), version: "5.x" as const },
+    }))("the tooltip opens twice", ctx);
+    await recorder.wrap(async () => ({
+      decision: { ...decision("model"), version: "5.x" as const },
+    }))("thanks", ctx);
+
+    const one = await recorder.current("conv-1", "one.example.com");
+    const two = await recorder.current("conv-1", "two.example.com");
+    expect(one?.id).not.toBe(two?.id);
+    expect(one).toMatchObject({
+      tabHost: "one.example.com",
+      aptyVersion: "4.x",
+      checks: [{ packId: "content-not-visible" }],
+      kbShown: [],
+    });
+    expect(two).toMatchObject({
+      tabHost: "two.example.com",
+      aptyVersion: "5.x",
+      checks: [],
+      kbShown: [{ cards: [{ pageId: "4002" }] }],
+    });
+    expect(one?.decisions).toHaveLength(1);
+
+    url = "https://one.example.com/app";
+    await recorder.wrap(async () => CHECK)("my workflow is not visible", ctx);
+    expect(
+      (await recorder.current("conv-1", "one.example.com"))?.checks,
+    ).toHaveLength(2);
+    expect(
+      (await recorder.current("conv-1", "two.example.com"))?.checks,
+    ).toHaveLength(0);
+  });
+
+  it("New case starts an empty case on the current site and leaves the others", async () => {
+    let n = 0;
+    const recorder = createCaseRecorder({
+      store: createCaseStore({ records: memoryCaseRecords(), now: () => NOW }),
+      now: () => NOW,
+      tabUrlOf: async () => "https://crm.customer-name.example/leads/42",
+      random: () => (n++ % 32) / 32,
+    });
+    await recorder.wrap(async () => CHECK)("my workflow is not visible", ctx);
+    const first = await recorder.current("conv-1");
+    const fresh = await recorder.startNew(
+      "conv-1",
+      "crm.customer-name.example",
+    );
+    expect(fresh.id).not.toBe(first?.id);
+    expect(fresh).toMatchObject({ checks: [], kbShown: [], outcome: "open" });
+    expect((await recorder.store.get(first?.id ?? ""))?.checks).toHaveLength(1);
+  });
+});

@@ -251,6 +251,7 @@ export class AptyAgent {
     session: Session | null,
     runContext?: unknown,
     tools?: FunctionTool[],
+    turnInstruction?: string,
   ): AsyncGenerator<AgentEvent> {
     const startTime = Date.now();
     const metrics = this.initMetrics(startTime, session);
@@ -325,9 +326,12 @@ export class AptyAgent {
                 ),
               );
               const tools = (agent as { tools?: FunctionTool[] }).tools ?? [];
-              const instructions = this.instructionsFor
+              const base = this.instructionsFor
                 ? this.instructionsFor(tools)
                 : modelData.instructions;
+              const instructions = turnInstruction
+                ? `${base ?? ""}\n\n${turnInstruction}`
+                : base;
               const request = { instructions, tools };
               for (const filter of this.outboundFilters) {
                 input = await filter(input, request);
@@ -683,8 +687,22 @@ export class AptyAgent {
     }
 
     let local: LocalAnswer | undefined;
-    let decision: TurnDecision | undefined;
-    if (typeof input === "string" && !chatOptions?.images?.length) {
+    // The SE sent it past the local answer: the model takes it, with no
+    // KB card (K27, F2).
+    let decision: TurnDecision | undefined = chatOptions?.skipLocalResponder
+      ? {
+          route: "model",
+          version: "unknown",
+          versionSource: "unknown",
+          packs: [],
+        }
+      : undefined;
+    let turnInstruction = chatOptions?.turnInstruction;
+    if (
+      typeof input === "string" &&
+      !chatOptions?.images?.length &&
+      !chatOptions?.skipLocalResponder
+    ) {
       try {
         const responded = await this.localResponder?.(input, {
           runContext: chatOptions?.runContext,
@@ -692,6 +710,9 @@ export class AptyAgent {
         });
         local = isLocalAnswer(responded) ? responded : undefined;
         decision = responded?.decision;
+        if (responded && !isLocalAnswer(responded)) {
+          turnInstruction ??= responded.modelInstruction;
+        }
       } catch (error) {
         yield { type: "error", error: this.normalizeError(error) };
         return;
@@ -732,6 +753,7 @@ export class AptyAgent {
             session,
             chatOptions?.runContext,
             chatOptions?.tools,
+            turnInstruction,
           );
       return;
     }
@@ -752,6 +774,7 @@ export class AptyAgent {
           session,
           chatOptions?.runContext,
           chatOptions?.tools,
+          turnInstruction,
         );
   }
 

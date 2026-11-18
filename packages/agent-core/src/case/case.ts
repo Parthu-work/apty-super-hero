@@ -241,3 +241,54 @@ export function caseToContinue(
     )
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
 }
+
+const SITE_KEY = /^site-[0-9a-f]{8}$/;
+
+/**
+ * A short key for a tab's host (K27, F4): a check or KB answer carries it
+ * instead of the host, so the answer never holds the customer's address;
+ * the panel matches it to a case's host on the device. A key stays as is.
+ */
+export function siteKeyOf(host: string): string {
+  if (SITE_KEY.test(host)) return host;
+  let hash = 0x811c9dc5;
+  for (const char of host.toLowerCase()) {
+    hash ^= char.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `site-${hash.toString(16).padStart(8, "0")}`;
+}
+
+/** Whether two tab hosts, or site keys, are different sites; an unknown one matches any (K27, F4). */
+export function otherSite(
+  a: string | undefined,
+  b: string | undefined,
+): boolean {
+  return a !== undefined && b !== undefined && siteKeyOf(a) !== siteKeyOf(b);
+}
+
+/**
+ * The name the panel shows for `host` when site aliases are on (K27, F4):
+ * `customer-a`, `customer-b`, … in the order the hosts were first seen in
+ * `records` (oldest first); a host with no case yet takes the next letter.
+ */
+export function hostAlias(
+  host: string,
+  records: readonly Pick<CaseRecord, "tabHost" | "createdAt">[],
+): string {
+  const seen: string[] = [];
+  for (const record of [...records].sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt),
+  )) {
+    if (record.tabHost && !seen.includes(record.tabHost)) {
+      seen.push(record.tabHost);
+    }
+  }
+  const index = seen.includes(host) ? seen.indexOf(host) : seen.length;
+  let name = "";
+  for (let n = index; ; n = Math.floor(n / 26) - 1) {
+    name = String.fromCharCode(97 + (n % 26)) + name;
+    if (n < 26) break;
+  }
+  return `customer-${name}`;
+}

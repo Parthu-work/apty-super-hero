@@ -1,4 +1,4 @@
-import { isLocalAnswer } from "@apty/agent-core";
+import { isLocalAnswer, KB_NO_CARD_INSTRUCTION } from "@apty/agent-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const EXT_ID = "abcdefghijklmnopabcdefghijklmnop";
@@ -589,7 +589,68 @@ describe("the KB matches answer (KB-RAG K6)", () => {
           version: "unknown",
         },
       },
+      modelInstruction: KB_NO_CARD_INSTRUCTION,
     });
+  });
+
+  it("answers a setting no card has from the KB, with no model call (K27, F2)", async () => {
+    const unknownSetting = {
+      kind: "unknown_setting" as const,
+      result: {
+        status: "not_covered" as const,
+        source: "kb" as const,
+        cards: [],
+        reason: "unknown_setting" as const,
+        missingPhrases: ["FIXTURE Glow Pulse Switch"],
+        closest: [
+          {
+            cite: "kb://202",
+            title: "FIXTURE tooltip opens twice",
+            site: "fixture.atlassian.net",
+            space: "FX",
+            aptyVersion: "5.x" as const,
+          },
+        ],
+        results: [],
+      },
+      coverage: 0.6,
+      min: 0.5,
+      topPageId: "202",
+      version: "unknown" as const,
+      packs: [{ version: "5.x", sha256: "0123456789ab" }],
+    };
+    const respond = createDiagnosisResponder({
+      kbMatchesOf: async () => unknownSetting,
+      modelAvailable: () => true,
+    });
+    const answered = await respond(
+      "where is the FIXTURE Glow Pulse Switch",
+      {},
+    );
+    expect(answered).toMatchObject({
+      toolName: "search_kb",
+      result: unknownSetting.result,
+      decision: {
+        route: "kb",
+        kb: { kind: "not_covered", reason: "unknown_setting" },
+      },
+    });
+  });
+
+  it("tells the model not to describe Apty settings on a product question the KB could not search, and only then (K27, F2)", async () => {
+    const noPack = { kind: "no_pack" as const, version: "unknown" as const };
+    const respond = createDiagnosisResponder({
+      kbMatchesOf: async () => noPack,
+    });
+    expect(
+      await respond("how much does an Apty licence cost", {}),
+    ).toMatchObject({ modelInstruction: KB_NO_CARD_INSTRUCTION });
+    expect(
+      await respond("which menu holds the FIXTURE export", {}),
+    ).toMatchObject({ modelInstruction: KB_NO_CARD_INSTRUCTION });
+    expect(
+      await respond("summarise this page for me please", {}),
+    ).not.toHaveProperty("modelInstruction");
   });
 
   it("names the version's source: a check's files, then the user's choice", async () => {
@@ -610,6 +671,53 @@ describe("the KB matches answer (KB-RAG K6)", () => {
     rememberKbVersion("crm.example.com", "5.x", "evidence");
     expect(await respond("how do I set X", {})).toMatchObject({
       decision: { version: "5.x", versionSource: "files" },
+    });
+  });
+});
+
+describe("the version from the Client's files (KB-RAG K27, F7)", () => {
+  it("a Client reporting flow.json sets 4.x before the KB search, with no check run", async () => {
+    forgetKbVersions();
+    const kbMatchesOf = vi.fn(async () => ({
+      kind: "no_pack" as const,
+      version: "4.x" as const,
+    }));
+    const respond = createDiagnosisResponder({
+      pageUrlOf: async () => "https://ln.customer.example/app",
+      observedNamesOf: async () => ["app.json", "flow.json"],
+      kbMatchesOf,
+    });
+    const answered = await respond("the tooltip opens twice", {});
+    expect(kbMatchesOf).toHaveBeenCalledWith("the tooltip opens twice", {
+      modelAvailable: false,
+      version: "4.x",
+    });
+    expect(answered?.decision).toMatchObject({
+      version: "4.x",
+      versionSource: "files",
+    });
+  });
+});
+
+describe("a check's record names the loaded packs (KB-RAG K27, F8)", () => {
+  it("lists the packs in use, not none", async () => {
+    serveCapture();
+    const respond = createDiagnosisResponder({
+      loadedPacksOf: async () => [
+        { version: "4.x", sha256: "0123456789ab" },
+        { version: "5.x", sha256: "fedcba987654" },
+      ],
+    });
+    const answered = await respond(
+      "My workflow 'Take a tour' is not visible in the widget",
+      {},
+    );
+    expect(answered?.decision).toMatchObject({
+      route: "check",
+      packs: [
+        { version: "4.x", sha256: "0123456789ab" },
+        { version: "5.x", sha256: "fedcba987654" },
+      ],
     });
   });
 });

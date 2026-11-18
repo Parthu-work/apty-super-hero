@@ -12,6 +12,7 @@ import type {
   ChatConfig,
   ChatStatus,
   ContextItem,
+  SendMessageOptions,
   UIMessage,
 } from "../types";
 
@@ -51,6 +52,7 @@ export interface UseChatReturn {
     text: string,
     files?: File[],
     contexts?: ContextItem[],
+    options?: SendMessageOptions,
   ) => Promise<void>;
   /** Continue the conversation */
   continueConversation: (text: string) => Promise<void>;
@@ -137,7 +139,12 @@ export function useChat(
   // "idle" transition (never after "error" — that turn needs the user's
   // attention, not a queued message firing straight into the same failure).
   const messageQueueRef = useRef<
-    Array<{ text: string; files?: File[]; contexts?: ContextItem[] }>
+    Array<{
+      text: string;
+      files?: File[];
+      contexts?: ContextItem[];
+      options?: SendMessageOptions;
+    }>
   >([]);
   const [queueCount, setQueueCount] = useState(0);
   const drainQueueRef = useRef<() => void>(() => {});
@@ -253,6 +260,7 @@ export function useChat(
       text: string,
       files?: File[],
       contexts?: ContextItem[],
+      options?: SendMessageOptions,
     ): Promise<void> => {
       if (!agent) {
         console.warn("useChat: agent is not initialized");
@@ -304,6 +312,7 @@ export function useChat(
           contexts: coreContexts,
           runContext,
           tools,
+          ...options,
         });
         await processAgentEvents(events);
       } catch (error) {
@@ -334,7 +343,7 @@ export function useChat(
     const next = messageQueueRef.current.shift();
     setQueueCount(messageQueueRef.current.length);
     if (next) {
-      void runSendMessage(next.text, next.files, next.contexts);
+      void runSendMessage(next.text, next.files, next.contexts, next.options);
     }
   };
 
@@ -345,18 +354,19 @@ export function useChat(
       text: string,
       files?: File[],
       contexts?: ContextItem[],
+      options?: SendMessageOptions,
     ): Promise<void> => {
       if (!text.trim() && !files?.length && !contexts?.length) {
         return;
       }
 
       if (adapter.getStatus() !== "idle" && adapter.getStatus() !== "error") {
-        messageQueueRef.current.push({ text, files, contexts });
+        messageQueueRef.current.push({ text, files, contexts, options });
         setQueueCount(messageQueueRef.current.length);
         return;
       }
 
-      await runSendMessage(text, files, contexts);
+      await runSendMessage(text, files, contexts, options);
     },
     [adapter, runSendMessage],
   );

@@ -14,8 +14,13 @@ import { describe, expect, it } from "vitest";
 };
 
 const { allBrowserTools, browserToolGroups } = await import("./index.js");
-const { createStickyToolSelector, selectRelevantTools, withoutKbSearch } =
-  await import("./tool-relevance.js");
+const {
+  createStickyToolSelector,
+  selectRelevantTools,
+  TOOL_ROUTE_BUDGETS,
+  toolRouteOf,
+  withoutKbSearch,
+} = await import("./tool-relevance.js");
 
 function names(tools: { name: string }[]): string[] {
   return tools.map((t) => t.name).sort();
@@ -139,7 +144,9 @@ describe("selectRelevantTools", () => {
 
 describe("tool order", () => {
   it("is the registry's, however the groups were matched, so equal sets send equal schemas", () => {
-    const implied = selectRelevantTools("check the apty client service worker");
+    const implied = createStickyToolSelector({
+      investigationStarted: () => true,
+    })("check the apty client service worker", "s-order");
     const keyword = selectRelevantTools(
       "investigate the apty client service worker",
     );
@@ -325,5 +332,94 @@ describe("withoutKbSearch (KB-RAG K22)", () => {
     const without = withoutKbSearch(tools);
     expect(without.map((t) => t.name)).not.toContain("search_kb");
     expect(without).toHaveLength(tools.length - 1);
+  });
+});
+
+describe("tool routes (KB-RAG K27, F1)", () => {
+  const investigationNames = new Set(
+    names(browserToolGroups.investigation as { name: string }[]),
+  );
+
+  it("offers a file-meaning question search_kb and the Client file-read tools, 8 or fewer", () => {
+    for (const message of [
+      "what does flow.json mean",
+      "from flows.json check if workflow Alpha is in segment Beta",
+    ]) {
+      const offered = names(selectRelevantTools(message));
+      expect(toolRouteOf(message)).toBe("file");
+      expect(offered.length).toBeLessThanOrEqual(TOOL_ROUTE_BUDGETS.file ?? 0);
+      expect(offered).toEqual(
+        expect.arrayContaining(["search_kb", "inspect_extension_network"]),
+      );
+      expect(offered.filter((n) => investigationNames.has(n))).toEqual([]);
+    }
+  });
+
+  it("offers a symptom question the investigation basics, 12 or fewer", () => {
+    for (const message of [
+      "the tooltip keeps flickering on this page",
+      "why isn't my Apty widget showing",
+      "workflow is published but not showing in the widget",
+    ]) {
+      const offered = names(selectRelevantTools(message));
+      expect(toolRouteOf(message)).toBe("symptom");
+      expect(offered.length).toBeLessThanOrEqual(
+        TOOL_ROUTE_BUDGETS.symptom ?? 0,
+      );
+      expect(offered).toContain("start_investigation");
+      expect(offered).not.toContain("record_verification_attempt");
+    }
+  });
+
+  it("offers the whole investigation set once an investigation has started, and keeps it for the chat", () => {
+    let started = false;
+    const select = createStickyToolSelector({
+      investigationStarted: () => started,
+    });
+    const before = names(select("why isn't my Apty widget showing", "s-1"));
+    expect(before).not.toContain("record_verification_attempt");
+    started = true;
+    const after = names(select("and the tooltip too", "s-1"));
+    for (const name of investigationNames) expect(after).toContain(name);
+  });
+
+  it("offers the whole set when the SE asks for an investigation", () => {
+    const offered = names(
+      selectRelevantTools("investigate why the apty widget is broken"),
+    );
+    expect(toolRouteOf("investigate why the apty widget is broken")).toBe(
+      "investigation",
+    );
+    for (const name of investigationNames) expect(offered).toContain(name);
+  });
+});
+
+describe("content lookups (KB-RAG K27, F5)", () => {
+  it("offers the Client file-read tools for a question about a workflow in a segment, within the file budget", () => {
+    for (const message of [
+      "check if Alpha Ledger Page workflow is present in all-users segment",
+      "does the Beta segment contain the onboarding flow",
+      "which rules are assigned to this launcher",
+      "show me what workflow.json says about Alpha",
+      "is Gamma in segment.json",
+    ]) {
+      const offered = names(selectRelevantTools(message));
+      expect(offered, message).toContain("inspect_extension_network");
+      expect(offered.length, message).toBeLessThanOrEqual(
+        TOOL_ROUTE_BUDGETS.file ?? 0,
+      );
+    }
+  });
+
+  it("does not for a casual message or one about something else", () => {
+    for (const message of [
+      "thanks, that helps",
+      "the weather in the region is nice",
+      "click the button in the header",
+    ]) {
+      expect(names(selectRelevantTools(message)), message).not.toContain(
+        "inspect_extension_network",
+      );
+    }
   });
 });

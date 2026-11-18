@@ -4,15 +4,16 @@
   "budgets": {
     "casual": 1385,
     "followup": 5044,
-    "apty-question": 8653,
+    "apty-question": 5813,
     "segments-json": 5032,
     "dom-health": 3370,
     "click-task": 4300,
-    "investigation-10-turns": 11675,
-    "long-chat-8-turns": 11565,
+    "investigation-10-turns": 9597,
+    "long-chat-8-turns": 9487,
     "snapshot-heavy": 4273,
     "long-chat-8-turns-summarized": 10138,
     "summary-request": 149,
-    "kb-followup": 10056
+    "kb-followup": 10056,
+    "file-question": 4316
   }
 }

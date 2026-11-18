@@ -36,6 +36,11 @@ import {
   schemaViolations,
 } from "@apty/agent-core";
 import { allBrowserTools } from "@apty/browser-runtime/tools";
+import {
+  selectRelevantTools,
+  TOOL_ROUTE_BUDGETS,
+  toolRouteOf,
+} from "@apty/browser-runtime/tools/tool-relevance";
 import { createOutboundFilters } from "../hooks/outbound-filters";
 import { createAIProvider } from "./ai-provider";
 
@@ -63,6 +68,7 @@ function requiredWithoutProperties(schema: unknown, path = "$"): string[] {
 async function requestBody(
   settings: Record<string, string>,
   model = "m",
+  tools: typeof allBrowserTools = allBrowserTools,
 ): Promise<Record<string, unknown>> {
   let body: Record<string, unknown> | undefined;
   const fetch = (async (_url: string, init: RequestInit) => {
@@ -76,7 +82,7 @@ async function requestBody(
   const agent = AptyAgent.create({
     instructions: "Test",
     model: aisdk(provider(model)),
-    tools: allBrowserTools,
+    tools,
     outboundFilters: createOutboundFilters(),
   });
   for await (const _event of agent.chat("hello")) {
@@ -261,11 +267,25 @@ describe("provider schema conformance (KB-RAG K25, A1)", () => {
       input_schema: { properties: Record<string, { description?: string }> };
     }>;
     const evidence = tools.find((t) => t.name === "get_evidence_json");
-    expect(evidence?.strict).toBe(true);
     expect(evidence?.input_schema.properties.limit?.description).toMatch(
       /\(at most 50, greater than 0\)$/,
     );
-    for (const tool of tools) expect(tool.strict, tool.name).toBe(true);
+    expect(tools.length).toBeGreaterThan(20);
+    for (const tool of tools.slice(0, 20)) {
+      expect(tool.strict, tool.name).toBe(true);
+    }
+  });
+
+  it("Anthropic: never more than 20 strict tools, the rest sent without strict (K27, F1)", async () => {
+    const body = await requestBody(PROVIDERS.Anthropic, "claude-sonnet-4-5");
+    const tools = body.tools as Array<{ name: string; strict?: boolean }>;
+    expect(tools.map((t) => t.name).sort()).toEqual(
+      allBrowserTools.map((t) => t.name).sort(),
+    );
+    expect(tools.filter((t) => t.strict === true)).toHaveLength(20);
+    for (const tool of tools.slice(20)) {
+      expect("strict" in tool, tool.name).toBe(false);
+    }
   });
 
   it("every keyword a registered tool uses is known to the rewrite, so a new one needs a decision", () => {
@@ -305,5 +325,64 @@ describe("provider schema conformance (KB-RAG K25, A1)", () => {
       walk(tool.parameters);
     }
     expect([...unknown]).toEqual([]);
+  });
+});
+
+/** Paraphrased SE questions from the K27 regression grid; no card text. */
+const PROBE_QUESTIONS = [
+  "the tooltip keeps flickering on this page",
+  "what does flow.json mean",
+  "from flows.json check if workflow Alpha is in segment Beta",
+  "workflow not working",
+  "the widget is missing on this page",
+  "element is not found",
+  "the drop-off metric looks wrong",
+  "how much does an Apty licence cost",
+  "where is the Gadget Activation toggle",
+  "check if Alpha Ledger workflow is present in all-users segment",
+  "content is visible to everyone after a segment was turned off",
+  "workflow is published but not showing in the widget",
+];
+
+describe("tool budget per question and provider (KB-RAG K27, F1)", () => {
+  it.each(
+    CONFORMANCE,
+  )("%s: every probe question's tools obey the provider's rules and the route's budget", async (_label, settings, provider, model) => {
+    const rules = PROVIDER_SCHEMA_RULES[provider];
+    for (const question of PROBE_QUESTIONS) {
+      const offered = selectRelevantTools(question);
+      const route = toolRouteOf(question);
+      const budget = TOOL_ROUTE_BUDGETS[route];
+      expect(route, question).not.toBe("investigation");
+      expect(offered.length, question).toBeLessThanOrEqual(12);
+      if (budget !== null) {
+        expect(offered.length, question).toBeLessThanOrEqual(budget);
+      }
+      if (offered.length === 0) continue;
+      const body = await requestBody(settings, model, offered);
+      const schemas = sentSchemas(body);
+      expect([...schemas.keys()].sort(), question).toEqual(
+        offered.map((t) => t.name).sort(),
+      );
+      for (const [name, schema] of schemas) {
+        expect(schemaViolations(schema, rules), name).toEqual([]);
+      }
+      const strictCount =
+        JSON.stringify(body.tools ?? []).split('"strict":true').length - 1;
+      expect(strictCount).toBeLessThanOrEqual(
+        rules.maxStrictTools ?? Number.POSITIVE_INFINITY,
+      );
+    }
+  });
+
+  it("a file-meaning question gets search_kb and the Client file-read tools only", () => {
+    const names = selectRelevantTools("what does flow.json mean").map(
+      (t) => t.name,
+    );
+    expect(names).toEqual(
+      expect.arrayContaining(["search_kb", "inspect_extension_network"]),
+    );
+    expect(names.length).toBeLessThanOrEqual(8);
+    expect(names).not.toContain("start_investigation");
   });
 });
