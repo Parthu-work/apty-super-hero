@@ -721,3 +721,68 @@ describe("a check's record names the loaded packs (KB-RAG K27, F8)", () => {
     });
   });
 });
+
+describe("lookups from the content files (KB-RAG K27, E4)", () => {
+  const ok = (name: string, json: unknown) => ({
+    name,
+    status: "ok" as const,
+    json,
+  });
+  const evidence = (version: "4.x" | "5.x") => ({
+    connection: { ok: true as const },
+    observedNames:
+      version === "5.x"
+        ? ["workflow.json", "segment.json"]
+        : ["flow.json", "segments.json"],
+    files:
+      version === "5.x"
+        ? {
+            "workflow.json": ok("workflow.json", [
+              { sourceId: "wf-1", name: "Alpha Ledger Page" },
+            ]),
+            "segment.json": ok("segment.json", [
+              {
+                id: "s-1",
+                name: "All Users",
+                isActive: true,
+                workflowIds: ["wf-1"],
+              },
+            ]),
+          }
+        : {
+            "flow.json": ok("flow.json", [
+              { id: 11, name: { en: "Alpha Ledger Page" } },
+            ]),
+            "segments.json": ok("segments.json", [
+              { id: 21, name: "All Users", flows: [11] },
+            ]),
+          },
+  });
+
+  it.each([
+    "4.x",
+    "5.x",
+  ] as const)("%s: answers the General Ledger question in a table, with no KB search and no model", async (version) => {
+    const kbMatchesOf = vi.fn();
+    const respond = createDiagnosisResponder({
+      kbMatchesOf,
+      filesOf: async () => evidence(version),
+      modelAvailable: () => true,
+    });
+    const answered = await respond(
+      "check if Alpha Ledger Page workflow is present in all-users segment",
+      {},
+    );
+    expect(isLocalAnswer(answered)).toBe(true);
+    expect(answered).toMatchObject({
+      toolName: "lookup_content",
+      result: {
+        aptyVersion: version,
+        status: "answered",
+        rows: [["Alpha Ledger Page", "All Users", "@yes", expect.any(String)]],
+      },
+      decision: { route: "file_fetch" },
+    });
+    expect(kbMatchesOf).not.toHaveBeenCalled();
+  });
+});

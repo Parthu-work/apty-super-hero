@@ -2788,6 +2788,55 @@
       "policyInvalid": "无法使用你的组织策略；请联系 IT。"
     }
   },
+  "lookup": {
+    "title": "来自 Apty Client 的文件",
+    "message": {
+      "member": "“{{item}}”在“{{segment}}”分段中。",
+      "notMember": "“{{item}}”不在“{{segment}}”分段中。",
+      "show": "{{file}} 中的“{{item}}”。",
+      "hiddenNone": "{{file}} 中没有在小部件中隐藏的工作流。",
+      "hiddenSome": "{{total}} 个工作流中有 {{count}} 个在小部件中隐藏。",
+      "environment": "此标签页的 Apty Client 加载了 {{env}} 环境。",
+      "environmentUnknown4x": "4.x 内容文件没有注明环境。",
+      "environmentNone": "内容文件的路径中没有环境。",
+      "environmentNotListed": "内容文件路径中的环境不在 app-urls.json 中。",
+      "itemNotFound": "{{file}} 中没有名为“{{item}}”的工作流。",
+      "segmentNotFound": "{{file}} 中没有名为“{{segment}}”的分段。",
+      "itemAmbiguous": "有 {{count}} 个工作流与“{{item}}”匹配。",
+      "segmentAmbiguous": "有 {{count}} 个分段与“{{segment}}”匹配。",
+      "fileUnread": "无法读取 {{file}}（{{status}}）。"
+    },
+    "column": {
+      "workflow": "工作流",
+      "segment": "分段",
+      "listed": "列在分段中",
+      "segmentOn": "分段已开启",
+      "environment": "环境",
+      "id": "ID",
+      "field": "字段",
+      "value": "值"
+    },
+    "word": {
+      "yes": "是",
+      "no": "否",
+      "unknown": "文件中没有",
+      "none": "无",
+      "notRead": "未读取",
+      "name": "名称",
+      "id": "ID",
+      "hidden": "在小部件中隐藏",
+      "segments": "列出它的分段"
+    },
+    "ask": {
+      "workflow": "你指的是哪个工作流？",
+      "segment": "你指的是哪个分段？"
+    },
+    "source": {
+      "client": "Apty {{version}} 文件（{{files}}），来自 Apty Client 的记录。未询问 AI 模型。",
+      "cdn": "Apty {{version}} 文件（{{files}}），来自 Apty 内容 CDN。未询问 AI 模型。",
+      "capture": "Apty {{version}} 文件（{{files}}），来自页面的网络捕获。未询问 AI 模型。"
+    }
+  },
   "cases": {
     "site": "站点：{{site}}",
     "newCase": "新建案例",

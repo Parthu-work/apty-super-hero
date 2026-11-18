@@ -13,6 +13,7 @@ import type { ToolDisplaySlotProps } from "@apty/ui/types";
 import { OtherSiteFold } from "../cases/other-site-fold";
 import { CheckResultCard } from "./check-result-card";
 import { isKbMatches, KbMatchesCard } from "./kb-matches-card";
+import { isLookupResult, LookupCard } from "./lookup-card";
 import { evidenceIdOf, ResponseBodyViewer } from "./response-body-viewer";
 import { SelectorAnalysisDisplay } from "./selector-analysis-display";
 
@@ -40,6 +41,13 @@ function ToolDisplay(props: ToolDisplaySlotProps) {
     props.tool.state === "completed"
   ) {
     return <CheckResultCard {...props} />;
+  }
+  if (
+    props.tool.toolName === "lookup_content" &&
+    props.tool.state === "completed" &&
+    isLookupResult(props.tool.output)
+  ) {
+    return <LookupCard {...props} />;
   }
   if (
     props.tool.toolName === "search_kb" &&
