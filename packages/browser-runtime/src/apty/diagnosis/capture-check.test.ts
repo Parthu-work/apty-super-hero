@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { captureAndReload, routeOfResult } from "./capture-check";
+import {
+  captureAndReload,
+  harCheckOfResult,
+  routeOfResult,
+} from "./capture-check";
 import { diagnoseContentNotVisible } from "./content-not-visible";
 import { capture, evidenceFrom } from "./diagnosis-test-utils";
 import { diagnoseWidgetNotVisible } from "./widget-not-visible";
@@ -88,5 +92,39 @@ describe("routeOfResult", () => {
       query: "Take a tour",
       language: "fr",
     });
+  });
+});
+
+describe("harCheckOfResult (KB-RAG K27, E8)", () => {
+  it("runs the same check on a HAR: the widget, or the same item", () => {
+    expect(
+      harCheckOfResult(
+        diagnoseWidgetNotVisible(evidenceFrom(capture()), "https://x.example/"),
+      ),
+    ).toEqual({ packId: "widget-not-visible" });
+    expect(
+      harCheckOfResult(
+        diagnoseContentNotVisible(
+          evidenceFrom(capture()),
+          "workflow",
+          "Take a tour",
+          "fr",
+        ),
+      ),
+    ).toEqual({
+      packId: "content-not-visible",
+      kind: "workflow",
+      query: "Take a tour",
+    });
+  });
+
+  it("has none for a check a HAR cannot run again", () => {
+    const widget = diagnoseWidgetNotVisible(
+      evidenceFrom(capture()),
+      "https://x.example/",
+    );
+    expect(
+      harCheckOfResult({ ...widget, packId: "logs-and-errors" }),
+    ).toBeUndefined();
   });
 });
