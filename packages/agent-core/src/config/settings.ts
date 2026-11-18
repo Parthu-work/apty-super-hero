@@ -114,7 +114,7 @@ export interface AppSettings {
   /**
    * The largest request to send, in estimated tokens (characters / 4):
    * older history is left out to fit, and a message that cannot fit stops
-   * with a message. Missing means no budget.
+   * with a message. Missing: the chat provider's cap (`providerRequestCap`, K27 E6).
    */
   requestTokenBudget?: number;
   /** The most tokens one answer may use. Missing leaves the provider's default. */
@@ -143,6 +143,32 @@ export const REQUEST_TOKEN_BUDGET_RANGE = {
   min: 2_000,
   max: 2_000_000,
 } as const;
+/**
+ * The request budget used when Settings sets none (KB-RAG K27, E6), so a
+ * long chat stays inside the provider's context window: about three
+ * quarters of the window, since sizes are estimated as characters / 4 and
+ * the answer needs room. Anthropic's current models take 200,000 tokens
+ * (platform.claude.com/docs/en/about-claude/models/overview), Google's
+ * Gemini models 1,048,576 (ai.google.dev/gemini-api/docs/models); every
+ * other preset gets the 128,000 most of their current chat models take.
+ */
+export const PROVIDER_REQUEST_CAPS: Readonly<
+  Partial<Record<AIProviderKey, number>>
+> = {
+  anthropic: 150_000,
+  google: 780_000,
+};
+export const DEFAULT_PROVIDER_REQUEST_CAP = 96_000;
+
+/** The request budget for the chat's provider when Settings sets none. */
+export function providerRequestCap(settings: AppSettings): number {
+  const provider = settings.aiProvider;
+  return (
+    (provider && PROVIDER_REQUEST_CAPS[provider]) ??
+    DEFAULT_PROVIDER_REQUEST_CAP
+  );
+}
+
 /** What Settings accepts for `maxOutputTokens`; a stored value outside it counts as unset. */
 export const MAX_OUTPUT_TOKENS_RANGE = { min: 256, max: 1_000_000 } as const;
 

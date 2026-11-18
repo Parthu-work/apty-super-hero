@@ -16,7 +16,7 @@ import { EphemeralSession } from "../conversation/ephemeral-session.js";
 import { ConversationManager } from "../conversation/manager.js";
 import type { Session } from "../conversation/session.js";
 import { SessionStorage } from "../conversation/storage.js";
-import type { TurnDecision } from "../kb/decision.js";
+import { KB_EXPLAIN_INSTRUCTION, type TurnDecision } from "../kb/decision.js";
 import { InMemoryStorage } from "../storage/memory.js";
 import type {
   AfterResponsePayload,
@@ -42,6 +42,7 @@ import { createLogger } from "../utils/logger.js";
 import { sanitizeReasoningItemsForModel } from "../utils/model-input-sanitizer.js";
 import { estimateRequestTokens } from "../utils/request-size.js";
 import { shapeScreenshotItems } from "../utils/screenshot-shaping.js";
+import { holdsGroundedEvidence } from "./grounded-evidence.js";
 
 const log = createLogger("AptyAgent");
 
@@ -745,6 +746,15 @@ export class AptyAgent {
         itemCount: session.getItemCount(),
       };
 
+      if (
+        !local &&
+        decision?.route === "model" &&
+        !chatOptions?.turnInstruction &&
+        holdsGroundedEvidence(await session.getItems())
+      ) {
+        turnInstruction = KB_EXPLAIN_INSTRUCTION;
+        decision = { ...decision, grounding: "conversation" };
+      }
       if (decision) yield { type: "turn_decision", decision };
       yield* local
         ? this.runLocalAnswer(localTurnInput, local, session)
