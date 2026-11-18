@@ -5,7 +5,9 @@
  */
 import {
   type AppSettings,
+  DEFAULT_PROVIDER_REQUEST_CAP,
   MAX_OUTPUT_TOKENS_RANGE,
+  providerRequestCap,
   REQUEST_TOKEN_BUDGET_RANGE,
   STORAGE_KEYS,
 } from "@apty/agent-core";
@@ -65,8 +67,14 @@ export function summaryWatermarkFor(limits: RequestLimits): number | undefined {
 }
 
 let cached: RequestLimits | null = null;
+let cachedProviderCap = DEFAULT_PROVIDER_REQUEST_CAP;
 let loading: Promise<RequestLimits> | null = null;
 let listening = false;
+
+function remember(settings: unknown): RequestLimits {
+  cachedProviderCap = providerRequestCap((settings ?? {}) as AppSettings);
+  return limitsFromSettings(settings);
+}
 
 function listenForChanges(): void {
   if (listening || typeof chrome === "undefined") return;
@@ -74,7 +82,7 @@ function listenForChanges(): void {
   if (!onChanged) return;
   listening = true;
   watchEffectiveSettings(({ settings }) => {
-    cached = limitsFromSettings(settings);
+    cached = remember(settings);
   });
 }
 
@@ -86,7 +94,7 @@ export function getRequestLimits(): Promise<RequestLimits> {
     try {
       const settings = await loadSettings();
       // A change event that arrived while reading is newer than the read.
-      cached ??= limitsFromSettings(settings);
+      cached ??= remember(settings);
     } catch {
       cached ??= {};
     }
@@ -94,6 +102,15 @@ export function getRequestLimits(): Promise<RequestLimits> {
     return cached;
   })();
   return loading;
+}
+
+/**
+ * The budget every request is kept under (KB-RAG K27, E6): the one Settings
+ * sets, else the chat provider's cap, so a long chat stays inside the
+ * provider's context window with no setting.
+ */
+export async function getRequestBudget(): Promise<number> {
+  return (await getRequestLimits()).requestTokenBudget ?? cachedProviderCap;
 }
 
 /**
@@ -112,6 +129,7 @@ export function currentSummaryWatermark(): number | undefined {
 /** @internal */
 export function resetRequestLimitsForTests(): void {
   cached = null;
+  cachedProviderCap = DEFAULT_PROVIDER_REQUEST_CAP;
   loading = null;
   listening = false;
 }
