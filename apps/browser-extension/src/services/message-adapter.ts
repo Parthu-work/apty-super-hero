@@ -165,6 +165,7 @@ export function toStorageFormat(
     ),
     timestamp: msg.timestamp,
     ...(msg.metadata?.error ? { error: msg.metadata.error } : {}),
+    ...(msg.metadata?.decision ? { decision: msg.metadata.decision } : {}),
   })) as RuntimeUIMessage[];
 }
 
@@ -384,7 +385,14 @@ export function fromStorageFormat(
       role: msg.role as ReactUIMessage["role"],
       parts: mergedParts,
       timestamp: msg.timestamp,
-      ...(isChatErrorInfo(msg.error) ? { metadata: { error: msg.error } } : {}),
+      ...(isChatErrorInfo(msg.error) || msg.decision
+        ? {
+            metadata: {
+              ...(isChatErrorInfo(msg.error) ? { error: msg.error } : {}),
+              ...(msg.decision ? { decision: msg.decision } : {}),
+            },
+          }
+        : {}),
     };
   }) as ReactUIMessage[];
 }

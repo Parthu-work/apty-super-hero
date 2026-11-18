@@ -75,7 +75,7 @@ function turn(n) {
     id: `a-${n}`,
     role: "assistant",
     timestamp: at + 2,
-    metadata: { decision: DECISION },
+    decision: DECISION,
     parts: [
       {
         type: "tool",
