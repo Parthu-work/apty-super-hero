@@ -72,3 +72,25 @@ mock model (`startMockModel`, `callToolThenReport`), side panel helpers
 Chromium is taken from `E2E_CHROMIUM_PATH`, else `/opt/pw-browsers/chromium`,
 else Puppeteer's Chrome for Testing (what CI installs). Branded Chrome
 ignores `--load-extension` and cannot run these tests.
+
+## In Microsoft Edge (KB-RAG K27, R6)
+
+The KB, case, feedback, support-bundle, policy, delivery, first-run and
+scrolling suites also run in installed Edge. `E2E_BROWSER=msedge` makes
+`launchBrowser` use Playwright's `msedge` channel instead of Chromium:
+
+```bash
+npm run build
+```
+
+```bash
+npm run test:e2e:edge
+```
+
+Edge must be installed where Playwright looks for it (on Windows and
+macOS, the normal install; on Linux, the `microsoft-edge-stable`
+package). Surfaces added since K22 run axe in light and dark in these
+suites (`axeInBothThemes` in `harness.mjs`): the KB matches card and its
+layer switcher, the decision line and "Why this answer", Cases, Feedback,
+the support-bundle dialog, the first-run checklist and the unknown-setting
+card.

@@ -94,8 +94,11 @@ export async function launchBrowser({
   }
   const userDataDir = profileDir ?? tempDir("apty-e2e-profile-");
   const all = [extensionDir, ...extraExtensions].join(",");
+  // E2E_BROWSER=msedge runs the suite in installed Microsoft Edge
+  // (KB-RAG K27, R6); otherwise Chromium.
+  const edge = process.env.E2E_BROWSER === "msedge";
   const context = await chromium.launchPersistentContext(userDataDir, {
-    executablePath: chromiumPath(),
+    ...(edge ? { channel: "msedge" } : { executablePath: chromiumPath() }),
     // E2E_HEADED=1 shows the browser while debugging a test.
     headless: process.env.E2E_HEADED !== "1",
     acceptDownloads: true,
@@ -750,6 +753,28 @@ export async function runAxe(page, { disableRules = [] } = {}) {
 }
 
 /** Each serious or critical violation with its nodes' markup and axe's reason, for assertion messages. */
+/**
+ * Axe on `page` in the light and the dark theme (KB-RAG K27, R6): an empty
+ * list, or the violations of each theme that has any.
+ */
+export async function axeInBothThemes(page) {
+  const found = [];
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate(
+      (t) => chrome.storage.local.set({ apty_theme: t }),
+      theme,
+    );
+    await page.waitForFunction(
+      (dark) => document.documentElement.classList.contains("dark") === dark,
+      theme === "dark",
+    );
+    for (const violation of await runAxe(page)) {
+      found.push({ ...violation, help: `${theme}: ${violation.help}` });
+    }
+  }
+  return found;
+}
+
 export function describeViolations(violations) {
   return violations
     .map(

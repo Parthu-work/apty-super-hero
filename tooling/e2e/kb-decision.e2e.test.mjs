@@ -10,7 +10,9 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import {
+  axeInBothThemes,
   chatAndWait,
+  describeViolations,
   launchBrowser,
   openSidePanel,
   sendChat,
@@ -97,6 +99,9 @@ describe("visible KB decisions (KB-RAG K25, A2)", () => {
       /^No KB card matched \(coverage \d\.\d\d, needs \d\.\d\d\)\. Asked the AI model\.$/,
     );
     const why = panel.getByTestId("turn-decision").last();
+    // K27, R6: the decision line, Why this answer and its Copy button.
+    const violations = await axeInBothThemes(panel);
+    assert.deepEqual(violations, [], describeViolations(violations));
     await why.getByText("Why this answer").click();
     const text = await why.innerText();
     assert.match(text, /Answered by: the AI model/);
