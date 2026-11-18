@@ -2629,6 +2629,17 @@
     "fromCheck": "Apty version: {{version}}, from the check's files."
   },
   "kbMatches": {
+    "whichOne": "Which of these is it?",
+    "choiceMissing": "That card is not in the loaded pack.",
+    "layerName": {
+      "1": "Settings",
+      "2": "Console and Elements",
+      "3": "Network data",
+      "4": "Contact support"
+    },
+    "layerTitled": "Layer {{layer}}: {{name}}",
+    "layerButtonName": "Layer {{layer}}, {{name}}",
+    "nextLayer": "Next: {{name}}",
     "versionChip": {
       "client": "{{version}}, from the Client's files",
       "evidence": "{{version}}, from a check's files",
@@ -2679,6 +2690,20 @@
     "clearLocked": "Your organization keeps this record, so it cannot be cleared here."
   },
   "turnDecision": {
+    "chip": {
+      "label": "Where this answer came from",
+      "check": "Check",
+      "kb": "KB card",
+      "file_fetch": "Apty Client file",
+      "model": "Model",
+      "modelWithCards": "Model, with KB cards",
+      "versionUnknown": "Apty version unknown",
+      "versionFiles": "{{version}}, from the files",
+      "versionChosen": "{{version}}, your choice",
+      "packExpiresInOne": "Pack expires in {{count}} day",
+      "packExpiresIn": "Pack expires in {{count}} days",
+      "packExpired": "Pack expired"
+    },
     "copy": "Copy why this answer",
     "kbNotSearched": "KB not searched: a check answered ({{packs}} loaded)",
     "noPacksLoaded": "no packs",
@@ -2761,6 +2786,55 @@
       "policyActive": "Set by your organization.",
       "policyNone": "No organization policy: the defaults apply.",
       "policyInvalid": "Your organization's policy cannot be used; ask IT."
+    }
+  },
+  "lookup": {
+    "title": "From the Apty Client's files",
+    "message": {
+      "member": "\"{{item}}\" is in the \"{{segment}}\" segment.",
+      "notMember": "\"{{item}}\" is not in the \"{{segment}}\" segment.",
+      "show": "\"{{item}}\" in {{file}}.",
+      "hiddenNone": "No workflow in {{file}} is hidden from the widget.",
+      "hiddenSome": "{{count}} of {{total}} workflows are hidden from the widget.",
+      "environment": "This tab's Apty Client loaded the {{env}} environment.",
+      "environmentUnknown4x": "The 4.x content files do not name the environment.",
+      "environmentNone": "The content files' path names no environment.",
+      "environmentNotListed": "The environment in the content files' path is not in app-urls.json.",
+      "itemNotFound": "No workflow named \"{{item}}\" is in {{file}}.",
+      "segmentNotFound": "No segment named \"{{segment}}\" is in {{file}}.",
+      "itemAmbiguous": "{{count}} workflows match \"{{item}}\".",
+      "segmentAmbiguous": "{{count}} segments match \"{{segment}}\".",
+      "fileUnread": "{{file}} could not be read ({{status}})."
+    },
+    "column": {
+      "workflow": "Workflow",
+      "segment": "Segment",
+      "listed": "Listed in the segment",
+      "segmentOn": "Segment on",
+      "environment": "Environment",
+      "id": "Id",
+      "field": "Field",
+      "value": "Value"
+    },
+    "word": {
+      "yes": "yes",
+      "no": "no",
+      "unknown": "not in the files",
+      "none": "none",
+      "notRead": "not read",
+      "name": "Name",
+      "id": "Id",
+      "hidden": "Hidden from the widget",
+      "segments": "Segments that list it"
+    },
+    "ask": {
+      "workflow": "Which workflow do you mean?",
+      "segment": "Which segment do you mean?"
+    },
+    "source": {
+      "client": "Apty {{version}} files ({{files}}), from the Apty Client's record. No AI model was asked.",
+      "cdn": "Apty {{version}} files ({{files}}), from Apty's content CDN. No AI model was asked.",
+      "capture": "Apty {{version}} files ({{files}}), from the page's network capture. No AI model was asked."
     }
   },
   "cases": {

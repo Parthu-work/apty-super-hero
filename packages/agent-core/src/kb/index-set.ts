@@ -123,10 +123,13 @@ export function createKbIndexSet(
         Math.max(1, Math.floor(topK)),
       );
       const contextIgnored = covered[0]?.contextIgnored;
+      // K27, E3: the choices of the closest covering pack, when it has them.
+      const choices = bestCovered?.choices;
       return withMixed({
         status: "ok",
         hits,
         coverage: Math.max(...covered.map((r) => r.coverage)),
+        ...(choices ? { choices } : {}),
         ...(contextIgnored ? { contextIgnored } : {}),
       });
     }

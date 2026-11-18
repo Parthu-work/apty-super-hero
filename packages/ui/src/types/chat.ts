@@ -157,6 +157,11 @@ export interface ChatbotSlots {
   toolDisplay?: (props: ToolDisplaySlotProps) => ReactNode;
   /** Extra content under a tool call, in both the full and the collapsed ("thinking details") views */
   toolFooter?: (props: ToolDisplaySlotProps) => ReactNode;
+  /** K27, E1: the actions that apply to an assistant turn, under its reply */
+  turnActions?: (props: {
+    message: UIMessage;
+    parts: UIMessage["parts"];
+  }) => ReactNode;
   /** Custom header content */
   headerContent?: () => ReactNode;
   /** Custom footer content */

@@ -706,3 +706,69 @@ describe('DefaultMessageItem — copying "Why this answer" (KB-RAG K27, F10)', (
     expect(exported).toMatch(/^FIXTURE answer text\n\nWhy this answer\n- /);
   });
 });
+
+describe("DefaultMessageItem — where an answer came from (KB-RAG K27, E1)", () => {
+  const decision = (
+    route: "check" | "kb" | "model",
+    extra: Record<string, unknown> = {},
+  ) => ({
+    route,
+    version: "4.x" as const,
+    versionSource: "files" as const,
+    packs: [
+      {
+        version: "4.x" as const,
+        sha256: "0123456789ab",
+        expiresAt: new Date(Date.now() + 59.5 * 86_400_000).toISOString(),
+      },
+    ],
+    ...extra,
+  });
+  const chips = () =>
+    screen
+      .getByTestId("turn-source-chips")
+      .querySelectorAll("li")
+      .values()
+      .map((li) => li.textContent)
+      .toArray();
+
+  it.each([
+    ["check", "Check"],
+    ["kb", "KB card"],
+    ["model", "Model"],
+  ] as const)("%s: names its source, the version and how it was decided, and the pack's expiry", (route, source) => {
+    render(
+      <DefaultMessageItem
+        message={{
+          ...assistantMessage("FIXTURE answer"),
+          metadata: { decision: decision(route) as never },
+        }}
+        isLast
+      />,
+    );
+    expect(chips()).toEqual([
+      source,
+      "4.x, from the files",
+      "Pack expires in 60 days",
+    ]);
+  });
+
+  it("says the version is the SE's choice, or unknown, and shows no pack chip without a pack", () => {
+    render(
+      <DefaultMessageItem
+        message={{
+          ...assistantMessage("FIXTURE answer"),
+          metadata: {
+            decision: decision("model", {
+              version: "unknown",
+              versionSource: "unknown",
+              packs: [],
+            }) as never,
+          },
+        }}
+        isLast
+      />,
+    );
+    expect(chips()).toEqual(["Model", "Apty version unknown"]);
+  });
+});

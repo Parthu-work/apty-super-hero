@@ -52,6 +52,7 @@ import { BrowserChatInputArea } from "./browser-chat-input-area";
 import { BrowserContextLoader } from "./browser-context-loader";
 import { BrowserMessageActions } from "./browser-message-actions";
 import { BrowserMessageList } from "./browser-message-list";
+import { TurnActionRow } from "./cases/turn-action-row";
 import { ChatImagesListener } from "./chat-images-listener";
 import { ConnectionsPage } from "./connections/connections-page";
 import { FirstRunChecklist } from "./connections/first-run-checklist";
@@ -304,6 +305,7 @@ function ChatApp() {
               </>
             ),
             messageActions: (props) => <BrowserMessageActions {...props} />,
+            turnActions: ({ parts }) => <TurnActionRow parts={parts} />,
             inputToolbar: (props) => <AutomationModeInputToolbar {...props} />,
             promptExtras: () => (
               <>

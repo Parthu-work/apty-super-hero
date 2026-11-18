@@ -4,7 +4,7 @@
 
 ## Status
 
-**IN PROGRESS.** See [Progress](#progress) for each package.
+**DONE, with partial steps.** Every package of Parts F, U, R and E1 to E4 is built and tested. Partial, with what finishes each: the real-pack regression grid and "10 routing left out" (KB owner: `pnpm kb:eval --self-check --pack <rebuilt 4.x pack>` and the grid in "Real-pack regression grid"); Edge runs (`npm run build && npm run test:e2e:edge` on a machine with Edge); SMOKE_TEST rows 18 to 35 by hand in branded Chrome and Edge; the tester's 4.29.13 diff for 4X-BRIDGE.md; macOS zsh; the p95 scroll-handler time. Owner decisions are listed under R1 and R7 below.
 
 ## How to run this prompt
 
@@ -309,4 +309,8 @@ pnpm kb:eval --pack "$(ls -t ~/apty-kb/apty-kb-A4PKH-4.x-*.kbpack.json | head -1
 | R7 | partial | Explicit-any baseline 579 to 576; version 0.2.0; CHANGELOG; PRIVACY.md and the store listing cover packs, signing, cases, bundles and pilot measures; SMOKE_TEST rows 30 to 35 added. Left for people: rows 18 to 35 by hand in branded Chrome and Edge; owner items D6 (icons), W8 (Web Store ID), GitHub secret scanning and push protection, the customer application domains to narrow `<all_urls>`. |
 | R8 | done | [`docs/se-guide.md`](../../se-guide.md) and [`docs/support-runbook.md`](../../support-runbook.md). |
 | R9 | partial | [`4X-BRIDGE.md`](../../integrations/apty/4X-BRIDGE.md) gains the hand patch and the five review points; the tester's diff is not attached. |
-| E1 to E4 | not started | |
+| E1 | done | Source chips on every reply (Check, KB card, Model; version and how decided; pack expiry); a turn action row through a new `turnActions` slot that offers only what can run and is not already on the turn's card (Prepare support bundle today; Run the check waits for E5). |
+| E2 | done | Named layers, per-layer NOT VERIFIED, and Next from settings to contact support on every KB card. |
+| E3 | done | The builder stores a routing page's links as `options`; a broad question a routing card covers shows up to four choices; choosing one shows that card; a specific question never does. `kb-choices.e2e.test.mjs`. |
+| E4 | done | "Is workflow X in segment Y", "show workflow X", "which environment is this tab", "which workflows are hidden from the widget" answered from flow.json/segments.json (4.x) or workflow.json/segment.json/app-urls.json (5.x) in a table, names matched ignoring case and punctuation, one question on two matches, no guess on none, zero model requests. `lookup.e2e.test.mjs` passes for both versions. |
+| E5 to E10 | not started | Built only if the pilot's measures (R4) call for them. |

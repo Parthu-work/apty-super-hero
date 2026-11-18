@@ -59,7 +59,7 @@ const PACKS = new Set([
   "dapty-conversation",
 ]);
 
-function isDiagnosisResult(value: unknown): value is DiagnosisResult {
+export function isDiagnosisResult(value: unknown): value is DiagnosisResult {
   const candidate = value as Partial<DiagnosisResult> | null;
   return (
     typeof candidate === "object" &&

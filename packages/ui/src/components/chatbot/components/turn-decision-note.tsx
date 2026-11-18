@@ -65,3 +65,72 @@ export function TurnDecisionDetails({ decision }: { decision: TurnDecision }) {
     </div>
   );
 }
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Where a reply came from, on top of it (KB-RAG K27, E1): Check, KB card or
+ * Model; the Apty version and how it was decided; and how long the pack it
+ * used has left. Ids, numbers and codes only.
+ */
+export function TurnSourceChips({
+  decision,
+  kbCardsReturned,
+  now = Date.now(),
+}: {
+  decision: TurnDecision;
+  kbCardsReturned: boolean;
+  now?: number;
+}) {
+  const { t } = useTranslation();
+  const source =
+    decision.route === "model"
+      ? kbCardsReturned
+        ? t("turnDecision.chip.modelWithCards")
+        : t("turnDecision.chip.model")
+      : t(`turnDecision.chip.${decision.route}`);
+  const version =
+    decision.version === "unknown"
+      ? t("turnDecision.chip.versionUnknown")
+      : t(
+          decision.versionSource === "user"
+            ? "turnDecision.chip.versionChosen"
+            : "turnDecision.chip.versionFiles",
+          { version: decision.version },
+        );
+  const expiries = decision.packs
+    .map((pack) => (pack.expiresAt ? Date.parse(pack.expiresAt) : Number.NaN))
+    .filter((at) => Number.isFinite(at));
+  const soonest = expiries.length > 0 ? Math.min(...expiries) : undefined;
+  const days =
+    soonest === undefined ? undefined : Math.ceil((soonest - now) / DAY_MS);
+  const chips = [
+    source,
+    version,
+    ...(days === undefined
+      ? []
+      : [
+          days > 1
+            ? t("turnDecision.chip.packExpiresIn", { count: days })
+            : days === 1
+              ? t("turnDecision.chip.packExpiresInOne", { count: days })
+              : t("turnDecision.chip.packExpired"),
+        ]),
+  ];
+  return (
+    <ul
+      className="flex flex-wrap gap-1"
+      aria-label={t("turnDecision.chip.label")}
+      data-testid="turn-source-chips"
+    >
+      {chips.map((chip) => (
+        <li
+          key={chip}
+          className="rounded-sm border border-border px-1.5 py-0.5 text-xs text-muted-foreground"
+        >
+          {chip}
+        </li>
+      ))}
+    </ul>
+  );
+}

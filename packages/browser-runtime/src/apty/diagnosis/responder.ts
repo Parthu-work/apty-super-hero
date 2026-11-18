@@ -62,6 +62,12 @@ import { languageName } from "./languages.js";
 import { loadClientEvidence } from "./loader.js";
 import { loadLogEvidence } from "./log-loader.js";
 import { diagnoseLogsAndErrors } from "./logs-and-errors.js";
+import {
+  answerLookup,
+  type LookupQuestion,
+  lookupTranscript,
+  routeLookup,
+} from "./lookup.js";
 import { jsonOf, looks4x, playerVersionOf, records } from "./pack-kit.js";
 import { diagnosePageReadiness } from "./page-readiness.js";
 import { type Route, routeSymptom } from "./router.js";
@@ -631,6 +637,43 @@ async function kbAnswer(
   };
 }
 
+const LOOKUP_CONTENT = "lookup_content";
+
+/**
+ * K27, E4: a lookup question ("is workflow X in segment Y") answered from
+ * the content files, in a table, with no model call.
+ */
+async function lookupAnswer(
+  lookup: LookupQuestion,
+  sources: ResponderSources,
+  runContext: unknown,
+) {
+  const clientExtensionId = await sources.clientExtensionId();
+  const filesOf = sources.filesOf as NonNullable<ResponderSources["filesOf"]>;
+  const pageUrl = await sources.pageUrlOf(runContext);
+  const evidence = await contentEvidence(
+    (names) => filesOf(runContext, clientExtensionId, names),
+    "workflow",
+    undefined,
+  );
+  await noteVersion(evidence, async () => pageUrl);
+  await getRedactionMode();
+  const policy = currentValuePolicy();
+  const result = answerLookup(lookup, evidence);
+  const siteKey = siteKeyFor(pageUrl);
+  return {
+    toolName: LOOKUP_CONTENT,
+    params: { question: lookup.kind },
+    result: siteKey ? { ...result, siteKey } : result,
+    transcript: applyResultPrivacy(lookupTranscript(result), policy) as string,
+    decision: {
+      route: "file_fetch",
+      ...tabVersionOf(pageUrl),
+      packs: [],
+    } satisfies TurnDecision,
+  };
+}
+
 /**
  * Answers a message the router recognises from the Apty Client's files and
  * the page in the conversation's tab, so the chat can show the check
@@ -642,6 +685,10 @@ export function createDiagnosisResponder(
 ): LocalResponder {
   const sources = { ...DEFAULT_SOURCES, ...overrides };
   return async (input, { runContext }) => {
+    const lookup = routeLookup(input);
+    if (lookup && sources.filesOf) {
+      return lookupAnswer(lookup, sources, runContext);
+    }
     const route: CheckRoute | undefined = asksAboutDapty(input)
       ? { packId: "dapty-conversation" }
       : routeSymptom(input);

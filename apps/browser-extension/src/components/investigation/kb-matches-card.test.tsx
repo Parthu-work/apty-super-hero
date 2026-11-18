@@ -192,7 +192,7 @@ describe("KbMatchesCard", () => {
       "href",
       "https://fixture.atlassian.net/wiki/spaces/JX/pages/202",
     );
-    expect(first.getByText("Layer 1 of the card")).toBeInTheDocument();
+    expect(first.getByText("Layer 1: Settings")).toBeInTheDocument();
     expect(
       first.getByText("- In Studio, clear the FIXTURE Double Trigger setting."),
     ).toBeInTheDocument();

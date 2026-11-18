@@ -260,3 +260,24 @@ describe("the record holds what was shown (KB-RAG K27, F7)", () => {
     ).toEqual(["909", "202"]);
   });
 });
+
+describe("choices are what the record holds (KB-RAG K27, E3)", () => {
+  it("lists the choices' ids, not the cards behind them", () => {
+    expect(
+      renderedPageIds({
+        status: "ok",
+        source: "kb",
+        cards: [{ pageId: "801" }],
+        choices: {
+          cite: "kb://800",
+          title: "FIXTURE",
+          options: [
+            { cite: "kb://802", title: "FIXTURE b" },
+            { cite: "kb://803", title: "FIXTURE c" },
+          ],
+        },
+        results: [{ cite: "kb://801#L1" } as never],
+      }),
+    ).toEqual(["802", "803"]);
+  });
+});

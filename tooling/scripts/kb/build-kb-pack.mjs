@@ -223,6 +223,56 @@ function comparePageIds(a, b) {
   return a.length - b.length || (a < b ? -1 : a > b ? 1 : 0);
 }
 
+const PAGE_TITLE_LINK = /<ri:page\b[^>]*\bri:content-title="([^"]+)"/gi;
+const PAGE_ID_LINK = /\/pages\/(\d+)(?:[/?#"']|$)/g;
+
+/**
+ * The cards a routing page points to (KB-RAG K27, E3): its links to other
+ * pages, by Confluence page id or page title, in page order.
+ */
+export function routingLinks(html) {
+  const links = [];
+  for (const match of html.matchAll(PAGE_ID_LINK)) {
+    links.push({ index: match.index, pageId: match[1] });
+  }
+  for (const match of html.matchAll(PAGE_TITLE_LINK)) {
+    links.push({
+      index: match.index,
+      title: storageToText(match[1]).replace(TITLE_PREFIX, "").trim(),
+    });
+  }
+  return links
+    .sort((a, b) => a.index - b.index)
+    .map(({ index, ...link }) => link);
+}
+
+/** At most this many choices a routing card keeps. */
+const MAX_ROUTING_OPTIONS = 8;
+
+/** A routing card's links resolved to the pack's own full cards: `{ pageId, title }`, no duplicates. */
+function routingOptions(links, cards) {
+  const byTitle = new Map(
+    cards.map((card) => [card.title.toLowerCase(), card]),
+  );
+  const byId = new Map(cards.map((card) => [card.pageId, card]));
+  const options = [];
+  for (const link of links) {
+    const target = link.pageId
+      ? byId.get(link.pageId)
+      : byTitle.get(link.title.toLowerCase());
+    if (
+      !target ||
+      target.status === "routing" ||
+      options.some((option) => option.pageId === target.pageId)
+    ) {
+      continue;
+    }
+    options.push({ pageId: target.pageId, title: target.title });
+    if (options.length === MAX_ROUTING_OPTIONS) break;
+  }
+  return options;
+}
+
 /**
  * One Confluence page as a card and its four layer chunks, or the reason it
  * is skipped. A card with fewer or more than four layers, out of order, or
@@ -263,7 +313,11 @@ export function parseCard(page, { site, space, group = "" }) {
   };
   if (ROUTING_TITLE.test(title)) {
     const intro = layers[0] ? html.slice(0, layers[0].match.index) : html;
-    return { card: card(storageToText(intro), "routing"), chunks: [] };
+    return {
+      card: card(storageToText(intro), "routing"),
+      chunks: [],
+      links: routingLinks(html),
+    };
   }
   if (layers.length === 0) {
     const text = storageToText(html);
@@ -563,6 +617,7 @@ export function buildPack({
   const cards = [];
   const chunks = [];
   const skipped = [];
+  const routing = [];
   for (const page of [...pages].sort((a, b) => comparePageIds(a.id, b.id))) {
     const parsed = parseCard(page, { site, space, group: page.group });
     if (parsed.skipped) {
@@ -577,6 +632,11 @@ export function buildPack({
     }
     cards.push(parsed.card);
     chunks.push(...parsed.chunks);
+    if (parsed.links?.length) routing.push([parsed.card, parsed.links]);
+  }
+  for (const [card, links] of routing) {
+    const options = routingOptions(links, cards);
+    if (options.length > 0) card.options = options;
   }
   const retrieval = { bm25: true };
   if (coverage !== undefined) retrieval.coverage = coverage;

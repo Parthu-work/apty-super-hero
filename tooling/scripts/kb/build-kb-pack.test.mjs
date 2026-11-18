@@ -506,6 +506,36 @@ describe("skipped pages in the pack (K27, F11)", () => {
   });
 });
 
+describe("a routing page's choices (K27, E3)", () => {
+  it("keeps the cards it links to, by page id or title, in page order, and drops the rest", () => {
+    const { pack } = buildPack({
+      pages: [
+        page("51"),
+        page("52"),
+        {
+          ...page("50"),
+          title: "RAG Card: Start here, FIXTURE banner questions",
+          body: '<p>Symptom: the FIXTURE banner is wrong.</p><ul><li><ac:link><ri:page ri:content-title="RAG Card: FIXTURE card 52" /></ac:link></li><li><a href="https://fixture.atlassian.net/wiki/spaces/FX/pages/51/x">first</a></li><li><a href="https://fixture.atlassian.net/wiki/spaces/FX/pages/777">not in the pack</a></li></ul>',
+        },
+      ],
+      site: SITE,
+      space: "FX",
+      label: "rag-card",
+      builtAt: "2026-03-04T00:00:00.000Z",
+    });
+    const routing = pack.cards.find((card) => card.pageId === "50");
+    assert.equal(routing.status, "routing");
+    assert.deepEqual(routing.options, [
+      { pageId: "52", title: "FIXTURE card 52" },
+      { pageId: "51", title: "FIXTURE card 51" },
+    ]);
+    assert.equal(
+      "options" in pack.cards.find((card) => card.pageId === "51"),
+      false,
+    );
+  });
+});
+
 describe("customer names and diff", () => {
   const { pack } = buildPack({
     pages: [
