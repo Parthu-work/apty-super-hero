@@ -17,6 +17,7 @@ import {
   kbSourceTag,
   packIdOf,
 } from "@apty/agent-core";
+import { measured, PERF } from "../runtime/perf-marks.js";
 import {
   type KbIndexSource,
   type KbTabVersion,
@@ -151,7 +152,9 @@ export async function localKbMatches(
   }
   try {
     const query = text.slice(0, MAX_QUERY_CHARS);
-    const found = index.search(query, { topK: KB_MATCHES, onePerCard: true });
+    const found = await measured(PERF.kbSearch, () =>
+      index.search(query, { topK: KB_MATCHES, onePerCard: true }),
+    );
     const result = kbToolResultOf(found);
     if (
       result.status === "stub" ||

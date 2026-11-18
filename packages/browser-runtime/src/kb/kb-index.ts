@@ -11,6 +11,7 @@ import {
   kbCardLocation,
   kbSourceTag,
 } from "@apty/agent-core";
+import { measured, PERF } from "../runtime/perf-marks.js";
 import { createKbPackStore, type KbPackStore } from "../storage/kb-store.js";
 import type { KbPackState } from "./kb-trust.js";
 
@@ -64,7 +65,9 @@ export function createKbIndexSource(store: KbPackStore): KbIndexSource {
         await Promise.all(infos.map((info) => store.load(info.aptyVersion)))
       ).filter((pack): pack is KbPack => pack !== null);
       if (packs.length === 0) return null;
-      const index = createKbIndexSet(packs, { tabVersion: version });
+      const index = await measured(PERF.kbIndexBuild, () =>
+        createKbIndexSet(packs, { tabVersion: version }),
+      );
       cached.set(version, { key, index });
       return index;
     },
