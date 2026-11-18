@@ -142,7 +142,7 @@ export function createKbIndexSet(
         reason: "no_match",
       };
     }
-    if (nearest.reason !== "unknown_setting") return nearest;
+    if (!nearest.closest) return nearest;
     return {
       ...nearest,
       closest: roundRobin(results.map((r) => r.closest ?? [])).slice(

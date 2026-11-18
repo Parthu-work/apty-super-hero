@@ -95,7 +95,7 @@ export interface KbSearchResult {
   reason?: KbNotCoveredReason;
   /** With `unknown_setting`: the setting-like phrases the question names that no card searched holds. */
   missingPhrases?: string[];
-  /** With `unknown_setting` (K27, F2): the cards that came closest, one hit each; they may not mention the setting. */
+  /** With `unknown_setting` (K27, F2), `low_coverage` or `no_strong_term` (E7): the cards that came closest, one hit each; they may not match. */
   closest?: KbSearchHit[];
   /**
    * K27, E3: a broad question (no card's title named, several cards close
@@ -1085,16 +1085,26 @@ function createV2Index(pack: KbPack): KbIndex {
       (coverage >= settings.min &&
         (strongTerms >= settings.minTerms || holdsTitle));
     if (!covered) {
+      const reason =
+        contextIgnored.length === terms.length || coverage === 0
+          ? "no_match"
+          : coverage < settings.min
+            ? "low_coverage"
+            : "no_strong_term";
       return {
         status: "not_covered",
         hits: [],
         coverage,
-        reason:
-          contextIgnored.length === terms.length || coverage === 0
-            ? "no_match"
-            : coverage < settings.min
-              ? "low_coverage"
-              : "no_strong_term",
+        reason,
+        // K27, E7: offered to the SE as "closest, may not match"; never to the model.
+        ...(reason === "no_match"
+          ? {}
+          : {
+              closest: onePerCardOnly(ranked, hinted === SUPPORT_LAYER).slice(
+                0,
+                topK,
+              ),
+            }),
         min: settings.min,
         topPageId: stubFirst?.pageId ?? (top as KbSearchHit).chunk.pageId,
         ...ignored,

@@ -156,6 +156,18 @@ describe("createKbIndexSet", () => {
     expect(unknown.closest?.length).toBeLessThanOrEqual(2);
   });
 
+  it("E7: a question no pack covers names the closest cards of every pack", () => {
+    const result = createKbIndexSet([FOUR, FIVE]).search(
+      "beacon kubernetes helm rollout canary upgrade",
+      { topK: 3 },
+    );
+    expect(result.reason).toBe("low_coverage");
+    expect(result.closest?.map((hit) => hit.chunk.pageId).sort()).toEqual([
+      "41",
+      "51",
+    ]);
+  });
+
   it("F2: another pack's stub sharing one generic word does not beat a covering card", () => {
     const stubOnly = syntheticPack(
       [
