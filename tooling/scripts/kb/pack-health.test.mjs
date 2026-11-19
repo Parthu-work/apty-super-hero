@@ -34,19 +34,19 @@ const packBuiltHoursAgo = (hours, aptyVersion = "5.x") =>
     ),
   );
 
-const FILES = {
-  "/kb/fresh.json": () => packBuiltHoursAgo(3),
-  "/kb/old.json": () => packBuiltHoursAgo(49),
-  "/kb/sign-in.json": () => "<html>FIXTURE sign in</html>",
-  "/kb/4x.json": () => packBuiltHoursAgo(3, "4.x"),
-};
+const FILES = new Map([
+  ["/kb/fresh.json", () => packBuiltHoursAgo(3)],
+  ["/kb/old.json", () => packBuiltHoursAgo(49)],
+  ["/kb/sign-in.json", () => "<html>FIXTURE sign in</html>"],
+  ["/kb/4x.json", () => packBuiltHoursAgo(3, "4.x")],
+]);
 
 describe("pack-age", () => {
   let server;
   let origin;
   before(async () => {
     server = createServer((request, response) => {
-      const body = FILES[request.url];
+      const body = FILES.get(request.url);
       if (request.headers.authorization !== `Bearer ${TOKEN}`) {
         response.writeHead(401).end();
       } else if (request.url === "/kb/forbidden.json") {
