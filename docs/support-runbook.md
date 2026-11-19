@@ -59,9 +59,17 @@ abandoned), coverage, reason, note, mark (`wrong card` or `helped`).
 **Export proposed synonyms** (only with "Include my question" ticked) lists,
 per right card, the words SEs used in wrong-card questions that the card
 does not contain, with how many questions used each. They are proposals:
-decide which are real synonyms, add them to the card's text or to the pack's
-`retrieval.synonyms` at the next build, and ignore the rest. Nothing is
-applied by itself; the pack changes only when you rebuild it.
+decide which are real synonyms and ignore the rest. Add an approved word to
+the card's text, or approve it for that card: copy the export, keep only
+the words you approve, set its kind to `"apty-kb-approved-terms"`, and pass
+it at the next build with `pnpm kb:pack … --approved-terms <file>` (K27,
+E10; the words are signed with the pack). A word that means the same thing
+on every card belongs in a synonym group (`--synonyms`) instead. Nothing is
+applied by itself; the pack changes only when you rebuild it. After the
+rebuild, record the change with `pnpm kb:eval --pack <pack> --questions
+<file> --compare-synonyms`, which prints Recall@3 and "not covered"
+precision with and without the pack's synonyms against the 0.90 gate
+([kb-rag.md](development/kb-rag.md#approved-terms-and-the-retrieval-gate-k27-e10)).
 
 ## Escalation path
 
