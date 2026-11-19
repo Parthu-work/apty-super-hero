@@ -30,7 +30,9 @@ export function CloseCaseForm({
   const { t } = useTranslation();
   const id = useId();
   const [outcome, setOutcome] = useState<Closing>("resolved");
-  const [right, setRight] = useState<(typeof ANSWERS)[number] | undefined>();
+  const [right, setRight] = useState<(typeof ANSWERS)[number] | undefined>(
+    record.findingRight,
+  );
   const [card, setCard] = useState("");
   const asks = outcome === "resolved" || outcome === "escalated";
   const shown = [

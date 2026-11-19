@@ -707,6 +707,7 @@ export class AptyAgent {
         const responded = await this.localResponder?.(input, {
           runContext: chatOptions?.runContext,
           sessionId: chatOptions?.sessionId,
+          ...(chatOptions?.runCheck ? { runCheck: chatOptions.runCheck } : {}),
         });
         local = isLocalAnswer(responded) ? responded : undefined;
         decision = responded?.decision;

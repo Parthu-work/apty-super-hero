@@ -161,9 +161,22 @@ export interface LocalDecision {
   modelInstruction?: string;
 }
 
+/**
+ * K27, E5: "Run the check" under a KB card: the check pack the card's
+ * symptom belongs to, and the content kind for a content check.
+ */
+export interface RunCheckRequest {
+  packId: string;
+  kind?: string;
+}
+
 export type LocalResponder = (
   input: string,
-  context: { runContext?: unknown; sessionId?: string },
+  context: {
+    runContext?: unknown;
+    sessionId?: string;
+    runCheck?: RunCheckRequest;
+  },
 ) =>
   | LocalAnswer
   | LocalDecision
@@ -273,6 +286,8 @@ export interface ChatOptions {
   skipLocalResponder?: boolean;
   /** A fixed instruction added to this turn's system prompt. */
   turnInstruction?: string;
+  /** Run this check on the message instead of routing it by its words (K27, E5). */
+  runCheck?: RunCheckRequest;
 }
 
 export interface AgentMetrics {

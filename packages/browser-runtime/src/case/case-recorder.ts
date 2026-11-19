@@ -17,6 +17,7 @@ import {
   type LocalAnswer,
   type LocalDecision,
   type LocalResponder,
+  markFinding,
   newCase,
   otherSite,
   turnStartsCase,
@@ -159,6 +160,12 @@ export interface CaseRecorder {
     conversationId: string,
     outcome: Exclude<CaseOutcome, "open">,
     answers?: Pick<CaseRecord, "findingRight" | "rightCardId" | "note">,
+    tabHost?: string,
+  ): Promise<CaseRecord | undefined>;
+  /** K27, E5: the SE's right-or-wrong mark on the open case's finding; the case stays open. */
+  markFinding(
+    conversationId: string,
+    findingRight: NonNullable<CaseRecord["findingRight"]>,
     tabHost?: string,
   ): Promise<CaseRecord | undefined>;
   /** Moves a case to this conversation ("Continue CASE-…"). */
@@ -374,6 +381,16 @@ export function createCaseRecorder({
       await store.put(closed);
       notify();
       return closed;
+    },
+    async markFinding(conversationId, findingRight, tabHost) {
+      const open = tabHost
+        ? await caseFor(conversationId, tabHost, { openOnly: true })
+        : await store.forConversation(conversationId);
+      if (!open || open.outcome !== "open") return undefined;
+      const marked = markFinding(open, findingRight, now());
+      await store.put(marked);
+      notify();
+      return marked;
     },
     async continueIn(caseId, conversationId) {
       const record = await store.get(caseId);

@@ -49,7 +49,7 @@ import {
   type Verdict,
 } from "./types.js";
 
-const SELECTOR_CARD = "1496286045";
+export const SELECTOR_CARD = "1496286045";
 const CARD_STEP = "1496351578";
 const CARD_DUPLICATE = "1496907796";
 const CARD_WRONG_ELEMENT = "1496580223";
