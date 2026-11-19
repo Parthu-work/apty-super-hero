@@ -133,10 +133,8 @@ describe("lookups from the content files (KB-RAG K27, E4)", () => {
           assert.equal(await latest.getByRole("table").count(), 1, phrasing);
         }
         assert.equal(model.requests.length, before, "no model request");
-        if (version === "5.x") {
-          const violations = await axeInBothThemes(panel);
-          assert.deepEqual(violations, [], describeViolations(violations));
-        }
+        const violations = await axeInBothThemes(panel);
+        assert.deepEqual(violations, [], describeViolations(violations));
         await panel.close();
         await app.close();
       } finally {
@@ -144,4 +142,62 @@ describe("lookups from the content files (KB-RAG K27, E4)", () => {
       }
     });
   }
+
+  it("K28, F2 and F3: same-named workflows are told apart, one click answers, and an unreported file offers Get the evidence", async () => {
+    const clientDir = join(tempDir("apty-e2e-lookup-choices-"), "client");
+    writeContentClient(clientDir, AGENT_EXTENSION_ID, {
+      "workflow.json": JSON.stringify([
+        { sourceId: "wf-1", name: "Alpha Ledger Page", hideFromWidget: false },
+        { sourceId: "wf-9", name: "Alpha Ledger Page", hideFromWidget: true },
+      ]),
+    });
+    const browser = await launchBrowser({ extraExtensions: [clientDir] });
+    try {
+      const options = await extensionPage(browser);
+      await options.getByRole("tab", { name: "Connection" }).click();
+      await options
+        .getByLabel("Extension ID")
+        .fill(unpackedExtensionId(clientDir));
+      await options
+        .getByLabel("Extension ID")
+        .locator("..")
+        .getByRole("button", { name: "Connect", exact: true })
+        .click();
+      await options.getByText("Answering").waitFor({ timeout: 30_000 });
+      await options.close();
+
+      const app = await browser.context.newPage();
+      await app.goto(`${site.origin}/app.html`);
+      const panel = await openSidePanel(browser, model, app);
+      const before = model.requests.length;
+      await sendChat(panel, "is Alpha Ledger Page in All Users segment");
+      const ask = panel.getByTestId("lookup-ask");
+      await ask.waitFor({ timeout: 30_000 });
+      const choices = ask.getByRole("button");
+      assert.deepEqual(await choices.allInnerTexts(), [
+        "Alpha Ledger Page (wf-1)",
+        "Alpha Ledger Page (wf-9, hidden)",
+      ]);
+      await choices.nth(1).focus();
+      await panel.keyboard.press("Enter");
+      const chosen = panel.getByTestId("lookup-chosen");
+      await chosen.waitFor();
+      assert.equal(
+        await chosen.getByTestId("lookup-answer").innerText(),
+        "The Apty Client has not reported segment.json yet.",
+      );
+      const evidence = chosen.getByTestId("lookup-evidence");
+      await evidence
+        .getByRole("button", { name: "Get the evidence" })
+        .waitFor();
+      await evidence.getByRole("button", { name: "Reload the tab" }).waitFor();
+      assert.equal(model.requests.length, before, "no model request");
+      const violations = await axeInBothThemes(panel);
+      assert.deepEqual(violations, [], describeViolations(violations));
+      await panel.close();
+      await app.close();
+    } finally {
+      await browser.close();
+    }
+  });
 });
