@@ -390,4 +390,55 @@ describe("the CLI", () => {
       'Question 1 needs "q" and "expectedPageIds".',
     ]);
   });
+
+  it("measures the pack with and without its synonyms and approved terms, against the 0.90 gate (KB-RAG K27, E10)", async () => {
+    const built = buildPack({
+      pages: SYNTHETIC_PAGES,
+      site: "fixture.atlassian.net",
+      space: "FX",
+      label: "rag-card",
+      builtAt: "2026-03-01T00:00:00.000Z",
+      approvedTerms: [{ pageId: "1001", terms: ["twinkles"] }],
+    });
+    const file = join(dir, "approved.json");
+    writeFileSync(file, JSON.stringify(built.pack));
+    const questionsFile = join(dir, "approved-questions.json");
+    writeFileSync(
+      questionsFile,
+      JSON.stringify([
+        { id: "a1", q: "twinkles", expectedPageIds: ["1001"] },
+        { id: "a2", q: "survey is blank", expectedPageIds: ["1003"] },
+        { id: "a3", q: "kubernetes helm chart rollout", expectedPageIds: [] },
+      ]),
+    );
+    const argv = ["--pack", file, "--questions", questionsFile];
+    const lines = [];
+    const out = (line) => lines.push(line);
+    assert.equal(
+      await run({ argv: [...argv, "--compare-synonyms", "--json"], out }),
+      0,
+    );
+    const report = JSON.parse(lines.join("\n"));
+    assert.equal(report.recallAt3, 1);
+    assert.equal(report.withoutPackSynonyms.recallAt3, 0.5);
+    assert.deepEqual(report.gate, {
+      min: 0.9,
+      recallAt3: true,
+      notCoveredPrecision: true,
+      withoutPackSynonyms: { recallAt3: false, notCoveredPrecision: false },
+    });
+
+    lines.length = 0;
+    assert.equal(await run({ argv: [...argv, "--compare-synonyms"], out }), 0);
+    const text = lines.join("\n");
+    assert.match(
+      text,
+      /Without the pack's synonyms and approved terms: Recall@3 50\.0% {2}"not covered" precision 50\.0%/,
+    );
+    assert.match(
+      text,
+      /Gate 0\.90: met with the pack's synonyms; not met without them\./,
+    );
+    assert.ok(!text.includes("twinkles"), "no question or term text");
+  });
 });

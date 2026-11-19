@@ -22,6 +22,9 @@
  *   [--coverage-min-floor <f>] (default 0.35: --calibrate never suggests a
  *   lower coverage min, and warns when the best Youden J sits below it)
  *   [--by-category] [--json]
+ *   [--compare-synonyms] (K27, E10: the same questions without the pack's
+ *   synonym groups and approved terms, and the 0.90 gate on Recall@3 and
+ *   "not covered" precision that decides whether dense vectors are tried)
  *
  * A questions file is `[{ "id"?, "q", "expectedPageIds": [], "expectedLayer"?, "category"?, "surface"? }]`;
  * a "multi" question needs all its cards in the top 3, and one with
@@ -105,6 +108,26 @@ function withThreshold(pack, threshold) {
   if (threshold === null) delete retrieval.threshold;
   else retrieval.threshold = threshold;
   return { ...pack, retrieval };
+}
+
+/** K27, E10: the pack without the KB owner's synonym groups and approved terms. */
+function withoutPackSynonyms(pack) {
+  const {
+    synonyms: _synonyms,
+    approvedTerms: _approved,
+    ...retrieval
+  } = pack.retrieval;
+  return { ...pack, retrieval };
+}
+
+/** K27, E10: dense vectors are called for only below this on a version. */
+export const RETRIEVAL_GATE = 0.9;
+
+function gateOf(report) {
+  return {
+    recallAt3: (report.recallAt3 ?? 0) >= RETRIEVAL_GATE,
+    notCoveredPrecision: (report.notCoveredPrecision ?? 0) >= RETRIEVAL_GATE,
+  };
 }
 
 const round = (n) => Math.round(n * 1000) / 1000;
@@ -411,6 +434,7 @@ function parseArgs(argv) {
     else if (flag === "--json") options.json = true;
     else if (flag === "--by-category") options.byCategory = true;
     else if (flag === "--self-check") options.selfCheck = true;
+    else if (flag === "--compare-synonyms") options.compareSynonyms = true;
     else if (flag === "--pack" || flag === "--questions") {
       options[flag.slice(2)] = argv[++i];
     } else if (flag === "--coverage-min-floor") {
@@ -482,11 +506,23 @@ export async function run({
           }
         : undefined;
     const v2 = pack.schemaVersion !== 1;
+    const tuning = { threshold: options.threshold, coverage };
+    const main = evaluate(core, pack, questions, tuning);
+    const without = options.compareSynonyms
+      ? evaluate(core, withoutPackSynonyms(pack), questions, tuning)
+      : undefined;
     const report = {
-      ...evaluate(core, pack, questions, {
-        threshold: options.threshold,
-        coverage,
-      }),
+      ...main,
+      ...(without
+        ? {
+            withoutPackSynonyms: without,
+            gate: {
+              min: RETRIEVAL_GATE,
+              ...gateOf(main),
+              withoutPackSynonyms: gateOf(without),
+            },
+          }
+        : {}),
       ...(options.byCategory
         ? {
             byCategory: byCategory(core, pack, questions, {
@@ -510,6 +546,16 @@ export async function run({
       out(JSON.stringify(report, null, 2));
     } else {
       out(format(report));
+      if (without) {
+        const pct1 = (n) => (n === null ? "n/a" : `${(n * 100).toFixed(1)}%`);
+        out(
+          `Without the pack's synonyms and approved terms: Recall@3 ${pct1(without.recallAt3)}  "not covered" precision ${pct1(without.notCoveredPrecision)}`,
+        );
+        const met = (gate) => gate.recallAt3 && gate.notCoveredPrecision;
+        out(
+          `Gate ${RETRIEVAL_GATE.toFixed(2)}: ${met(report.gate) ? "met" : "not met"} with the pack's synonyms; ${met(report.gate.withoutPackSynonyms) ? "met" : "not met"} without them.${met(report.gate) ? "" : " Dense vectors (K7) are called for on this version; measure them against the same gate."}`,
+        );
+      }
       const pct = (n) => (n === null ? "n/a" : `${(n * 100).toFixed(0)}%`);
       if (report.byCategory) {
         const l4 = report.layer4First;

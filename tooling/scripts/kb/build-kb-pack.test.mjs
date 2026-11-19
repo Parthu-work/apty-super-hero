@@ -19,6 +19,7 @@ import {
   fetchCardPages,
   packSha256,
   parseCard,
+  readApprovedTerms,
   readNameList,
   run,
   storageToText,
@@ -585,6 +586,37 @@ describe("customer names and diff", () => {
   });
 });
 
+describe("readApprovedTerms (KB-RAG K27, E10)", () => {
+  const file = (proposals) =>
+    JSON.stringify({ kind: "apty-kb-approved-terms", proposals });
+
+  it("merges a card's entries for this version, once per word in any case", () => {
+    assert.deepEqual(
+      readApprovedTerms(
+        file([
+          { cardId: "7", aptyVersion: "5.x", words: ["Twinkle", " sparkle "] },
+          { cardId: "7", words: [{ word: "twinkle", count: 2 }, "glint"] },
+          { cardId: "8", aptyVersion: "4.x", words: ["FIXTURE other"] },
+        ]),
+        "5.x",
+      ),
+      [{ pageId: "7", terms: ["Twinkle", "sparkle", "glint"] }],
+    );
+  });
+
+  it("refuses a file that is not approved terms, and more than 30 words for one card", () => {
+    assert.throws(
+      () => readApprovedTerms(JSON.stringify({ kind: "other" }), "5.x"),
+      /not an approved terms file/,
+    );
+    const many = Array.from({ length: 31 }, (_, i) => `word${i}`);
+    assert.throws(
+      () => readApprovedTerms(file([{ cardId: "7", words: many }]), "5.x"),
+      /more than 30 approved terms for 7/,
+    );
+  });
+});
+
 /** A signing key made for these tests, written outside the repository. */
 const TEST_KEY = (() => {
   const { privateKey, publicKey } = generateKeyPairSync("ec", {
@@ -765,6 +797,107 @@ describe("the CLI", () => {
       ["FIXTURE gizmo", "gadget", "widgetry"],
       ["sprocket", "cog"],
     ]);
+  });
+
+  it("adds the KB owner's approved terms to the signed pack, for this version's cards only (KB-RAG K27, E10)", async () => {
+    const dir = tempDir();
+    const out = join(dir, "p.kbpack.json");
+    const approved = join(dir, "approved.json");
+    writeFileSync(
+      approved,
+      JSON.stringify({
+        kind: "apty-kb-approved-terms",
+        proposals: [
+          {
+            cardId: "7",
+            aptyVersion: "5.x",
+            words: [{ word: "FIXTURE sparkle", count: 3 }, "twinkle"],
+          },
+          { cardId: "8", aptyVersion: "4.x", words: ["FIXTURE other"] },
+          { cardId: "99", words: ["FIXTURE orphan"] },
+        ],
+      }),
+    );
+    const { fetchImpl } = fakeConfluence({ ids: ["7", "8"] });
+    const result = await runWith({
+      argv: ["--space", "FX", "--out", out, "--approved-terms", approved],
+      fetchImpl,
+    });
+    assert.equal(result.code, 0, result.err);
+    assert.match(result.out, /Approved terms: 2 for 1 card\b/);
+    assert.match(result.out, /approved terms for 99: no such card/);
+    const pack = JSON.parse(readFileSync(out, "utf8"));
+    assert.deepEqual(pack.retrieval.approvedTerms, [
+      { pageId: "7", terms: ["FIXTURE sparkle", "twinkle"] },
+    ]);
+    assert.equal(packSha256(pack), pack.sha256);
+    const der = TEST_KEY.publicKey.export({ type: "spki", format: "der" });
+    const keyId = createHash("sha256").update(der).digest("hex").slice(0, 16);
+    const signed = (sha) =>
+      verify(
+        "sha256",
+        Buffer.from(`apty-kb-pack-signature/1\n${sha}\n${keyId}`),
+        { key: TEST_KEY.publicKey, dsaEncoding: "ieee-p1363" },
+        Buffer.from(pack.signature.value, "base64"),
+      );
+    assert.ok(signed(pack.sha256));
+
+    const tampered = structuredClone(pack);
+    tampered.retrieval.approvedTerms[0].terms.push("FIXTURE added later");
+    assert.notEqual(packSha256(tampered), pack.sha256);
+    assert.ok(!signed(packSha256(tampered)), "a re-summed pack fails the key");
+  });
+
+  it("refuses a proposals file the KB owner has not approved, and customer names in approved terms", async () => {
+    const dir = tempDir();
+    const proposals = join(dir, "proposals.json");
+    writeFileSync(
+      proposals,
+      JSON.stringify({
+        kind: "apty-kb-synonym-proposals",
+        proposals: [{ cardId: "7", words: [{ word: "twinkle", count: 1 }] }],
+      }),
+    );
+    const { fetchImpl } = fakeConfluence({ ids: ["7"] });
+    const unapproved = await runWith({
+      argv: [
+        "--space",
+        "FX",
+        "--out",
+        join(dir, "a.kbpack.json"),
+        "--approved-terms",
+        proposals,
+      ],
+      fetchImpl,
+    });
+    assert.equal(unapproved.code, 1);
+    assert.match(unapproved.err, /proposals, not approved terms/);
+
+    const approved = join(dir, "approved.json");
+    writeFileSync(
+      approved,
+      JSON.stringify({
+        kind: "apty-kb-approved-terms",
+        proposals: [{ cardId: "7", words: ["FIXTURE Customer Co"] }],
+      }),
+    );
+    const names = join(dir, "names.txt");
+    writeFileSync(names, "FIXTURE Customer Co\n");
+    const named = await runWith({
+      argv: [
+        "--space",
+        "FX",
+        "--out",
+        join(dir, "b.kbpack.json"),
+        "--approved-terms",
+        approved,
+        "--customer-names",
+        names,
+      ],
+      fetchImpl: fakeConfluence({ ids: ["7"] }).fetchImpl,
+    });
+    assert.equal(named.code, 1);
+    assert.match(named.err, /Customer names found in the approved terms for 7/);
   });
 
   it("labels the pack with its Apty version: 4.x for A4PKH by default, and asks for it for JA or another space", async () => {

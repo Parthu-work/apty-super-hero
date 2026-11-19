@@ -471,6 +471,37 @@ describe("what the user says (schema v2)", () => {
   });
 });
 
+describe("approved terms (KB-RAG K27, E10)", () => {
+  const plain = createKbIndex(syntheticPack(WIDGET_CARDS, {}, V2));
+  const approved = createKbIndex(
+    syntheticPack(
+      WIDGET_CARDS,
+      { approvedTerms: [{ pageId: "101", terms: ["sparkles", "twinkle"] }] },
+      V2,
+    ),
+  );
+
+  it("finds the card the KB owner approved a word for, which it missed before", () => {
+    for (const question of ["the widget sparkles", "the widget twinkles"]) {
+      expect(plain.search(question).status, question).toBe("not_covered");
+      const result = approved.search(question);
+      expect(result.status, question).toBe("ok");
+      expect(result.hits[0]?.chunk.pageId, question).toBe("101");
+    }
+  });
+
+  it("leaves a not-covered question not covered, and other cards' answers as they were", () => {
+    expect(approved.search("kubernetes helm rollout").status).toBe(
+      "not_covered",
+    );
+    for (const question of ["survey blank", "tooltip opens twice"]) {
+      expect(approved.search(question).hits[0]?.chunk.pageId).toBe(
+        plain.search(question).hits[0]?.chunk.pageId,
+      );
+    }
+  });
+});
+
 describe("layerHint", () => {
   it.each([
     ["segments.json returned 403", 3],

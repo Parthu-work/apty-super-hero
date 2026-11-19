@@ -106,6 +106,20 @@ const packSchema = z.object({
       .array(z.array(z.string().min(1).max(60)).min(2).max(30))
       .max(200)
       .optional(),
+    /**
+     * K27, E10: words the KB owner approved for one card, from the synonym
+     * proposals in Feedback (E7); searched as the card's own words. Only the
+     * owner adds them, at build time; nothing on the device does.
+     */
+    approvedTerms: z
+      .array(
+        z.object({
+          pageId: z.string().min(1),
+          terms: z.array(z.string().min(1).max(60)).min(1).max(30),
+        }),
+      )
+      .max(500)
+      .optional(),
     dense: z
       .object({
         model: z.string(),
@@ -207,6 +221,14 @@ function integrityProblem(pack: KbPack): string | undefined {
     if (chunk.id !== `${chunk.pageId}#L${chunk.layer}`) {
       return `chunk ${chunk.id} does not match its page and layer`;
     }
+  }
+  const approved = new Set<string>();
+  for (const { pageId } of pack.retrieval.approvedTerms ?? []) {
+    if (!cardIds.has(pageId))
+      return `approved terms for ${pageId} name no card`;
+    if (approved.has(pageId))
+      return `approved terms for ${pageId} appear twice`;
+    approved.add(pageId);
   }
   const dense = pack.retrieval.dense;
   if (dense && pack.vectors === undefined)

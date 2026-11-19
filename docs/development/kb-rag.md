@@ -80,6 +80,7 @@ under a policy with `allowUnsignedPacks`.
 | `retrieval.bm25` | `true` |
 | `retrieval.coverage` | `{ min, minIdf, minTerms }`, calibrated by `kb:eval --calibrate`; absent: `{ 0.5, 1.5, 1 }` |
 | `retrieval.synonyms` | The KB owner's own synonym groups (`kb:pack --synonyms`), added to the built-in ones |
+| `retrieval.approvedTerms` | K27, E10: `[{ pageId, terms }]`, words the KB owner approved for one card (`kb:pack --approved-terms`), searched as the card's own words; at most 30 per card, each card once, every `pageId` a card in the pack |
 | `retrieval.threshold` | Schema 1 only: the BM25 score below which a question was not covered |
 | `retrieval.dense` | Optional vectors (K7, not shipped) |
 | `cards[].pageId`, `.title`, `.group`, `.url`, `.updatedAt` | The card; `url` is its own page in its own space |
@@ -445,7 +446,7 @@ the chat's KB line also says why its last update failed.
 ## Evaluation
 
 ```bash
-pnpm kb:eval --pack <file> --questions <file> [--calibrate] [--coverage-min-floor <f>] [--coverage-min <x>] [--coverage-min-idf <y>] [--by-category] [--json]
+pnpm kb:eval --pack <file> --questions <file> [--calibrate] [--coverage-min-floor <f>] [--coverage-min <x>] [--coverage-min-idf <y>] [--by-category] [--compare-synonyms] [--json]
 ```
 
 A questions file is a list of `{ "id", "category"?, "q", "expectedPageIds",
@@ -468,6 +469,50 @@ the best J sits below the floor (K21 F2).
 
 An absent ("not in this version") card counts as a hit when it is the
 expected card (K25, A4).
+
+### Approved terms and the retrieval gate (K27, E10)
+
+The KB owner's steps, on their own machine, once a week with the feedback
+exports:
+
+1. In Options → Feedback, tick "Include my question" and use **Export
+   proposed synonyms** (E7). The file's kind is
+   `"apty-kb-synonym-proposals"`: per right card, the words SEs used that
+   the card does not hold.
+2. Copy it, keep only the words you approve (as strings or the exported
+   `{ "word", "count" }` objects), and set its kind to
+   `"apty-kb-approved-terms"`. `kb:pack` refuses an unedited proposals
+   file, so nothing from the devices reaches a pack without your decision.
+   Keep the file with the packs, outside this repository.
+3. Rebuild and sign with the file:
+
+   ```bash
+   pnpm kb:pack --space A4PKH --version 4.x --approved-terms ~/apty-kb/approved-terms.json --customer-names ~/apty-kb/customer-names.txt --sign-key ~/apty-kb/kb-signing-key.pem
+   ```
+
+   The builder keeps the entries for the pack's version (an entry with no
+   `aptyVersion` applies to every version), merges a card's entries, drops
+   repeats in any case, refuses more than 30 words for one card or a
+   customer name, and names the card ids that are not in the pack. The
+   words land in `retrieval.approvedTerms`, under the checksum and the
+   signature: an extension refuses a pack whose approved terms changed after
+   signing.
+4. Record the before-and-after on the real question sets:
+
+   ```bash
+   pnpm kb:eval --pack "$(ls -t ~/apty-kb/apty-kb-A4PKH-4.x-*.kbpack.json | head -1)" --questions ~/apty-kb/questions-4x.json --compare-synonyms
+   ```
+
+   `--compare-synonyms` evaluates the same questions with and without the
+   pack's synonym groups and approved terms and prints the gate: Recall@3
+   and "not covered" precision must each reach 0.90 on a version. Dense
+   vectors (K7) are tried only for a version that misses the gate with its
+   synonyms, behind a flag that stays off unless the numbers justify it;
+   when the gate is met they are left out.
+
+The search reads a card's approved terms as its own words, with its title
+and symptom line: in the card index (boost 2) and in coverage, where each
+counts as a full match. Schema 1 packs ignore them.
 
 ### Self-check (K25, A3)
 

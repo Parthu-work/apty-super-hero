@@ -508,7 +508,10 @@ function corpusOf(
   cards: Map<string, KbCard>,
   indexedText: (chunk: KbChunk) => { heading: string; text: string },
   synonyms: SynonymTable,
+  approved: ReadonlyMap<string, string>,
 ) {
+  const ownText = (card: KbCard) =>
+    `${card.title}\n${card.symptom ?? ""}\n${approved.get(card.pageId) ?? ""}`;
   const lowest = lowestLayers(chunks);
   const df = new Map<string, number>();
   /** Each word as the cards spell it, before stemming, and its stem. */
@@ -523,10 +526,7 @@ function corpusOf(
   for (const chunk of chunks) {
     const card = cards.get(chunk.pageId) as KbCard;
     const { heading, text } = indexedText(chunk);
-    const own =
-      lowest.get(chunk.pageId) === chunk.layer
-        ? `${card.title}\n${card.symptom ?? ""}`
-        : "";
+    const own = lowest.get(chunk.pageId) === chunk.layer ? ownText(card) : "";
     const terms = analyze(`${own}\n${heading}\n${text}`);
     addTyped(`${own}\n${heading}\n${text}`);
     for (const term of new Set(terms)) df.set(term, (df.get(term) ?? 0) + 1);
@@ -542,7 +542,7 @@ function corpusOf(
   let documents = chunks.length;
   for (const card of cards.values()) {
     if (cardTerms.has(card.pageId)) continue;
-    const own = `${card.title}\n${card.symptom ?? ""}`;
+    const own = ownText(card);
     const terms = analyze(own);
     addTyped(own);
     for (const term of new Set(terms)) df.set(term, (df.get(term) ?? 0) + 1);
@@ -862,7 +862,13 @@ function createV2Index(pack: KbPack): KbIndex {
     ...KB_SYNONYM_GROUPS,
     ...(pack.retrieval.synonyms ?? []),
   ]);
-  const corpus = corpusOf(chunks, cards, indexedText, synonyms);
+  const approved = new Map(
+    (pack.retrieval.approvedTerms ?? []).map(({ pageId, terms }) => [
+      pageId,
+      terms.join("\n"),
+    ]),
+  );
+  const corpus = corpusOf(chunks, cards, indexedText, synonyms, approved);
   const settings = pack.retrieval.coverage ?? KB_COVERAGE_DEFAULTS;
 
   const searchOptions = {
@@ -871,22 +877,27 @@ function createV2Index(pack: KbPack): KbIndex {
     prefix: (term: string) => term.length >= PREFIX_MIN_CHARS,
     fuzzy: false,
   };
-  /** Which card: its title and symptom line, once per card. */
+  /** Which card: its title, symptom line and approved terms, once per card. */
   const cardIndex = new MiniSearch<{
     id: string;
     title: string;
     symptom: string;
+    approved: string;
   }>({
-    fields: ["title", "symptom"],
+    fields: ["title", "symptom", "approved"],
     tokenize: analyze,
     processTerm: asIs,
-    searchOptions: { ...searchOptions, boost: { title: 2, symptom: 2.5 } },
+    searchOptions: {
+      ...searchOptions,
+      boost: { title: 2, symptom: 2.5, approved: 2 },
+    },
   });
   cardIndex.addAll(
     [...cards.values()].map((card) => ({
       id: card.pageId,
       title: card.title,
       symptom: card.symptom ?? "",
+      approved: approved.get(card.pageId) ?? "",
     })),
   );
   /** Which layer: the chunk's heading and text. */
@@ -1217,6 +1228,7 @@ export function createKbIndex(pack: KbPack): KbIndex {
       text: bodyTerms(chunk.text),
     }),
     createSynonymTable(KB_SYNONYM_GROUPS),
+    new Map(),
   );
   const index = createLegacyIndex(pack, (query, top) =>
     top ? corpus.assess(query, top.chunk.pageId, 0).coverage : 0,
