@@ -7,6 +7,7 @@ import {
   caseToContinue,
   closeCase,
   hostAlias,
+  markFinding,
   newCase,
   newCaseId,
   otherSite,
@@ -160,6 +161,21 @@ describe("closing, retention and continuity", () => {
         rightCardId: "not an id",
       }).rightCardId,
     ).toBeUndefined();
+  });
+
+  it("marks an open case's finding right or wrong before it closes, and closing keeps the mark (K27, E5)", () => {
+    const later = new Date("2026-11-12T11:00:00.000Z");
+    const marked = markFinding(newCase("c", NOW), "no", later);
+    expect(marked).toMatchObject({
+      outcome: "open",
+      findingRight: "no",
+      updatedAt: later.toISOString(),
+    });
+    expect(closeCase(marked, "resolved", later).findingRight).toBe("no");
+    expect(
+      closeCase(marked, "resolved", later, { findingRight: "yes" })
+        .findingRight,
+    ).toBe("yes");
   });
 
   it("expires a case not updated for more than the retention days", () => {

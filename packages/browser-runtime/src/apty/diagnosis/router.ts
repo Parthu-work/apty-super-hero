@@ -259,3 +259,52 @@ export function routeSymptom(message: string): Route | undefined {
     ...(language ? { language } : {}),
   };
 }
+
+function kindIn(lower: string): ContentKind | undefined {
+  return KIND_WORDS.find(([, pattern]) => pattern.test(lower))?.[0];
+}
+
+/** The content kind a message names, if any (K27, E5). */
+export function contentKindOf(message: string): ContentKind | undefined {
+  return kindIn(message.toLowerCase());
+}
+
+const KINDS: ReadonlySet<string> = new Set(KIND_WORDS.map(([kind]) => kind));
+
+/**
+ * K27, E5: "Run the check" on a KB card asks for a pack by id; the route
+ * takes the item's name, step and language from the SE's own message, as
+ * `routeSymptom` would. An id or kind outside the router's own packs runs
+ * nothing.
+ */
+export function routeCheck(
+  message: string,
+  request: { packId: string; kind?: string },
+): Route | undefined {
+  const lower = message.toLowerCase();
+  if (request.kind !== undefined && !KINDS.has(request.kind)) return undefined;
+  const kind = (request.kind as ContentKind | undefined) ?? kindIn(lower);
+  switch (request.packId) {
+    case "widget-not-visible":
+    case "page-readiness":
+      return { packId: request.packId };
+    case "logs-and-errors":
+      return APTY_404.test(lower)
+        ? { packId: "logs-and-errors", about404: true }
+        : { packId: "logs-and-errors" };
+    case "element-not-found":
+      return kind ? elementRoute(message, kind) : undefined;
+    case "content-not-visible": {
+      const query = itemName(message);
+      const language = languageOf(lower);
+      return {
+        packId: "content-not-visible",
+        kind: kind ?? "workflow",
+        ...(query ? { query } : {}),
+        ...(language ? { language } : {}),
+      };
+    }
+    default:
+      return undefined;
+  }
+}

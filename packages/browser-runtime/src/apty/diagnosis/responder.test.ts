@@ -523,6 +523,54 @@ describe("the KB matches answer (KB-RAG K6)", () => {
     ).toEqual(answer.result);
   });
 
+  it("offers the check a top card belongs to beside the cards, never in what the model reads (K27, E5)", async () => {
+    const checkCard = {
+      kind: "answer" as const,
+      result: {
+        ...answer.result,
+        results: [{ ...matches.results[0], cite: "kb://1496842241#L1" }],
+        cards: [{ pageId: "1496842241", layer: 1 as const }],
+      },
+      packs: answer.packs,
+    };
+    const respond = createDiagnosisResponder({
+      kbMatchesOf: async () => checkCard,
+    });
+    const answered = await respond("the tour vanished from the list", {});
+    expect((answered as { result?: unknown })?.result).toMatchObject({
+      runCheck: { packId: "content-not-visible", kind: "workflow" },
+    });
+    expect((answered as { transcript?: string })?.transcript).not.toContain(
+      "runCheck",
+    );
+    const other = await createDiagnosisResponder({
+      kbMatchesOf: async () => answer,
+    })("the tooltip opens twice on the page", {});
+    expect((other as { result?: object })?.result).not.toHaveProperty(
+      "runCheck",
+    );
+  });
+
+  it("runs the check the SE asked for from a card, on words the router would leave to the KB (K27, E5)", async () => {
+    serveCapture();
+    const kbMatchesOf = vi.fn(async () => answer);
+    const respond = createDiagnosisResponder({ kbMatchesOf });
+    const answered = await respond(
+      "the 'Take a tour' workflow vanished after Friday",
+      { runCheck: { packId: "content-not-visible", kind: "workflow" } },
+    );
+    expect(answered).toMatchObject({
+      toolName: RUN_DIAGNOSIS,
+      params: { kind: "workflow", name: "Take a tour" },
+      decision: { route: "check", checkPackId: "content-not-visible" },
+    });
+    expect(kbMatchesOf).not.toHaveBeenCalled();
+    const unknown = await respond("the tour vanished", {
+      runCheck: { packId: "dapty-conversation" },
+    });
+    expect(unknown).toMatchObject({ toolName: "search_kb" });
+  });
+
   it("never answers in place of a check pack", async () => {
     serveCapture();
     const kbMatchesOf = vi.fn(async () => answer);

@@ -1,4 +1,8 @@
-import type { AgentMetrics, FunctionTool } from "@apty/agent-core";
+import type {
+  AgentMetrics,
+  FunctionTool,
+  RunCheckRequest,
+} from "@apty/agent-core";
 import type { ComponentType, HTMLAttributes, ReactNode } from "react";
 import type { KbReturnedCards } from "../lib/kb-citations";
 import type { ChatStatus, ContextItem, UIMessage, UIToolPart } from "./ui";
@@ -285,8 +289,9 @@ export interface ChatbotEventHandlers {
 // Re-export AgentMetrics for convenience
 export type { AgentMetrics } from "@apty/agent-core";
 
-/** How one message is sent (KB-RAG K27, F2): "Ask the AI anyway" skips the local answer and adds a fixed instruction. */
+/** How one message is sent (KB-RAG K27): "Ask the AI anyway" (F2) skips the local answer and adds a fixed instruction; "Run the check" (E5) names the check to run. */
 export interface SendMessageOptions {
   skipLocalResponder?: boolean;
   turnInstruction?: string;
+  runCheck?: RunCheckRequest;
 }

@@ -2957,5 +2957,18 @@
       "gotIt": "Got it",
       "open": "Open Knowledge base"
     }
+  },
+  "turnActions": {
+    "runCheck": "Run the check",
+    "markLabel": "Was this cause right?",
+    "mark": {
+      "yes": "Right",
+      "no": "Wrong"
+    },
+    "marked": {
+      "yes": "Marked right. You can change it until the case closes.",
+      "no": "Marked wrong. You can change it until the case closes."
+    },
+    "noCase": "No open case to mark."
   }
 }

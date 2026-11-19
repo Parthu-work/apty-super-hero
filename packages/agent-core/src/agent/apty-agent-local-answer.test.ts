@@ -323,4 +323,20 @@ describe("an instruction for a turn with no KB card (KB-RAG K27, F2)", () => {
       "test\n\nFIXTURE: say you do not know.",
     );
   });
+
+  it("Run the check (K27, E5): hands the responder the check the card maps to", async () => {
+    const responder = vi.fn(() => ANSWER);
+    const { agent, requests } = agentWith(responder);
+    await collect(
+      agent.chat("FIXTURE tour vanished", {
+        runCheck: { packId: "content-not-visible", kind: "workflow" },
+      }),
+    );
+    expect(responder).toHaveBeenCalledWith("FIXTURE tour vanished", {
+      runContext: undefined,
+      sessionId: undefined,
+      runCheck: { packId: "content-not-visible", kind: "workflow" },
+    });
+    expect(requests).toHaveLength(0);
+  });
 });
