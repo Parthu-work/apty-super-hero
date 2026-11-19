@@ -2586,8 +2586,31 @@
       "network": "在该 DevTools 窗口中打开“网络”，勾选“保留日志”。",
       "reproduce": "重新加载应用标签页并重现问题。",
       "save": "在 service worker 的“网络”面板中右键，选择“以 HAR 格式保存所有内容”。",
-      "drop": "在侧边栏打开 HAR 检查并选择该 HAR；确认要对照检查的页面。",
+      "drop": "将 HAR 拖放到下方，或在侧边栏打开 HAR 检查；确认要对照检查的页面。",
       "copyExtensions": "复制 chrome://extensions"
+    },
+    "getEvidence": {
+      "get": "获取证据",
+      "modeExtension": "扩展模式：Apty Client 的 service worker 读取 Apty 的文件，因此在那里保存的 HAR 包含这些文件。",
+      "modeInjected": "注入模式：页面读取 Apty 的文件，因此在此标签页重新加载时进行捕获即可获得这些文件。",
+      "modeUnknown": "此页面未显示 Client 的模式；“获取证据”会先尝试捕获。",
+      "from": {
+        "player-config": "依据页面的播放器配置。",
+        "client-script": "依据 Apty Client 注入页面的脚本。",
+        "page-calls": "依据页面自身发出的 Apty 请求。",
+        "client-calls": "依据 Apty Client 对其请求的应答。"
+      },
+      "remembered": "此网站上次使用的方式。",
+      "routeCapture": "方式：捕获并重新加载此标签页。",
+      "routeHar": "方式：来自 Client service worker 的 HAR。",
+      "useHar": "改用 HAR",
+      "useCapture": "改用捕获并重新加载",
+      "progress": "正在获取证据",
+      "drop": "将 HAR 文件拖放到此处，或选择文件",
+      "reading": "正在读取 HAR…",
+      "check": "检查 HAR",
+      "checking": "正在检查 HAR…",
+      "noFiles": "此 HAR 中没有 Apty 内容文件。请重新加载页面后，在开启“保留日志”的情况下，从 Client 的 service worker 重新保存。"
     }
   },
   "harCheck": {

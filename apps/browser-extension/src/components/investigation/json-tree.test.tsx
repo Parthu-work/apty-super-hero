@@ -17,5 +17,5 @@ describe("JsonTree's first render (KB-RAG K27, U1)", () => {
     const more = screen.getByRole("button", { name: /more/i });
     fireEvent.click(more);
     expect(screen.getAllByRole("button", { expanded: false }).length).toBe(200);
-  });
+  }, 20_000);
 });

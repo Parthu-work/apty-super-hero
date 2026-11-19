@@ -17,6 +17,7 @@ import {
   stopNetworkCapture,
 } from "../network-capture-session.js";
 import { captureSource } from "./apty-files.js";
+import type { HarCheck } from "./har-check.js";
 import { loadEvidenceFrom } from "./loader.js";
 import { runPack } from "./responder.js";
 import type { Route } from "./router.js";
@@ -108,6 +109,20 @@ export function routeOfResult(result: DiagnosisResult): Route | undefined {
     kind,
     ...(query ? { query } : {}),
     ...(language ? { language } : {}),
+  };
+}
+
+/** The same check, run on a HAR saved from the Client's service worker (K27, E8). */
+export function harCheckOfResult(
+  result: DiagnosisResult,
+): HarCheck | undefined {
+  const route = routeOfResult(result);
+  if (route?.packId === "widget-not-visible") return route;
+  if (route?.packId !== "content-not-visible") return undefined;
+  return {
+    packId: "content-not-visible",
+    kind: route.kind,
+    ...(route.query ? { query: route.query } : {}),
   };
 }
 
