@@ -19,6 +19,12 @@ import {
 import { captureSource } from "./apty-files.js";
 import type { HarCheck } from "./har-check.js";
 import { loadEvidenceFrom } from "./loader.js";
+import {
+  answerLookup,
+  LOOKUP_FILES,
+  type LookupQuestion,
+  type LookupResult,
+} from "./lookup.js";
 import { runPack } from "./responder.js";
 import type { Route } from "./router.js";
 import type { DiagnosisResult } from "./types.js";
@@ -144,5 +150,18 @@ export async function recheckFromCapture(
       ...(await loadEvidenceFrom(captureSource(calls), names)),
       fromCapture: true,
     }),
+  });
+}
+
+/** K28, F3: a lookup answered again on the tab's captured Apty calls. */
+export async function relookupFromCapture(
+  question: LookupQuestion,
+  tabId: number,
+): Promise<LookupResult | undefined> {
+  const calls = aptyContentCalls(tabId);
+  if (!calls) return undefined;
+  return answerLookup(question, {
+    ...(await loadEvidenceFrom(captureSource(calls), LOOKUP_FILES)),
+    fromCapture: true,
   });
 }

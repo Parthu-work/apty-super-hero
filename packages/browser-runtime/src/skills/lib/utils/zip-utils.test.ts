@@ -23,6 +23,7 @@ import {
   SkillZipTooLargeError,
   SkillZipTooManyEntriesError,
   SkillZipUnsafePathError,
+  zipSkillFromFS,
 } from "./zip-utils";
 
 function zipBlob(files: Record<string, Uint8Array>): Blob {
@@ -133,4 +134,61 @@ describe("parseSkillMetadataFromZip / extractZipToFS — caps (M4)", () => {
     );
     expect(mockWriteFile).not.toHaveBeenCalled();
   }, 20_000);
+});
+
+describe("zipSkillFromFS (KB-RAG K28, F7)", () => {
+  it("exports a skill as a ZIP that imports back unchanged", async () => {
+    const disk = new Map<string, string | Uint8Array>();
+    mockWriteFile.mockImplementation(
+      async (path: string, data: string | Uint8Array) => {
+        disk.set(path, data);
+      },
+    );
+    const under = (dir: string) =>
+      [...disk.keys()].filter((path) => path.startsWith(`${dir}/`));
+    const readdir = vi.fn(async (dir: string) => [
+      ...new Set(
+        under(dir).map((path) => path.slice(dir.length + 1).split("/")[0]),
+      ),
+    ]);
+    const stat = vi.fn(async (path: string) => ({
+      isDirectory: !disk.has(path),
+    }));
+    const readFile = vi.fn(async (path: string) => disk.get(path));
+    const { zenfs } = await import("../../../vm/zenfs-manager");
+    Object.assign(zenfs, { readdir, stat, readFile });
+
+    const original = {
+      "demo-skill/SKILL.md": SKILL_MD,
+      "demo-skill/scripts/run.js": strToU8("export const run = () => 1;"),
+      "demo-skill/assets/logo.bin": new Uint8Array([0, 1, 2, 255]),
+    };
+    await extractZipToFS(zipBlob(original), "/skills/demo-skill");
+    const exported = await zipSkillFromFS("/skills/demo-skill", "demo-skill");
+    await extractZipToFS(new Blob([exported as BlobPart]), "/skills/again");
+
+    const files = (root: string) =>
+      Object.fromEntries(
+        under(root).map((path) => {
+          const data = disk.get(path);
+          return [
+            path.slice(root.length),
+            typeof data === "string" ? data : [...(data ?? [])],
+          ];
+        }),
+      );
+    expect(files("/skills/again")).toEqual(files("/skills/demo-skill"));
+    expect(Object.keys(files("/skills/again")).sort()).toEqual([
+      "/SKILL.md",
+      "/assets/logo.bin",
+      "/scripts/run.js",
+    ]);
+    expect(
+      await parseSkillMetadataFromZip(new Blob([exported as BlobPart])),
+    ).toEqual({
+      name: "demo-skill",
+      description: "A demo skill",
+      version: "1.0.0",
+    });
+  });
 });

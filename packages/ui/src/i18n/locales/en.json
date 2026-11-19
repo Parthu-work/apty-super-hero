@@ -1429,7 +1429,8 @@
     "kbUnknownCitation": "unknown citation",
     "kbUngroundedTitle": "Not found in the cited KB cards",
     "kbUngrounded": "Not found in the cited KB cards: {{phrases}}",
-    "kbCitation": "KB card {{pageId}}, layer {{layer}}"
+    "kbCitation": "KB card {{pageId}}, layer {{layer}}",
+    "moreQuestions": "More questions ({{count}})"
   },
   "investigation": {
     "componentHealth": "Apty component health",
@@ -1632,7 +1633,8 @@
       "reload": "Reload skills",
       "none": "No skills found",
       "adjustFilters": "Try adjusting your search or filter criteria",
-      "uploadFirst": "Upload your first skill to get started"
+      "uploadFirst": "Upload your first skill to get started",
+      "exportFailed": "Could not export \"{{name}}\"."
     },
     "uploader": {
       "invalidZip": "Please select a valid ZIP file",
@@ -2840,7 +2842,16 @@
       "segmentNotFound": "No segment named \"{{segment}}\" is in {{file}}.",
       "itemAmbiguous": "{{count}} workflows match \"{{item}}\".",
       "segmentAmbiguous": "{{count}} segments match \"{{segment}}\".",
-      "fileUnread": "{{file}} could not be read ({{status}})."
+      "fileUnread": "{{file}} could not be read ({{status}}).",
+      "itemHidden": "\"{{item}}\" is hidden from the widget.",
+      "itemNotHidden": "\"{{item}}\" is not hidden from the widget.",
+      "segmentMembers": "Workflows the \"{{segment}}\" segment lists: {{count}}.",
+      "segmentEmpty": "The \"{{segment}}\" segment lists no workflow.",
+      "itemSegments": "Segments that list \"{{item}}\": {{count}}.",
+      "itemSegmentsNone": "No segment lists \"{{item}}\".",
+      "versionUnknown": "Which Apty version does this tenant run?",
+      "clientNotConnected": "The Apty Client is not connected, so its content files cannot be read.",
+      "fileNotReported": "The Apty Client has not reported {{file}} yet."
     },
     "column": {
       "workflow": "Workflow",
@@ -2850,7 +2861,8 @@
       "environment": "Environment",
       "id": "Id",
       "field": "Field",
-      "value": "Value"
+      "value": "Value",
+      "hidden": "Hidden from the widget"
     },
     "word": {
       "yes": "yes",
@@ -2865,12 +2877,27 @@
     },
     "ask": {
       "workflow": "Which workflow do you mean?",
-      "segment": "Which segment do you mean?"
+      "segment": "Which segment do you mean?",
+      "version": "Which Apty version does this tenant run?"
     },
     "source": {
       "client": "Apty {{version}} files ({{files}}), from the Apty Client's record. No AI model was asked.",
       "cdn": "Apty {{version}} files ({{files}}), from Apty's content CDN. No AI model was asked.",
-      "capture": "Apty {{version}} files ({{files}}), from the page's network capture. No AI model was asked."
+      "capture": "Apty {{version}} files ({{files}}), from the page's network capture. No AI model was asked.",
+      "none": "No AI model was asked."
+    },
+    "choice": {
+      "active": "active",
+      "inactive": "inactive",
+      "hidden": "hidden",
+      "workflowsOne": "1 workflow",
+      "workflows": "{{count}} workflows"
+    },
+    "evidence": {
+      "reload": "Reload the tab",
+      "reloaded": "The tab is reloading. Ask again once the page has loaded.",
+      "none": "The capture saw no Apty content call. Reload the page with the Apty Client on, or save a HAR from the Client's service worker.",
+      "failed": "The evidence could not be taken from this tab."
     }
   },
   "cases": {

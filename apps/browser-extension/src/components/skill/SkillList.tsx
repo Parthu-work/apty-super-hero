@@ -11,6 +11,7 @@ import {
 } from "@apty/ui/components/ui/card";
 import { Input } from "@apty/ui/components/ui/input";
 import { useTranslation } from "@apty/ui/i18n/context";
+import { downloadBlob } from "@apty/ui/lib/download";
 import { AlertCircle, Filter, RefreshCw, Search } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -155,9 +156,16 @@ export const SkillList: React.FC<SkillListProps> = ({
     setDetailsOpen(true);
   };
 
-  const handleExport = (skill: SkillMetadata) => {
-    // TODO: Implement skill export functionality
-    log.debug("Export skill:", skill.name);
+  const handleExport = async (skill: SkillMetadata) => {
+    try {
+      const zip = await skillClient.exportSkill(skill.id);
+      if (!downloadBlob(`${skill.name}.zip`, zip)) {
+        throw new Error("download");
+      }
+    } catch (err) {
+      log.error("Skill export failed:", err);
+      setError(t("skills.list.exportFailed", { name: skill.name }));
+    }
   };
 
   const getStats = () => {

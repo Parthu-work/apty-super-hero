@@ -6,7 +6,13 @@
  * one routing card ("Start here") and one title shared with the other
  * version; 4.x also has one "No 4.x equivalent" card (K25, A4).
  */
-function page(id, title, symptom, layers, { status = "full", version } = {}) {
+function page(
+  id,
+  title,
+  symptom,
+  layers,
+  { status = "full", version, options = [] } = {},
+) {
   const intro = `<p>Symptom: ${symptom}</p><p>Verified on: FIXTURE demo, 2026-11-01.</p>`;
   if (status === "stub") {
     return card(
@@ -16,10 +22,16 @@ function page(id, title, symptom, layers, { status = "full", version } = {}) {
     );
   }
   if (status === "routing") {
+    const links = options
+      .map(
+        (pageId) =>
+          `<li><a href="https://demo.atlassian.invalid/wiki/spaces/DEMO/pages/${pageId}">DEMO card ${pageId}</a></li>`,
+      )
+      .join("");
     return card(
       id,
       title,
-      `${intro}<p>FIXTURE: read the DEMO cards below.</p>`,
+      `${intro}<p>FIXTURE: read the DEMO cards below.</p>${links ? `<ul>${links}</ul>` : ""}`,
     );
   }
   if (status === "absent") {
@@ -205,7 +217,7 @@ export const DEMO_PAGES_5X = [
     "Start here: DEMO panel and tooltip questions",
     "Which DEMO panel or tooltip card to read first.",
     [],
-    { status: "routing" },
+    { status: "routing", options: ["2003", "2004", "2001", "2007"] },
   ),
 ];
 
@@ -341,9 +353,9 @@ export const DEMO_PAGES_4X = [
   page(
     "4013",
     "Start here: DEMO flow questions",
-    "Which DEMO flow card to read first.",
+    "DEMO workflow not working: which DEMO flow card to read first.",
     [],
-    { status: "routing" },
+    { status: "routing", options: ["4001", "4002", "4008", "4003"] },
   ),
   page(
     "4014",

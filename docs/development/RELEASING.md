@@ -5,13 +5,16 @@
    the workflow's build job locally and leaves the packages in
    `/tmp/release-dry-run/release/`; in GitHub, Actions → Release → Run
    workflow with `dry_run` on does the same and uploads the packages
-   without publishing. Then run the manual browser checklist,
+   without publishing. The dry run stops first when the tree has an
+   uncommitted or untracked file, because the format check reads the whole
+   tree; `--allow-dirty` runs it anyway. Then run the manual browser checklist,
    [`docs/release/SMOKE_TEST.md`](../release/SMOKE_TEST.md), on Chrome and
    Edge with that package.
 1. Bump `version` in `apps/browser-extension/manifest.json` and
    `apps/browser-extension/package.json` to the same `X.Y.Z`.
 2. Move the `Unreleased` sections of `CHANGELOG.md` under one `X.Y.Z`
-   heading.
+   heading. For 0.2.0: move the "Unreleased" CHANGELOG entries under
+   `## 0.2.0 — <date>` in the release commit.
 3. Merge to `main`, then tag the merge commit and push the tag:
 
    ```bash

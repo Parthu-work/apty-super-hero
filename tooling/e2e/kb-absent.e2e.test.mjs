@@ -7,6 +7,8 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import {
+  axeInBothThemes,
+  describeViolations,
   launchBrowser,
   openSidePanel,
   sendChat,
@@ -71,6 +73,8 @@ describe('"not in this version" cards (KB-RAG K25, A4)', () => {
     const card = panel.getByRole("region", { name: "KB cards that match" });
     assert.equal(await card.getByRole("link").count(), 1);
     assert.equal(model.requests.length, 0);
+    const violations = await axeInBothThemes(panel);
+    assert.deepEqual(violations, [], describeViolations(violations));
     await panel.close();
     await app.close();
   });

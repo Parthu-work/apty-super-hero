@@ -13,6 +13,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
 import {
+  axeInBothThemes,
   describeViolations,
   extensionPage,
   launchBrowser,
@@ -67,7 +68,7 @@ describe("wrong-card feedback (KB-RAG K25, L3)", () => {
     await strip.getByRole("button", { name: "Close case" }).click();
     const form = strip.getByTestId("close-case-form");
     await form.getByLabel("Resolved", { exact: true }).check();
-    const formViolations = await runAxe(panel);
+    const formViolations = await axeInBothThemes(panel);
     assert.deepEqual(formViolations, [], describeViolations(formViolations));
     await form.getByLabel("No", { exact: true }).check();
     await form.getByLabel(/Which card was right/).fill("101");

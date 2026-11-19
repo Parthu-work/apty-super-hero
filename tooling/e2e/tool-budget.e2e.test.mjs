@@ -120,7 +120,8 @@ describe("the tool budget on Anthropic (KB-RAG K27, F1)", () => {
     );
     for (const question of [
       "what does flow.json mean",
-      "from flows.json check if workflow Alpha is in segment Beta",
+      // K28, F1: "from flows.json check if workflow Alpha is in segment Beta" is now a lookup answered with no model call.
+      "from flows.json check whether workflow Alpha has any steps",
       "investigate why flow.json is empty on this page",
     ]) {
       const reply = await chatAndWait(panel, question);

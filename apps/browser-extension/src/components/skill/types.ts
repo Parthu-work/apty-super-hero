@@ -43,6 +43,11 @@ export interface SkillClient {
   uploadSkill(file: File, replace?: boolean): Promise<SkillUploadResult>;
 
   /**
+   * The skill as a ZIP that uploadSkill takes back unchanged
+   */
+  exportSkill(skillId: string): Promise<Blob>;
+
+  /**
    * Enable a skill
    */
   enableSkill(skillId: string): Promise<void>;

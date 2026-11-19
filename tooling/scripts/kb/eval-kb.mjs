@@ -27,7 +27,8 @@
  *   "not covered" precision that decides whether dense vectors are tried)
  *
  * A questions file is `[{ "id"?, "q", "expectedPageIds": [], "expectedLayer"?, "category"?, "surface"? }]`;
- * a "multi" question needs all its cards in the top 3, and one with
+ * a "multi" question needs all its cards in the top 3; a "broad" one (K28,
+ * F9) names the routing ("start here") card whose choices it must show; one with
  * `"surface": "responder"` (a bare how-to, a question in another script) is
  * left to the responder's own tests, not scored here;
  * an empty `expectedPageIds` means the KB should not cover the question.
@@ -160,10 +161,14 @@ export function evaluate(core, pack, all, { threshold, coverage } = {}) {
     });
     // A stub or a "not in this version" card (K25, A4) is a hit when it is the expected card.
     const ranked =
-      (result.status === "stub" || result.status === "not_in_version") &&
-      result.card
-        ? [result.card.pageId, ...result.hits.map((hit) => hit.chunk.pageId)]
-        : result.hits.map((hit) => hit.chunk.pageId);
+      question.category === "broad"
+        ? result.choices
+          ? [result.choices.card.pageId]
+          : []
+        : (result.status === "stub" || result.status === "not_in_version") &&
+            result.card
+          ? [result.card.pageId, ...result.hits.map((hit) => hit.chunk.pageId)]
+          : result.hits.map((hit) => hit.chunk.pageId);
     const expected = new Set(question.expectedPageIds);
     const notCovered = result.status === "not_covered";
     if (result.hits.length > 0 && !core.hasLayerHint(question.q)) {

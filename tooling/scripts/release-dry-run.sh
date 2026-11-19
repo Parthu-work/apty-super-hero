@@ -5,17 +5,38 @@
 # extension ID, packaging, checksums and their verification. One line per
 # step; each step's full output is in /tmp/release-dry-run/<step>.log.
 #
-# Usage: tooling/scripts/release-dry-run.sh [--skip-e2e]
-# Packages land in /tmp/release-dry-run/release/.
+# Usage: tooling/scripts/release-dry-run.sh [--skip-e2e] [--allow-dirty]
+# Packages land in /tmp/release-dry-run/release/. It stops first on an
+# uncommitted or untracked file, because the format check reads the whole
+# tree; --allow-dirty runs it anyway.
 
 set -u
 cd "$(dirname "$0")/../.." || exit 1
 
+skip_e2e=0
+allow_dirty=0
+for arg in "$@"; do
+  case "$arg" in
+  --skip-e2e) skip_e2e=1 ;;
+  --allow-dirty) allow_dirty=1 ;;
+  *)
+    echo "Unknown option: $arg (use --skip-e2e or --allow-dirty)" >&2
+    exit 2
+    ;;
+  esac
+done
+
+if [ "$allow_dirty" = 0 ]; then
+  dirty=$(git status --porcelain)
+  if [ -n "$dirty" ]; then
+    echo "Uncommitted or untracked files: $(echo "$dirty" | cut -c4- | paste -sd, - | sed 's/,/, /g') (the format check reads the whole tree). Commit or remove them, or pass --allow-dirty." >&2
+    exit 1
+  fi
+fi
+
 OUT="/tmp/release-dry-run"
 rm -rf "$OUT"
 mkdir -p "$OUT/release"
-skip_e2e=0
-[ "${1:-}" = "--skip-e2e" ] && skip_e2e=1
 
 version=$(node -p 'require("./apps/browser-extension/manifest.json").version')
 name="v${version}"

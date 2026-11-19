@@ -9,6 +9,7 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import {
+  axeInBothThemes,
   describeViolations,
   extensionPage,
   launchBrowser,
@@ -58,7 +59,7 @@ describe("cases (KB-RAG K25, L1)", () => {
     caseId = await id.innerText();
     assert.match(caseId, /^CASE-\d{8}-[0-9A-HJKMNP-TV-Z]{4}$/);
     assert.equal(model.requests.length, 0);
-    const violations = await runAxe(panel);
+    const violations = await axeInBothThemes(panel);
     assert.deepEqual(violations, [], describeViolations(violations));
   });
 

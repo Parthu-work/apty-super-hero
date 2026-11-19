@@ -66,6 +66,37 @@ describe("kb:demo-pack", () => {
     }
   });
 
+  it("K28, F9: each routing card points at its own demo cards, and a broad question shows its choices", () => {
+    const broad = {
+      "4.x": ["DEMO workflow not working", "4013"],
+      "5.x": ["who sees the DEMO panel", "2014"],
+    };
+    for (const [version, pack] of Object.entries(packs)) {
+      const routing = pack.cards.find((card) => card.status === "routing");
+      const own = new Set(
+        pack.cards
+          .filter((card) => card.status !== "routing")
+          .map((card) => card.pageId),
+      );
+      assert.ok((routing.options?.length ?? 0) >= 2, version);
+      assert.ok(
+        routing.options.every((option) => own.has(option.pageId)),
+        version,
+      );
+      const [question, routingId] = broad[version];
+      const result = core.createKbIndex(pack).search(question, {
+        topK: 3,
+        onePerCard: true,
+      });
+      assert.equal(result.choices?.card.pageId, routingId, version);
+      assert.deepEqual(
+        result.choices.options.map((option) => option.pageId),
+        routing.options.map((option) => option.pageId).slice(0, 4),
+        version,
+      );
+    }
+  });
+
   it("calibrates to the recorded coverage settings, never below the floor (K21)", () => {
     for (const [version, pack] of Object.entries(packs)) {
       const { min, minIdf } = pack.retrieval.coverage;
@@ -100,6 +131,7 @@ describe("kb:demo-pack", () => {
         "how-to",
         "non-english",
         "names",
+        "broad",
       ]) {
         assert.ok(categories.has(category), `${version}: ${category}`);
       }
