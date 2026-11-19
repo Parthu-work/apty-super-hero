@@ -5,6 +5,7 @@ import {
   type KbImportResult,
   type KbPackInfo,
   type KbPackUsability,
+  type KbSelfCheckSummary,
   kbPackAgeDays,
 } from "@apty/agent-core";
 import { BookOpen, RefreshCw, Trash2, Upload } from "lucide-react";
@@ -158,12 +159,61 @@ export interface KnowledgeBaseCardProps {
   now?: () => Date;
 }
 
+type SelfCheckState = KbSelfCheckSummary | "running" | "failed";
+
+/** The pack's self-check, run once per pack the card shows (K27, E9). */
+function useSelfCheck(
+  run: KnowledgeBaseAdapter["selfCheck"],
+  version: KbAptyVersion,
+  sha256: string,
+): SelfCheckState | undefined {
+  const [state, setState] = useState<SelfCheckState | undefined>();
+  useEffect(() => {
+    if (!run || !sha256) return;
+    let live = true;
+    setState("running");
+    run(version)
+      .then((summary) => live && setState(summary ?? "failed"))
+      .catch(() => live && setState("failed"));
+    return () => {
+      live = false;
+    };
+  }, [run, version, sha256]);
+  return state;
+}
+
+function SelfCheckLine({ state }: { state: SelfCheckState }) {
+  const { t } = useTranslation();
+  if (state === "running") {
+    return <>{t("settings.knowledgeBase.selfCheck.running")}</>;
+  }
+  if (state === "failed") {
+    return <>{t("settings.knowledgeBase.selfCheck.failed")}</>;
+  }
+  return (
+    <>
+      {t("settings.knowledgeBase.selfCheck.totals", {
+        top3: state.titles.top3,
+        titles: state.titles.of,
+        symptomsTop3: state.symptoms.top3,
+        symptoms: state.symptoms.of,
+      })}{" "}
+      {state.failingTitles.length > 0
+        ? t("settings.knowledgeBase.selfCheck.failing", {
+            ids: state.failingTitles.join(", "),
+          })
+        : t("settings.knowledgeBase.selfCheck.allFound")}
+    </>
+  );
+}
+
 /** One loaded pack: what it is, with its age warning, Replace and Remove. */
 function PackRow({
   info,
   now,
   busy,
   delivery,
+  selfCheck,
   onReplace,
   onRemove,
 }: {
@@ -171,6 +221,7 @@ function PackRow({
   now: Date;
   busy: boolean;
   delivery?: KbDeliveryView;
+  selfCheck?: KnowledgeBaseAdapter["selfCheck"];
   onReplace: () => void;
   onRemove: () => void;
 }) {
@@ -181,6 +232,7 @@ function PackRow({
   const stale =
     !info.expiresAt && age !== undefined && age > KB_PACK_STALE_DAYS;
   const trust = info.usability ? trustWords(info.usability, t) : undefined;
+  const checked = useSelfCheck(selfCheck, version, info.sha256);
   return (
     <section
       aria-label={t("settings.knowledgeBase.loadedLabelVersion", { version })}
@@ -266,6 +318,16 @@ function PackRow({
               : "settings.knowledgeBase.uncalibrated",
           )}
         </dd>
+        {checked && (
+          <>
+            <dt className="text-muted-foreground">
+              {t("settings.knowledgeBase.selfCheck.label")}
+            </dt>
+            <dd data-testid="kb-self-check" aria-live="polite">
+              <SelfCheckLine state={checked} />
+            </dd>
+          </>
+        )}
       </dl>
       {info.usability && !info.usability.usable && (
         <Notice tone="error">{t("settings.knowledgeBase.notUsed")}</Notice>
@@ -454,6 +516,7 @@ export function KnowledgeBaseCard({
               now={today}
               busy={busy}
               delivery={deliveryOf(info.aptyVersion)}
+              selfCheck={adapter.selfCheck}
               onReplace={() => fileInput.current?.click()}
               onRemove={() => setConfirming(info.aptyVersion)}
             />

@@ -2,6 +2,10 @@ import type { Model, ModelRequest, StreamEvent } from "@openai/agents";
 import { describe, expect, it, vi } from "vitest";
 import { ConversationManager } from "../conversation/manager.js";
 import { SessionStorage } from "../conversation/storage.js";
+import {
+  KB_EXPLAIN_INSTRUCTION,
+  KB_NO_CARD_INSTRUCTION,
+} from "../kb/decision.js";
 import { InMemoryStorage } from "../storage/memory.js";
 import type { AgentEvent, AgentPlugin, LocalResponder } from "../types.js";
 import { AptyAgent } from "./apty-agent.js";
@@ -338,5 +342,84 @@ describe("an instruction for a turn with no KB card (KB-RAG K27, F2)", () => {
       runCheck: { packId: "content-not-visible", kind: "workflow" },
     });
     expect(requests).toHaveLength(0);
+  });
+});
+
+describe("a model turn after a check or KB card explains it (KB-RAG K27, E6)", () => {
+  const NO_CARD = {
+    decision: {
+      route: "model" as const,
+      version: "4.x" as const,
+      versionSource: "user" as const,
+      packs: [],
+      kb: {
+        kind: "not_covered" as const,
+        reason: "low_coverage" as const,
+        coverage: 0,
+        min: 0.4,
+        version: "4.x" as const,
+      },
+    },
+    modelInstruction: KB_NO_CARD_INSTRUCTION,
+  };
+
+  function answerFirstTurn() {
+    let answered = false;
+    return () => {
+      if (answered) return NO_CARD;
+      answered = true;
+      return ANSWER;
+    };
+  }
+
+  async function sessionAfterCheck(
+    agent: ReturnType<typeof agentWith>["agent"],
+  ) {
+    const first = await collect(agent.chat("my workflow is not visible"));
+    const created = first.find((e) => e.type === "session_created");
+    return created?.type === "session_created" ? created.sessionId : "";
+  }
+
+  it("sends the explain instruction instead of the no-card one, and records it on the decision", async () => {
+    const { agent, requests } = agentWith(answerFirstTurn());
+    const sessionId = await sessionAfterCheck(agent);
+    const events = await collect(
+      agent.chat("why would that be on?", { sessionId }),
+    );
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.systemInstructions).toBe(
+      `test\n\n${KB_EXPLAIN_INSTRUCTION}`,
+    );
+    expect(events).toContainEqual({
+      type: "turn_decision",
+      decision: { ...NO_CARD.decision, grounding: "conversation" },
+    });
+  });
+
+  it("keeps the no-card instruction on a conversation with no check or card", async () => {
+    const { agent, requests } = agentWith(() => NO_CARD);
+    const events = await collect(agent.chat("where is the FIXTURE switch"));
+    expect(requests[0]?.systemInstructions).toBe(
+      `test\n\n${KB_NO_CARD_INSTRUCTION}`,
+    );
+    expect(events).toContainEqual({
+      type: "turn_decision",
+      decision: NO_CARD.decision,
+    });
+  });
+
+  it("keeps the caller's instruction (Ask the AI anyway) after a check", async () => {
+    const { agent, requests } = agentWith(answerFirstTurn());
+    const sessionId = await sessionAfterCheck(agent);
+    await collect(
+      agent.chat("where is the FIXTURE switch", {
+        sessionId,
+        skipLocalResponder: true,
+        turnInstruction: "FIXTURE: say you do not know.",
+      }),
+    );
+    expect(requests[0]?.systemInstructions).toBe(
+      "test\n\nFIXTURE: say you do not know.",
+    );
   });
 });

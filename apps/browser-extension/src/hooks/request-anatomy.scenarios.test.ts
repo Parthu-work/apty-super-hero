@@ -8,6 +8,8 @@ import {
   ErrorCode,
   InMemoryStorage,
   isSummaryItem,
+  KB_EXPLAIN_INSTRUCTION,
+  providerRequestCap,
   type SerializedSession,
   SessionStorage,
 } from "@apty/agent-core";
@@ -21,11 +23,25 @@ import {
 import { allBrowserTools } from "@apty/browser-runtime/tools/index";
 import { createStickyToolSelector } from "@apty/browser-runtime/tools/tool-relevance";
 import { composeSystemPrompt } from "@apty/ui/components/chatbot/constants";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   createOutboundFilters,
   EARLIER_TURN_SUMMARIES,
 } from "./outbound-filters";
+
+/** The budget the extension's own filters apply: none, except while a provider's cap is measured (K27, E6). */
+const budgetInForce = vi.hoisted(() => ({
+  value: undefined as number | undefined,
+}));
+vi.mock(
+  "@apty/browser-runtime/runtime/request-limits",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("@apty/browser-runtime/runtime/request-limits")
+    >()),
+    getRequestBudget: async () => budgetInForce.value,
+  }),
+);
 
 /**
  * Names the request shapes the agent produces today, with fixed synthetic
@@ -63,6 +79,8 @@ interface Scenario {
   history: MeasurableItem[];
   /** A request of its own, such as a summary's: these instructions and no tools. */
   instructions?: string;
+  /** Added to the system prompt for this turn, as the agent does (K27, F2 and E6). */
+  turnInstruction?: string;
 }
 
 const investigation: MeasurableItem[] = [];
@@ -118,8 +136,10 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     // KB-RAG K4: a product follow-up to a check, after a search_kb result
-    // at its 4,000-character cap.
+    // at its 4,000-character cap. K27, E6: the conversation holds a KB
+    // result, so the turn carries the explain instruction.
     name: "kb-followup",
+    turnInstruction: KB_EXPLAIN_INSTRUCTION,
     message: "how do I turn that off in Studio?",
     history: [
       user("the workflow is not showing in the widget"),
@@ -147,7 +167,10 @@ function toolsFor(scenario: Scenario): MeasurableTool[] {
 }
 
 const instructionsFor = (scenario: Scenario, tools: MeasurableTool[]) =>
-  scenario.instructions ?? composeSystemPrompt(tools);
+  scenario.instructions ??
+  (scenario.turnInstruction
+    ? `${composeSystemPrompt(tools)}\n\n${scenario.turnInstruction}`
+    : composeSystemPrompt(tools));
 
 interface RecordedRequest {
   systemInstructions?: string;
@@ -286,6 +309,36 @@ const budgeted = await Promise.all(
   }),
 );
 
+/**
+ * K27, E6: a chat of 300 turns with long answers, raw and as sent under
+ * each provider's cap when Settings sets no budget.
+ */
+const LONG_CHAT_300: Scenario = {
+  name: "long-chat-300-turns",
+  message: "why isn't my Apty widget showing",
+  history: Array.from({ length: 300 }, (_, i) => [
+    user(`question ${i} `.padEnd(200, "q")),
+    call("read_page"),
+    result(3000),
+    assistant(`answer ${i} `.padEnd(2000, "a")),
+  ]).flat(),
+};
+const CAPPED_PROVIDERS = ["anthropic", "groq"] as const;
+const capRow: Record<string, string | number> = {
+  scenario: LONG_CHAT_300.name,
+  raw: (await measure(LONG_CHAT_300, false)).totalTokens,
+  "no cap": (await measure(LONG_CHAT_300, true)).totalTokens,
+};
+for (const provider of CAPPED_PROVIDERS) {
+  const cap = providerRequestCap({ aiProvider: provider });
+  budgetInForce.value = cap;
+  capRow[`${provider} ${cap}`] = (
+    await measure(LONG_CHAT_300, true)
+  ).totalTokens;
+  budgetInForce.value = undefined;
+}
+const providerCaps = [capRow];
+
 const longChat = SCENARIOS.find(
   (s) => s.name === "long-chat-8-turns",
 ) as Scenario;
@@ -387,6 +440,16 @@ describe("request anatomy scenarios", () => {
     }
   });
 
+  it("keeps a 300-turn chat inside each provider's cap with no budget set (K27, E6)", () => {
+    const [row] = providerCaps;
+    for (const provider of CAPPED_PROVIDERS) {
+      const cap = providerRequestCap({ aiProvider: provider });
+      const total = row?.[`${provider} ${cap}`];
+      expect(row?.["no cap"]).toBeGreaterThan(cap);
+      expect(typeof total === "number" && total <= cap, provider).toBe(true);
+    }
+  });
+
   it("sends no named request over its budget in tooling/e2e/request-budgets.json, and every request has one (M1)", () => {
     const file = join(
       import.meta.dirname,
@@ -422,6 +485,7 @@ describe("request anatomy scenarios", () => {
             raw: rows,
             sent,
             budgeted,
+            providerCaps,
             summaries: summaryRows,
           },
           null,

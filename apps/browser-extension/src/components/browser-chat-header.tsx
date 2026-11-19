@@ -21,6 +21,8 @@ import {
 } from "../services/message-adapter";
 import { chatHandoff } from "../state/chat-handoff";
 import { navigationStore, useNavigation } from "../state/navigation-store";
+import { PacksLine, PackUpdateBanner } from "./connections/pack-freshness-view";
+import { usePackFreshness } from "./connections/use-pack-freshness";
 import { useReadiness } from "./connections/use-readiness";
 import { InvestigationContextBar } from "./investigation/investigation-context-bar";
 import { JobBar } from "./shell/job-bar";
@@ -51,6 +53,7 @@ export function BrowserChatHeader({
   const siteHost = useRef(target.siteHost);
   siteHost.current = target.siteHost;
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const packs = usePackFreshness();
 
   const [currentConversationId, setCurrentConversationId] = useState<
     string | undefined
@@ -220,7 +223,10 @@ export function BrowserChatHeader({
   }, [page, hasConversation, newChat]);
 
   return (
-    <div className={cn("flex shrink-0 flex-col", className)} {...props}>
+    <div
+      className={cn("relative flex shrink-0 flex-col", className)}
+      {...props}
+    >
       <div className="flex h-14 items-center gap-2 border-b border-border px-2">
         <Button
           ref={menuButtonRef}
@@ -239,9 +245,12 @@ export function BrowserChatHeader({
         >
           <ActivityIcon className="size-4" />
         </span>
-        <h1 className="min-w-0 flex-1 truncate text-title font-semibold text-foreground">
-          {t("shell.appName")}
-        </h1>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-title font-semibold text-foreground">
+            {t("shell.appName")}
+          </h1>
+          <PacksLine items={packs.items} />
+        </div>
         <Button
           variant="ghost"
           size="icon"
@@ -257,6 +266,12 @@ export function BrowserChatHeader({
       <JobBar />
 
       {children}
+
+      <PackUpdateBanner
+        delivered={packs.delivered}
+        onDismiss={packs.dismiss}
+        onOpen={() => void openOptions({ section: "knowledge-base" })}
+      />
 
       <MenuDrawer
         menuButtonRef={menuButtonRef}

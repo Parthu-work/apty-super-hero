@@ -125,12 +125,14 @@
     "showApiKey": "显示 API 密钥",
     "requestLimits": {
       "title": "请求大小",
-      "description": "限制每次发送给 AI 提供商的请求。留空表示不限制。大小为估算值：字符数除以 4。",
+      "description": "限制每次发送给 AI 提供商的请求。预算留空时，请求保持在提供商上限以下；回答上限留空时使用提供商的默认值。大小为估算值：字符数除以 4。",
       "budgetLabel": "请求预算（令牌）",
       "budgetHint": "单次请求的最大大小。会省略较早的对话以适应预算；仍无法适应的消息会停止并提示，而不会发送给提供商。请设置在提供商每次请求或每分钟的令牌限制之下；仅系统提示和工具说明就可能约 8,000。",
       "outputLabel": "回答长度上限（令牌）",
       "outputHint": "单个回答最多可使用的令牌数。较低的上限会让回答更短，但较长的报告可能会被截断。",
       "unset": "不限制",
+      "providerCap": "留空：请求保持在 {{cap}} 以下，即 {{provider}} 的上限。",
+      "providerLimit": "提供商上限",
       "outOfRange": "请输入 {{min}} 到 {{max}} 之间的整数，或留空。",
       "summariesLabel": "总结较早的对话",
       "summariesHint": "当对话变长时（达到请求预算的四分之三；未设置预算时为 20,000 个令牌），模型会总结较早的对话，之后的请求改为携带该总结。每次总结都会向 AI 提供商多发送一个请求，并像您的消息一样进行掩码处理；较早对话的部分细节会丢失。默认关闭。",
@@ -230,6 +232,14 @@
         "checkNow": "立即检查",
         "checked": "已检查所有下发的知识包。",
         "checkFailed": "无法运行检查。请重新加载扩展后重试。"
+      },
+      "selfCheck": {
+        "label": "自检",
+        "running": "正在用知识包检查每张卡片…",
+        "failed": "无法运行自检。",
+        "totals": "标题：{{titles}} 个中有 {{top3}} 个在前 3 名中找到自己的卡片；症状行：{{symptoms}} 个中有 {{symptomsTop3}} 个。",
+        "failing": "未进入前 3 名：{{ids}}",
+        "allFound": "每个标题都在前 3 名中找到了自己的卡片。"
       }
     }
   },
@@ -1355,6 +1365,7 @@
   "chat": {
     "showEarlier": "显示更早的消息",
     "notFromKb": "并非来自 KB 或检查",
+    "explainsEvidence": "解释上方的检查和 KB 卡片",
     "kbNotFoundTitle": "在 KB 中未找到",
     "kbNotFound": "在 KB 中未找到：{{phrases}}",
     "copy": "复制",
@@ -2697,6 +2708,7 @@
       "file_fetch": "Apty Client 文件",
       "model": "模型",
       "modelWithCards": "模型（含 KB 卡片）",
+      "modelExplains": "模型（解释上方的检查和卡片）",
       "versionUnknown": "Apty 版本未知",
       "versionFiles": "{{version}}，来自文件",
       "versionChosen": "{{version}}，你的选择",
@@ -2732,6 +2744,7 @@
     "packsLine": "已搜索的知识包：{{packs}}",
     "packsNone": "已搜索的知识包：无",
     "kbLine": "KB：{{outcome}}",
+    "explainsLine": "模型解释了此对话中较早的检查和 KB 卡片，并被要求不陈述其中没有的 Apty 事实。",
     "outcome": {
       "answer": "{{status}}，卡片 {{pageIds}}",
       "notCovered": "未覆盖（{{reason}}），覆盖率 {{coverage}}，需要 {{min}}，最接近的卡片 {{top}}",
@@ -2949,6 +2962,23 @@
   "kbClosest": {
     "title": "最接近的 KB 卡片，可能不匹配",
     "description": "KB 未覆盖此问题。以下卡片最接近；使用前请先核对。"
+  },
+  "packFreshness": {
+    "line": "知识包：{{list}}",
+    "none": "知识包：未加载",
+    "item": {
+      "ok": "{{version}} 正常",
+      "expires": "{{version}} 将在 {{count}} 天后过期",
+      "expiresOne": "{{version}} 将在 1 天后过期",
+      "expired": "{{version}} 已过期",
+      "notUsed": "{{version}} 未使用"
+    },
+    "banner": {
+      "title": "已送达新的知识包",
+      "pack": "{{version}}：构建于 {{date}}。新的回答将使用它。",
+      "gotIt": "知道了",
+      "open": "打开知识库"
+    }
   },
   "turnActions": {
     "runCheck": "运行检查",

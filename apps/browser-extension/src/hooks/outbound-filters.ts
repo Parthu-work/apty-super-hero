@@ -12,6 +12,7 @@ import { currentRedactionMode } from "@apty/browser-runtime/runtime/redaction-mo
 import { createRequestBudgetFilter } from "@apty/browser-runtime/runtime/request-budget";
 import {
   currentSummaryWatermark,
+  getRequestBudget,
   getRequestLimits,
 } from "@apty/browser-runtime/runtime/request-limits";
 import { createRequestReportFilter } from "@apty/browser-runtime/runtime/request-reports";
@@ -36,7 +37,7 @@ export function createOutboundFilters(): OutboundFilter[] {
     createOutboundSanitizer({ getMode: currentRedactionMode }),
     createRequestBudgetFilter(),
     createContextBudgetFilter({
-      getBudget: async () => (await getRequestLimits()).requestTokenBudget,
+      getBudget: getRequestBudget,
     }),
     createRequestReportFilter({ getMode: currentRedactionMode }),
   ];

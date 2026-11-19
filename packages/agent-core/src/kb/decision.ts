@@ -67,6 +67,11 @@ export interface TurnDecision {
   kb?: KbDecision;
   /** With `check`: the check pack that answered. */
   checkPackId?: string;
+  /**
+   * A model turn that explained the check results and KB cards already in
+   * the conversation (K27, E6), under `KB_EXPLAIN_INSTRUCTION`.
+   */
+  grounding?: "conversation";
 }
 
 /**
@@ -75,3 +80,13 @@ export interface TurnDecision {
  */
 export const KB_NO_CARD_INSTRUCTION =
   "The Apty KB has no card for this. Do not describe Apty settings, menus, paths, prices or features. Say you do not know, and suggest the KB owner or Studio and Admin.";
+
+/**
+ * Added instead of `KB_NO_CARD_INSTRUCTION` to a model turn in a
+ * conversation that already holds check results or KB cards (K27, E6): the
+ * model explains them and asks the next question, and states no Apty fact
+ * they do not hold. It names nothing: the results and card ids are already
+ * in the history, and card text only when the KB egress filter lets it.
+ */
+export const KB_EXPLAIN_INSTRUCTION =
+  "This conversation already holds Apty check results and KB cards. Use them to explain what was found, then ask the one next question that moves the problem forward. State an Apty setting, menu, path, price or feature only when a check result or KB card text you were given holds it. A card whose text was withheld is named by its id (kb://<id>), never described. For anything they do not cover, say you do not know, and suggest the KB owner or Studio and Admin.";

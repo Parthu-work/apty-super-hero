@@ -482,3 +482,61 @@ describe("KnowledgeBaseCard: routing and skipped pages (KB-RAG K27, F11)", () =>
     expect(screen.getByText(/2 not in this version/)).toBeInTheDocument();
   });
 });
+
+describe("KnowledgeBaseCard: the pack's self-check (KB-RAG K27, E9)", () => {
+  const SUMMARY = {
+    cards: 12,
+    routing: 1,
+    titles: { of: 11, rank1: 8, top3: 9 },
+    symptoms: { of: 6, rank1: 5, top3: 6 },
+    failingTitles: ["9104", "9107"],
+  };
+
+  it("shows each pack's self-check counts and the ids that fail", async () => {
+    const kb = { ...adapter(INFO), selfCheck: vi.fn(async () => SUMMARY) };
+    render(<KnowledgeBaseCard adapter={kb} now={NOW} />);
+    const row = await screen.findByRole("region", {
+      name: "Loaded knowledge base (5.x)",
+    });
+    const result = await within(row).findByTestId("kb-self-check");
+    await waitFor(() =>
+      expect(result).toHaveTextContent(
+        "Titles: 9 of 11 find their own card in the top 3; symptom lines: 6 of 6.",
+      ),
+    );
+    expect(result).toHaveTextContent("Not in the top 3: 9104, 9107");
+    expect(kb.selfCheck).toHaveBeenCalledWith("5.x");
+  });
+
+  it("says when every title finds its card, and when the check cannot run", async () => {
+    const pass = {
+      ...adapter(INFO),
+      selfCheck: vi.fn(async () => ({ ...SUMMARY, failingTitles: [] })),
+    };
+    const { unmount } = render(<KnowledgeBaseCard adapter={pass} now={NOW} />);
+    await waitFor(() =>
+      expect(screen.getByTestId("kb-self-check")).toHaveTextContent(
+        "Every title finds its own card in the top 3.",
+      ),
+    );
+    unmount();
+    const broken = {
+      ...adapter(INFO),
+      selfCheck: vi.fn(async () => {
+        throw new Error("unreadable");
+      }),
+    };
+    render(<KnowledgeBaseCard adapter={broken} now={NOW} />);
+    await waitFor(() =>
+      expect(screen.getByTestId("kb-self-check")).toHaveTextContent(
+        "The self-check could not run.",
+      ),
+    );
+  });
+
+  it("shows no self-check row when the host cannot run one", async () => {
+    render(<KnowledgeBaseCard adapter={adapter(INFO)} now={NOW} />);
+    await screen.findByRole("region", { name: "Loaded knowledge base (5.x)" });
+    expect(screen.queryByTestId("kb-self-check")).toBeNull();
+  });
+});

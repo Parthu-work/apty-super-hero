@@ -185,9 +185,14 @@ export function DefaultMessageItem({
   // The cards this turn's search_kb calls returned: the citations link to them.
   const kbCards = turnKbCards ?? kbReturnedCards(message.parts);
   // K27, F2: the model answered and no KB card came back this turn.
+  // K27, E6: the model explained the checks and cards earlier in the chat.
+  const explains =
+    message.role === "assistant" &&
+    message.metadata?.decision?.grounding === "conversation";
   const withoutCards =
     message.role === "assistant" &&
     message.metadata?.decision?.route === "model" &&
+    !explains &&
     kbCards.texts.length === 0;
 
   // The user's chips and attachments sit under their words.
@@ -217,10 +222,19 @@ export function DefaultMessageItem({
         <TurnSourceChips
           decision={message.metadata.decision}
           kbCardsReturned={kbCards.texts.length > 0}
+          explains={explains}
         />
       )}
       {message.role === "assistant" && message.metadata?.decision && (
         <TurnDecisionLine decision={message.metadata.decision} />
+      )}
+      {explains && text.trim() && (
+        <p
+          className="text-small font-medium text-muted-foreground"
+          data-testid="explains-evidence"
+        >
+          {t("chat.explainsEvidence")}
+        </p>
       )}
       {withoutCards && text.trim() && (
         <p

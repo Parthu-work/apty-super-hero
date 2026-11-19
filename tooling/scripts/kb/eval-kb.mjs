@@ -262,71 +262,14 @@ export function calibrate(core, pack, questions) {
   };
 }
 
-/** A card's own status coming back counts as finding it (a stub, a "not in this version" card). */
-const OWN_STATUS = { stub: "stub", absent: "not_in_version" };
-
 /**
  * Self-retrieval (KB-RAG K25, A3): each card's title, and its Symptom line
  * when it has one, searched as a question with the pack's own settings.
- * Routing pages are not answers and are left out. Per query: the card's
- * own rank (1-based, 0 when absent from the top 10), the status, reason,
- * coverage, the coverage minimum and the top hit's page id.
+ * Routing pages are left out. Agent-core's `kbSelfCheck`, which Options
+ * shows too (K27, E9), so both read the same numbers.
  */
 export function selfCheck(core, pack, { coverage } = {}) {
-  const tuned = withCoverage(pack, coverage);
-  const index = core.createKbIndex(tuned);
-  const settings = {
-    ...core.KB_COVERAGE_DEFAULTS,
-    ...(tuned.retrieval.coverage ?? {}),
-  };
-  const queries = [];
-  for (const card of tuned.cards) {
-    if (card.status === "routing") continue;
-    const asked = [["title", card.title]];
-    if (card.symptom) asked.push(["symptom", card.symptom]);
-    for (const [kind, text] of asked) {
-      const result = index.search(text, { topK: RANK_DEPTH, onePerCard: true });
-      const ranked =
-        result.card && result.status !== "ok"
-          ? [result.card.pageId]
-          : result.hits.map((hit) => hit.chunk.pageId);
-      const position = ranked.indexOf(card.pageId);
-      const ownStatus = OWN_STATUS[card.status];
-      const found =
-        position >= 0 &&
-        (ownStatus ? result.status === ownStatus : result.status === "ok");
-      queries.push({
-        pageId: card.pageId,
-        kind,
-        rank: found ? position + 1 : 0,
-        status: result.status,
-        ...(result.reason ? { reason: result.reason } : {}),
-        coverage: round(result.coverage),
-        min: settings.min,
-        topPageId: ranked[0] ?? result.topPageId ?? null,
-      });
-    }
-  }
-  const totals = (kind) => {
-    const list = queries.filter((q) => q.kind === kind);
-    return {
-      of: list.length,
-      rank1: list.filter((q) => q.rank === 1).length,
-      top3: list.filter((q) => q.rank >= 1 && q.rank <= 3).length,
-    };
-  };
-  const failing = queries
-    .filter((q) => q.kind === "title" && (q.rank < 1 || q.rank > 3))
-    .map((q) => q.pageId);
-  return {
-    cards: tuned.cards.length,
-    routing: tuned.cards.filter((card) => card.status === "routing").length,
-    coverage: settings,
-    titles: totals("title"),
-    symptoms: totals("symptom"),
-    failingTitles: failing,
-    queries,
-  };
+  return core.kbSelfCheck(withCoverage(pack, coverage));
 }
 
 /** The self-check's two totals and the ids that fail, for the builder and the CLI. */
