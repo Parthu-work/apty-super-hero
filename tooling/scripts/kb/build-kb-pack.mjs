@@ -11,7 +11,8 @@
  *     [--space JA] [--root <pageId> | --label <label>] [--version 4.x|5.x|common]
  *     [--out <file>]
  *     [--coverage-min <0-1>] [--coverage-min-idf <idf>]
- *     [--synonyms <file>] [--customer-names <file>] [--diff <old pack>]
+ *     [--synonyms <file>] [--approved-terms <file>] (K27, E10)
+ *     [--customer-names <file>] [--diff <old pack>]
  *     [--timeout <seconds>] (each request, default 30) [--quiet] (no
  *     progress lines on stderr)
  *     --sign-key <PKCS#8 PEM file> (or KB_PACK_SIGNING_KEY) [--expires-days
@@ -611,6 +612,7 @@ export function buildPack({
   builtAt,
   coverage,
   synonyms,
+  approvedTerms,
   aptyVersion = "5.x",
   expiresAt = defaultExpiry(builtAt),
 }) {
@@ -641,6 +643,14 @@ export function buildPack({
   const retrieval = { bm25: true };
   if (coverage !== undefined) retrieval.coverage = coverage;
   if (synonyms?.length) retrieval.synonyms = synonyms;
+  const cardIds = new Set(cards.map((card) => card.pageId));
+  const approved = (approvedTerms ?? []).filter(({ pageId }) =>
+    cardIds.has(pageId),
+  );
+  const unknownApproved = (approvedTerms ?? [])
+    .filter(({ pageId }) => !cardIds.has(pageId))
+    .map(({ pageId }) => pageId);
+  if (approved.length > 0) retrieval.approvedTerms = approved;
   const pack = {
     kind: PACK_KIND,
     schemaVersion: 3,
@@ -668,7 +678,11 @@ export function buildPack({
     cards,
     chunks,
   };
-  return { pack: { ...pack, sha256: packSha256(pack) }, skipped };
+  return {
+    pack: { ...pack, sha256: packSha256(pack) },
+    skipped,
+    unknownApproved,
+  };
 }
 
 /**
@@ -689,6 +703,67 @@ export function readSynonymGroups(text) {
     .filter((group) => group.length >= 2);
 }
 
+const APPROVED_KIND = "apty-kb-approved-terms";
+const PROPOSALS_KIND = "apty-kb-synonym-proposals";
+const MAX_APPROVED_PER_CARD = 30;
+
+/**
+ * K27, E10: the words the KB owner approved for each card of `aptyVersion`.
+ * The file is Feedback's synonym proposals export (E7) once the owner has
+ * kept only the words they approve and set its kind to
+ * "apty-kb-approved-terms"; an unedited proposals file is refused, so
+ * nothing from the devices reaches a pack without the owner's decision.
+ */
+export function readApprovedTerms(text, aptyVersion) {
+  const file = JSON.parse(text);
+  if (file?.kind === PROPOSALS_KIND) {
+    throw new BuildError(
+      `The file holds synonym proposals, not approved terms: keep the words you approve and set its kind to "${APPROVED_KIND}".`,
+    );
+  }
+  if (file?.kind !== APPROVED_KIND || !Array.isArray(file.proposals)) {
+    throw new BuildError(
+      `--approved-terms takes an approved terms file (kind "${APPROVED_KIND}"); this is not an approved terms file.`,
+    );
+  }
+  const byCard = new Map();
+  for (const entry of file.proposals) {
+    if (entry?.aptyVersion && entry.aptyVersion !== aptyVersion) continue;
+    const pageId = String(entry?.cardId ?? "");
+    if (!/^\d+$/.test(pageId)) {
+      throw new BuildError(`An approved terms entry has no card id.`);
+    }
+    const terms = byCard.get(pageId) ?? [];
+    for (const item of entry.words ?? []) {
+      const word = String(typeof item === "string" ? item : (item?.word ?? ""))
+        .trim()
+        .slice(0, 60);
+      if (!word) continue;
+      if (terms.some((t) => t.toLowerCase() === word.toLowerCase())) continue;
+      terms.push(word);
+    }
+    if (terms.length > MAX_APPROVED_PER_CARD) {
+      throw new BuildError(
+        `There are more than ${MAX_APPROVED_PER_CARD} approved terms for ${pageId}.`,
+      );
+    }
+    byCard.set(pageId, terms);
+  }
+  return [...byCard]
+    .filter(([, terms]) => terms.length > 0)
+    .map(([pageId, terms]) => ({ pageId, terms }))
+    .sort((a, b) => comparePageIds(a.pageId, b.pageId));
+}
+
+/** The cards whose approved terms hold a listed customer name. */
+export function approvedTermNameHits(pack, names) {
+  if (names.length === 0) return [];
+  const pattern = namePattern(names);
+  return (pack.retrieval.approvedTerms ?? [])
+    .filter(({ terms }) => pattern.test(terms.join("\n")))
+    .map(({ pageId }) => pageId);
+}
+
 /** Customer names from a local file: one per line, `#` starts a comment. */
 export function readNameList(text) {
   return text
@@ -702,12 +777,16 @@ function escapeRegExp(text) {
 }
 
 /** Page ids of cards that name any of `names`, as a whole word, in any case. */
-export function customerNameHits(pack, names) {
-  if (names.length === 0) return [];
-  const pattern = new RegExp(
+function namePattern(names) {
+  return new RegExp(
     `(?<![\\p{L}\\p{N}])(?:${names.map(escapeRegExp).join("|")})(?![\\p{L}\\p{N}])`,
     "iu",
   );
+}
+
+export function customerNameHits(pack, names) {
+  if (names.length === 0) return [];
+  const pattern = namePattern(names);
   const hits = new Set();
   for (const card of pack.cards) {
     if (
@@ -775,6 +854,7 @@ function parseArgs(argv) {
     "--coverage-min-idf": "coverageMinIdf",
     "--customer-names": "customerNames",
     "--synonyms": "synonyms",
+    "--approved-terms": "approvedTerms",
     "--version": "version",
     "--diff": "diff",
     "--timeout": "timeout",
@@ -921,6 +1001,12 @@ export async function run({
     const synonyms = options.synonyms
       ? readSynonymGroups(readFileSync(resolve(cwd, options.synonyms), "utf8"))
       : undefined;
+    const approvedTerms = options.approvedTerms
+      ? readApprovedTerms(
+          readFileSync(resolve(cwd, options.approvedTerms), "utf8"),
+          options.version,
+        )
+      : undefined;
     const previous = options.diff
       ? JSON.parse(readFileSync(resolve(cwd, options.diff), "utf8"))
       : undefined;
@@ -956,6 +1042,7 @@ export async function run({
       label: options.label ?? `ancestor:${options.root}`,
       builtAt,
       synonyms,
+      approvedTerms,
       aptyVersion: options.version,
       coverage:
         options.coverageMin === undefined &&
@@ -981,6 +1068,12 @@ export async function run({
         `Customer names found in pages ${hits.join(", ")}; hide them in the cards and build again.`,
       );
     }
+    const approvedHits = approvedTermNameHits(pack, names);
+    if (approvedHits.length > 0) {
+      throw new BuildError(
+        `Customer names found in the approved terms for ${approvedHits.join(", ")}; remove them from the file and build again.`,
+      );
+    }
 
     const count = (status) =>
       pack.cards.filter((card) => card.status === status).length;
@@ -988,6 +1081,18 @@ export async function run({
     print(
       `Built ${pack.cards.length} cards (${pack.chunks.length} chunks): ${count("full")} full, ${count("stub")} stubs (not yet written), ${count("routing")} routing, ${count("absent")} not in this version; skipped ${skippedAs("malformed").length} malformed, ${skippedAs("other_format").length} other_format. Apty ${options.version}, from ${options.site}, space ${options.space}, ${selection}.`,
     );
+    if (approvedTerms) {
+      const kept = pack.retrieval.approvedTerms ?? [];
+      const words = kept.reduce((sum, { terms }) => sum + terms.length, 0);
+      print(
+        `Approved terms: ${words} for ${kept.length} card${kept.length === 1 ? "" : "s"}.`,
+      );
+      for (const pageId of built.unknownApproved) {
+        print(
+          `  approved terms for ${pageId}: no such card in this pack, left out`,
+        );
+      }
+    }
     for (const card of pack.cards.filter((c) => c.status === "stub")) {
       print(`  stub ${card.pageId} "${card.title}": not yet written`);
     }

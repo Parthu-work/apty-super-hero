@@ -110,6 +110,7 @@ export function writeFixturePack(
     builtAt = new Date().toISOString(),
     expiresAt,
     name,
+    approvedTerms,
   } = {},
 ) {
   const built = buildPack({
@@ -121,6 +122,7 @@ export function writeFixturePack(
     ...(expiresAt ? { expiresAt } : {}),
     coverage,
     aptyVersion,
+    approvedTerms,
   }).pack;
   const pack =
     signer === "none"
