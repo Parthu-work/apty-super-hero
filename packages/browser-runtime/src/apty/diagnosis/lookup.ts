@@ -82,6 +82,12 @@ const SENTENCE_WORD =
 /** Without a "workflow" marker or quotes, these words make "show X" something else. */
 const NOT_CONTENT_WORD =
   /\b(?:errors?|console|logs?|network|requests?|har|screenshots?|dom|html|evidence|cases?|settings?|options|json|toggle|widget|tooltip|balloon|steps?|calls?|files?|version)\b/i;
+/** Without a marker or quotes, a "show X" name holding one of these is a request, not a name. */
+const NOT_A_BARE_NAME =
+  /\b(?:and|or|on|at|from|to|for|with|of|by|about|again|this|that|these|those|its?|data|everything|all|button|buttons|field|fields|link|links|element|elements|selector|summar\w*|text|content|details|info)\b/i;
+/** A bare name is written as Apty shows it: two or more words, each capitalised or a number ("Alpha Ledger Page"). */
+const TITLE_CASE =
+  /^(?:[\p{Lu}\d][\p{L}\d'’&-]*)(?:\s+[\p{Lu}\d][\p{L}\d'’&-]*)+$/u;
 const MAX_NAME_WORDS = 8;
 
 interface Name {
@@ -93,6 +99,8 @@ interface Cleaned {
   text: string;
   slots: string[];
   asked: boolean;
+  /** The message named a content file: "get segments.json …" fetches it. */
+  namedFile: boolean;
 }
 
 function cleanQuestion(input: string): Cleaned | undefined {
@@ -108,7 +116,9 @@ function cleanQuestion(input: string): Cleaned | undefined {
     .replace(/\s+/g, " ")
     .trim();
   let asked = false;
-  text = text.replace(FILE_PHRASE, " ").replace(/\s+/g, " ").trim();
+  const withoutFiles = text.replace(FILE_PHRASE, " ").replace(/\s+/g, " ");
+  const namedFile = withoutFiles.trim() !== text;
+  text = withoutFiles.trim();
   for (let again = true; again; ) {
     again = false;
     for (const filler of FILLER) {
@@ -123,7 +133,7 @@ function cleanQuestion(input: string): Cleaned | undefined {
     }
   }
   if (!text) return undefined;
-  return { text, slots, asked: asked || ASKS.test(text) };
+  return { text, slots, asked: asked || ASKS.test(text), namedFile };
 }
 
 const ITEM_MARK = /^(?:work)?flow$/i;
@@ -263,10 +273,9 @@ const ITEM_SEGMENTS = [
   ),
   /^(?:list|show(?:\s+me)?)\s+(?:the\s+)?segments\s+(?:of|for)\s+(.+)$/i,
 ];
-const SHOW = [
-  /^(?:show(?:\s+me)?|get|open|display|find)\s+(.+)$/i,
-  /^what\s+is\s+(?:the\s+)?((?:work)?flow\s+.+)$/i,
-];
+const SHOW = /^(?:show(?:\s+me)?|get|open|display|find)\s+(.+)$/i;
+const SHOW_BARE = /^show(?:\s+me)?\s/i;
+const WHAT_IS = /^what\s+is\s+(?:the\s+)?((?:work)?flow\s+.+)$/i;
 const ENVIRONMENT =
   /^(?:which|what)\s+(?:apty\s+)?environment\s+(?:am\s+i\s+(?:on|in|using)|is\s+(?:this|the|my)\s+(?:tab|page|site|(?:apty\s+)?client)(?:\s+(?:on|in|using|loading|loaded))?|(?:is|does)\s+(?:this|the|my)\s+(?:tab|page|site|(?:apty\s+)?client)\s+(?:use|load))$/i;
 const HIDDEN_LIST = [
@@ -304,18 +313,17 @@ export function routeLookup(input: string): LookupQuestion | undefined {
   }
   const asMember = membership(cleaned);
   if (asMember) return asMember;
-  for (const pattern of SHOW) {
-    const match = pattern.exec(text);
-    if (!match?.[1]) continue;
-    const item = itemName(match[1], slots);
-    if (
-      item &&
-      (item.marked || item.quoted || !NOT_CONTENT_WORD.test(item.value))
-    ) {
-      return { kind: "show", item: item.value };
-    }
-  }
-  return undefined;
+  const shown = (SHOW.exec(text) ?? WHAT_IS.exec(text))?.[1];
+  const item = shown ? itemName(shown, slots) : undefined;
+  if (!item) return undefined;
+  if (item.marked || item.quoted) return { kind: "show", item: item.value };
+  const bare =
+    SHOW_BARE.test(text) &&
+    TITLE_CASE.test(item.value) &&
+    !cleaned.namedFile &&
+    !NOT_CONTENT_WORD.test(item.value) &&
+    !NOT_A_BARE_NAME.test(item.value);
+  return bare ? { kind: "show", item: item.value } : undefined;
 }
 
 /**

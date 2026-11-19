@@ -222,6 +222,17 @@ describe("routeLookup: how SEs ask (KB-RAG K28, F1)", () => {
     "is the widget visible to all users in the segment",
     "where is the Widget Activation toggle",
     "show me the console errors",
+    "get the data from segments.json in the apty client and summarize it",
+    "get segments.json from the apty client again and summarize it",
+    "find the save button on this page",
+    "Show me the chart",
+    "Show thinking details",
+    "Show earlier messages",
+    "Show sites as customer-a, customer-b",
+    "show alpha ledger page",
+    "open the network tab",
+    "show me everything on this page",
+    "get flows.json and show the first entry",
     "is Sign in in All Users",
   ])("leaves %s to the model", (message) => {
     expect(routeLookup(message)).toBeUndefined();
