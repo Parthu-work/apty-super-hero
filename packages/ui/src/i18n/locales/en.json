@@ -232,6 +232,14 @@
         "checkNow": "Check now",
         "checked": "Every delivered pack was checked.",
         "checkFailed": "The check could not run. Reload the extension and try again."
+      },
+      "selfCheck": {
+        "label": "Self-check",
+        "running": "Checking each card against the pack…",
+        "failed": "The self-check could not run.",
+        "totals": "Titles: {{top3}} of {{titles}} find their own card in the top 3; symptom lines: {{symptomsTop3}} of {{symptoms}}.",
+        "failing": "Not in the top 3: {{ids}}",
+        "allFound": "Every title finds its own card in the top 3."
       }
     }
   },
@@ -2954,6 +2962,23 @@
   "kbClosest": {
     "title": "Closest KB cards, may not match",
     "description": "The KB did not cover this question. These cards came closest; check them before you rely on them."
+  },
+  "packFreshness": {
+    "line": "Packs: {{list}}",
+    "none": "Packs: none loaded",
+    "item": {
+      "ok": "{{version}} ok",
+      "expires": "{{version}} expires in {{count}} days",
+      "expiresOne": "{{version}} expires in 1 day",
+      "expired": "{{version}} expired",
+      "notUsed": "{{version}} not used"
+    },
+    "banner": {
+      "title": "New KB pack delivered",
+      "pack": "{{version}}: built {{date}}. New answers use it.",
+      "gotIt": "Got it",
+      "open": "Open Knowledge base"
+    }
   },
   "turnActions": {
     "runCheck": "Run the check",

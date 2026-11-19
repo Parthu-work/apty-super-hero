@@ -245,6 +245,12 @@ export {
   type KbSearchResult,
   layerHint,
 } from "./kb/search.js";
+export {
+  type KbSelfCheckReport,
+  type KbSelfCheckSummary,
+  kbSelfCheck,
+  kbSelfCheckSummary,
+} from "./kb/self-check.js";
 export { stem } from "./kb/stem.js";
 export { KB_SYNONYM_GROUPS } from "./kb/synonyms.js";
 export {

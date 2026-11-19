@@ -6,6 +6,7 @@ import {
   kbPackSources,
 } from "@apty/agent-core";
 import { ChromeStorageAdapter } from "@apty/browser-runtime";
+import { createKbSelfCheckRunner } from "@apty/browser-runtime/kb/kb-self-check";
 import { noteKbPacksChanged } from "@apty/browser-runtime/runtime/effective-settings";
 import { loadOrgPolicy } from "@apty/browser-runtime/runtime/org-policy";
 import { previewRedaction } from "@apty/browser-runtime/runtime/redaction-mode";
@@ -123,6 +124,12 @@ installOrgPolicySource();
 initLogging();
 applyRememberedTheme();
 
+let selfCheckRunner: ReturnType<typeof createKbSelfCheckRunner> | undefined;
+const kbSelfCheckRunner = () => {
+  selfCheckRunner ??= createKbSelfCheckRunner(kbPackStore());
+  return selfCheckRunner;
+};
+
 /**
  * Every import or removal is announced: the redaction floor follows the
  * loaded packs (D-SEC3). A version the policy delivers cannot be imported by
@@ -160,6 +167,7 @@ const knowledgeBase = {
     });
   },
   checkNow: requestKbPackCheck,
+  selfCheck: (version: KbAptyVersion) => kbSelfCheckRunner()(version),
   async remove(version: KbAptyVersion) {
     await kbPackStore().remove(version);
     await noteKbPacksChanged();

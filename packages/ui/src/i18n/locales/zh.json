@@ -232,6 +232,14 @@
         "checkNow": "立即检查",
         "checked": "已检查所有下发的知识包。",
         "checkFailed": "无法运行检查。请重新加载扩展后重试。"
+      },
+      "selfCheck": {
+        "label": "自检",
+        "running": "正在用知识包检查每张卡片…",
+        "failed": "无法运行自检。",
+        "totals": "标题：{{titles}} 个中有 {{top3}} 个在前 3 名中找到自己的卡片；症状行：{{symptoms}} 个中有 {{symptomsTop3}} 个。",
+        "failing": "未进入前 3 名：{{ids}}",
+        "allFound": "每个标题都在前 3 名中找到了自己的卡片。"
       }
     }
   },
@@ -2954,6 +2962,23 @@
   "kbClosest": {
     "title": "最接近的 KB 卡片，可能不匹配",
     "description": "KB 未覆盖此问题。以下卡片最接近；使用前请先核对。"
+  },
+  "packFreshness": {
+    "line": "知识包：{{list}}",
+    "none": "知识包：未加载",
+    "item": {
+      "ok": "{{version}} 正常",
+      "expires": "{{version}} 将在 {{count}} 天后过期",
+      "expiresOne": "{{version}} 将在 1 天后过期",
+      "expired": "{{version}} 已过期",
+      "notUsed": "{{version}} 未使用"
+    },
+    "banner": {
+      "title": "已送达新的知识包",
+      "pack": "{{version}}：构建于 {{date}}。新的回答将使用它。",
+      "gotIt": "知道了",
+      "open": "打开知识库"
+    }
   },
   "turnActions": {
     "runCheck": "运行检查",
