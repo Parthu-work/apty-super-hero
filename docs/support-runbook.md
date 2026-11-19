@@ -43,7 +43,7 @@ question".
 
 Its columns: date, case id, Apty version, pack built, card shown (`id#Llayer`),
 right card, outcome (the case's: resolved, escalated, not_covered,
-abandoned), coverage, reason, note.
+abandoned), coverage, reason, note, mark (`wrong card` or `helped`).
 
 | A row with | What to do |
 | --- | --- |
@@ -55,6 +55,13 @@ abandoned), coverage, reason, note.
 
 **Export questions for kb:eval** gives a questions file for `kb:eval
 --questions`; add those questions to the next week's run.
+
+**Export proposed synonyms** (only with "Include my question" ticked) lists,
+per right card, the words SEs used in wrong-card questions that the card
+does not contain, with how many questions used each. They are proposals:
+decide which are real synonyms, add them to the card's text or to the pack's
+`retrieval.synonyms` at the next build, and ignore the rest. Nothing is
+applied by itself; the pack changes only when you rebuild it.
 
 ## Escalation path
 

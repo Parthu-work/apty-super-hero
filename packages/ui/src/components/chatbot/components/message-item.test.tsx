@@ -521,6 +521,54 @@ describe("DefaultMessageItem — a model answer with no KB card (KB-RAG K27, F2)
     ).toBeInTheDocument();
   });
 
+  it("offers the closest cards through the kbClosest slot, only on a model turn the KB did not cover (K27, E7)", () => {
+    const kbClosest = ({ pageIds }: { pageIds: string[] }) => (
+      <span>closest {pageIds.join(" ")}</span>
+    );
+    const withClosest = {
+      ...decision,
+      kb: {
+        ...decision.kb,
+        reason: "low_coverage" as const,
+        closestPageIds: ["101", "202"],
+      },
+    };
+    const { rerender } = render(
+      <ComponentsContext.Provider
+        value={{ components: {}, slots: { kbClosest } }}
+      >
+        <DefaultMessageItem
+          message={{
+            ...assistantMessage("I do not know."),
+            metadata: { decision: withClosest },
+          }}
+          isLast
+        />
+      </ComponentsContext.Provider>,
+    );
+    expect(screen.getByText("closest 101 202")).toBeInTheDocument();
+    for (const other of [
+      { ...withClosest, route: "kb" as const },
+      { ...withClosest, kb: { ...withClosest.kb, closestPageIds: [] } },
+      decision,
+    ]) {
+      rerender(
+        <ComponentsContext.Provider
+          value={{ components: {}, slots: { kbClosest } }}
+        >
+          <DefaultMessageItem
+            message={{
+              ...assistantMessage("I do not know."),
+              metadata: { decision: other },
+            }}
+            isLast
+          />
+        </ComponentsContext.Provider>,
+      );
+      expect(screen.queryByText(/^closest/)).toBeNull();
+    }
+  });
+
   it("is not labelled when the KB or a check answered", () => {
     render(
       <DefaultMessageItem

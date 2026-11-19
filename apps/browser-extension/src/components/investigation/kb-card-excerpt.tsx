@@ -22,6 +22,7 @@ import {
 import { useTranslation } from "@apty/ui/i18n/context";
 import { ChevronRightIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+import { HelpedButton } from "../cases/helped-button";
 import { WrongCardButton } from "../cases/wrong-card-button";
 import { KbShownHereOnly } from "./kb-egress-note";
 
@@ -115,7 +116,10 @@ export function KbCardExcerpt({
           {card.verifiedOn ?? t("checkPack.kbCard.noVerifiedLine")}
         </p>
         <KbShownHereOnly />
-        <WrongCardButton pageId={pageId} layer={layer} />
+        <div className="flex flex-wrap items-center gap-1">
+          <HelpedButton pageId={pageId} layer={layer} />
+          <WrongCardButton pageId={pageId} layer={layer} />
+        </div>
       </CollapsibleContent>
     </Collapsible>
   );

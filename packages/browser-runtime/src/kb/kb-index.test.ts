@@ -38,6 +38,22 @@ describe("kbToolResult", () => {
     });
   });
 
+  it("never gives the model the closest cards of a question it does not cover (K27, E7)", async () => {
+    const index = await (await source(fixtureV2PackText())).source.current();
+    expect(
+      kbToolResult(
+        index,
+        "tooltip kubernetes helm rollout canary upgrade cluster",
+      ),
+    ).toEqual({
+      status: "not_covered",
+      source: "kb",
+      cards: [],
+      reason: "low_coverage",
+      results: [],
+    });
+  });
+
   it("tells the model why a schema 2 pack does not cover a question, naming a setting it lacks", async () => {
     const v2 = fixturePackText(
       FIXTURE_CARDS,

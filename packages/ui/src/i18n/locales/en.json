@@ -2934,9 +2934,26 @@
     "clear": "Clear",
     "clearLocked": "Your organization's policy is set: the feedback log cannot be cleared here.",
     "csvLabel": "Tracking sheet",
-    "csvDescription": "One row per entry: date, case id, Apty version, pack built, card shown, right card, outcome, coverage, reason, note. Review it, then copy or download it.",
+    "csvDescription": "One row per entry: date, case id, Apty version, pack built, card shown, right card, outcome, coverage, reason, note, mark (wrong card or helped). Review it, then copy or download it.",
     "questionsLabel": "Questions for kb:eval",
-    "questionsDescription": "Entries whose right card is known and whose question you included, in the kb:eval questions format. Review it, then copy or download it."
+    "questionsDescription": "Entries whose right card is known and whose question you included, in the kb:eval questions format. Review it, then copy or download it.",
+    "rightCardPick": "Which card was right? (search titles or ids, optional)",
+    "pickerNone": "No card title matches.",
+    "pickerCount": "{{count}} cards match. Use the arrow keys to choose, Enter to pick.",
+    "picked": "Right card: {{title}} ({{pageId}})",
+    "helped": "This helped",
+    "helpedFor": "This helped: {{pageId}}",
+    "helpedRecorded": "Marked as helpful. Thank you.",
+    "exportSynonyms": "Export proposed synonyms",
+    "synonymsLabel": "Proposed synonyms",
+    "synonymsDescription": "Words from your wrong-card questions that the right card does not contain, by card. Proposals only: the KB owner decides, and nothing changes a pack.",
+    "synonymsNeedQuestion": "Proposed synonyms come from your questions: tick Include my question to export them.",
+    "synonymsNote": "Proposals only. The KB owner decides; nothing here is applied to a pack.",
+    "pickerList": "Matching cards"
+  },
+  "kbClosest": {
+    "title": "Closest KB cards, may not match",
+    "description": "The KB did not cover this question. These cards came closest; check them before you rely on them."
   },
   "turnActions": {
     "runCheck": "Run the check",

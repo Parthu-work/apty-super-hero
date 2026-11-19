@@ -30,6 +30,8 @@ export type KbDecision =
       coverage: number;
       min: number;
       topPageId?: string;
+      /** K27, E7: the cards offered to the SE as "closest, may not match". */
+      closestPageIds?: string[];
       version: TabVersion;
     }
   | { kind: "error"; code: string }

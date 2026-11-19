@@ -4,6 +4,8 @@ import { createCaseStore, memoryCaseRecords } from "../storage/case-store.js";
 import {
   feedbackCsv,
   feedbackQuestions,
+  feedbackSynonymProposals,
+  recordHelped,
   recordOutcome,
   recordWrongCard,
 } from "./feedback-store.js";
@@ -59,6 +61,7 @@ describe("wrong-card feedback (KB-RAG K25, L3)", () => {
       outcome: "open",
       coverage: 0.42,
       reason: "low_coverage",
+      mark: "wrong_card",
       question: expect.not.stringContaining("jane.doe@customer.example"),
     });
     expect(await cases.feedback()).toHaveLength(1);
@@ -98,12 +101,23 @@ describe("wrong-card feedback (KB-RAG K25, L3)", () => {
       { at: NOW.toISOString(), note: "=HYPERLINK()" },
     ]);
     expect(csv.split("\n")[0]).toBe(
-      "date,case id,Apty version,pack built,card shown,right card,outcome,coverage,reason,note",
+      "date,case id,Apty version,pack built,card shown,right card,outcome,coverage,reason,note,mark",
     );
     expect(csv.split("\n")[1]).toBe(
-      '2026-11-12,CASE-1,4.x,2026-11-01,4002#L1,4003,resolved,0.42,low_coverage,"said ""no"", then =SUM(A1)"',
+      '2026-11-12,CASE-1,4.x,2026-11-01,4002#L1,4003,resolved,0.42,low_coverage,"said ""no"", then =SUM(A1)",',
     );
-    expect(csv.split("\n")[2]).toBe("2026-11-12,,,,,,,,,'=HYPERLINK()");
+    expect(csv.split("\n")[2]).toBe("2026-11-12,,,,,,,,,'=HYPERLINK(),");
+    expect(
+      feedbackCsv([
+        { at: NOW.toISOString(), shownCardId: "4002", mark: "helped" },
+        { at: NOW.toISOString(), shownCardId: "4002", mark: "wrong_card" },
+      ])
+        .split("\n")
+        .slice(1, 3),
+    ).toEqual([
+      "2026-11-12,,,,4002,,,,,,helped",
+      "2026-11-12,,,,4002,,,,,,wrong card",
+    ]);
   });
 
   it("the kb:eval questions hold only included questions with a known right card", () => {
@@ -119,6 +133,66 @@ describe("wrong-card feedback (KB-RAG K25, L3)", () => {
         category: "field",
         q: "the tour is gone",
         expectedPageIds: ["4003"],
+      },
+    ]);
+  });
+
+  it("a This helped mark records the card and layer shown, with no question (K27, E7)", async () => {
+    const cases = store();
+    const row = await recordHelped(cases, {
+      record: record(),
+      shownCardId: "4002",
+      shownLayer: 2,
+      pack: {
+        builtAt: "2026-11-01T00:00:00.000Z",
+        sha256: "0123456789abcdef0123",
+      },
+      now: NOW,
+    });
+    expect(row).toEqual({
+      at: NOW.toISOString(),
+      caseId: "CASE-20261112-0000",
+      aptyVersion: "4.x",
+      packBuilt: "2026-11-01",
+      packSha256: "0123456789ab",
+      shownCardId: "4002",
+      shownLayer: 2,
+      outcome: "open",
+      mark: "helped",
+    });
+    expect(await cases.feedback()).toMatchObject([row]);
+  });
+
+  it("proposes synonyms only from included questions of wrong-card marks with a right card (K27, E7)", () => {
+    const rows = [
+      {
+        at: "a",
+        mark: "wrong_card" as const,
+        aptyVersion: "4.x",
+        rightCardId: "4003",
+        question: "the hint bubble pops up twice",
+      },
+      { at: "b", mark: "helped" as const, shownCardId: "4003" },
+      { at: "c", rightCardId: "4004" },
+      { at: "d", mark: "wrong_card" as const, question: "no right card" },
+    ];
+    const cardText = (pageId: string, version?: string) =>
+      pageId === "4003" && version === "4.x"
+        ? "FIXTURE tooltip pops up twice"
+        : undefined;
+    expect(
+      feedbackSynonymProposals(rows, cardText, { includeQuestions: false }),
+    ).toEqual([]);
+    expect(
+      feedbackSynonymProposals(rows, cardText, { includeQuestions: true }),
+    ).toEqual([
+      {
+        cardId: "4003",
+        aptyVersion: "4.x",
+        words: [
+          { word: "bubble", count: 1 },
+          { word: "hint", count: 1 },
+        ],
       },
     ]);
   });

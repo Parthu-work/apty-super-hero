@@ -1217,6 +1217,20 @@ describe("honest not-covered reasons (KB-RAG K25, A6)", () => {
     expect(result.coverage).toBeLessThan(0.5);
   });
 
+  it("low_coverage and no_strong_term name the closest cards, one hit each (K27, E7)", () => {
+    for (const query of [
+      "FIXTURE Ardent kubernetes helm rollout canary",
+      "content visible to users",
+    ]) {
+      const { closest } = index.search(query, { topK: 2 });
+      const ids = (closest ?? []).map((hit) => hit.chunk.pageId);
+      expect(ids.length, query).toBeGreaterThan(0);
+      expect(ids.length, query).toBeLessThanOrEqual(2);
+      expect(new Set(ids).size, query).toBe(ids.length);
+    }
+    expect(index.search("kubernetes helm rollout").closest).toBeUndefined();
+  });
+
   it("no_strong_term: coverage reaches the minimum but only common words matched", () => {
     const result = index.search("content visible to users");
     expect(result).toMatchObject({

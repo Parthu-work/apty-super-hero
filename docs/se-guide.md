@@ -32,7 +32,7 @@ answer came from.
 | --- | --- | --- |
 | A check verdict (cause found, rules, evidence) | A check read the Client's files and found the cause | Apply the fix; **Prepare support bundle** if Apty has to act |
 | A check with no cause, and a card's layers 1 and 2 | The rules read the files correctly and found nothing; the card says what to look at next | Work through the card's layers, then the next check it names |
-| KB cards | The KB has cards for this symptom; layer 1 is settings, 2 Console and Elements, 3 network data, 4 support | Use the layer buttons (L1 to L4); **Wrong card** if it is not the right one |
+| KB cards | The KB has cards for this symptom; layer 1 is settings, 2 Console and Elements, 3 network data, 4 support | Use the layer buttons (L1 to L4); **This helped** if it answered, **Wrong card** if it is not the right one |
 | "The KB has a card for this, but its … text is not written yet" | A stub | Tell the KB owner; the card's link is there |
 | "This does not exist in Apty 4.x" (or 5.x) | The feature has no equivalent in that version | Say so to the customer |
 | "No KB card matched (coverage …)" | Not covered | Rephrase with the user's own words once; if still nothing, send it to the KB owner |
@@ -41,12 +41,15 @@ answer came from.
 | "No 4.x pack is loaded." (or "No KB pack is loaded.") | No pack for that version | Import one (Options → Knowledge base) |
 | "The 4.x pack expired on …", "… is not signed by a key this extension trusts", "… is signed by a revoked key" | The pack is not used | Ask the KB owner for a new pack |
 | "Not from the KB or a check" | The AI model answered with no card; it was told not to describe Apty settings | Treat it as general advice; underlined phrases were not found in the KB |
+| "Closest KB cards, may not match" under a model's answer | The KB did not cover the question; these cards came closest | Open them before you rely on them; if one was right, tell the KB owner |
 
 ## Wrong card
 
-On a KB card, **Wrong card** records which card should have answered (its
-Confluence page id). The KB owner reads these weekly; they are the only way
-real misses get fixed.
+On a KB card, **Wrong card** records which card should have answered: type
+part of its title (or its page id) and pick it from the list with the arrow
+keys and Enter, or the mouse. **This helped** records that the card answered.
+The KB owner reads these weekly; they are the only way real misses get
+fixed.
 
 ## Prepare support bundle
 

@@ -2934,9 +2934,26 @@
     "clear": "清除",
     "clearLocked": "已设置贵组织的策略：无法在此清除反馈记录。",
     "csvLabel": "跟踪表",
-    "csvDescription": "每条一行：日期、案例编号、Apty 版本、知识包构建日期、显示的卡片、正确的卡片、结果、覆盖率、原因、备注。请先查看，再复制或下载。",
+    "csvDescription": "每条一行：日期、案例编号、Apty 版本、知识包构建日期、显示的卡片、正确的卡片、结果、覆盖率、原因、备注、标记（卡片不对或有帮助）。请先查看，再复制或下载。",
     "questionsLabel": "kb:eval 问题",
-    "questionsDescription": "已知正确卡片且您选择包含问题的条目，采用 kb:eval 问题格式。请先查看，再复制或下载。"
+    "questionsDescription": "已知正确卡片且您选择包含问题的条目，采用 kb:eval 问题格式。请先查看，再复制或下载。",
+    "rightCardPick": "哪张卡片是正确的？（搜索标题或 ID，可选）",
+    "pickerNone": "没有匹配的卡片标题。",
+    "pickerCount": "{{count}} 张卡片匹配。使用方向键选择，按 Enter 确定。",
+    "picked": "正确的卡片：{{title}}（{{pageId}}）",
+    "helped": "有帮助",
+    "helpedFor": "有帮助：{{pageId}}",
+    "helpedRecorded": "已标记为有帮助。谢谢。",
+    "exportSynonyms": "导出建议的同义词",
+    "synonymsLabel": "建议的同义词",
+    "synonymsDescription": "按卡片列出：您在“卡片不对”问题中使用、而正确卡片中没有的词。仅为建议：由 KB 负责人决定，不会自动更改任何知识包。",
+    "synonymsNeedQuestion": "建议的同义词来自您的问题：勾选“包含我的问题”后才能导出。",
+    "synonymsNote": "仅为建议。由 KB 负责人决定；此处内容不会应用到任何知识包。",
+    "pickerList": "匹配的卡片"
+  },
+  "kbClosest": {
+    "title": "最接近的 KB 卡片，可能不匹配",
+    "description": "KB 未覆盖此问题。以下卡片最接近；使用前请先核对。"
   },
   "turnActions": {
     "runCheck": "运行检查",

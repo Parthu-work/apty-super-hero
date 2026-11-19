@@ -166,6 +166,13 @@ export {
   withholdKbText,
 } from "./kb/egress.js";
 export { createKbIndexSet } from "./kb/index-set.js";
+export {
+  type KbCardTitle,
+  proposeSynonyms,
+  type SynonymProposal,
+  type SynonymSource,
+  searchCardTitles,
+} from "./kb/learning.js";
 // KB packs and search
 export {
   canonicalJson,
