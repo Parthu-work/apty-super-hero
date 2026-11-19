@@ -4,8 +4,9 @@
  * this answer", "Show thinking details") is opened in the side panel at
  * 320, 400 and 480 px, light and dark; after the last input the scroll
  * position holds still for 5 seconds, no ResizeObserver loop error is
- * logged, the message list stays under 15,000 DOM nodes, and Scroll to
- * bottom and Show earlier messages keep the reader's place. No model call.
+ * logged, the message list stays under 15,000 DOM nodes, the p95 time of a
+ * scroll or wheel handler is under 8 ms, and Scroll to bottom and Show
+ * earlier messages keep the reader's place. No model call.
  */
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
@@ -31,6 +32,7 @@ before(async () => {
     "/app.html": "<!doctype html><title>App</title><main>FIXTURE app</main>",
   });
   browser = await launchBrowser();
+  await browser.context.addInitScript(timeScrollHandlers);
 });
 
 after(async () => {
@@ -38,6 +40,51 @@ after(async () => {
   model?.close();
   site?.close();
 });
+
+/**
+ * Runs in every page before its scripts: each `scroll` and `wheel` listener,
+ * React's root listeners included, records how long it ran.
+ */
+function timeScrollHandlers() {
+  const TIMED = new Set(["scroll", "wheel"]);
+  const wrapped = new WeakMap();
+  const times = [];
+  globalThis.__aptyScrollHandlerTimes = times;
+  const add = EventTarget.prototype.addEventListener;
+  const remove = EventTarget.prototype.removeEventListener;
+  EventTarget.prototype.addEventListener = function (type, listener, options) {
+    if (!TIMED.has(type) || typeof listener !== "function") {
+      return add.call(this, type, listener, options);
+    }
+    let timed = wrapped.get(listener);
+    if (!timed) {
+      timed = function (event) {
+        const start = performance.now();
+        try {
+          return listener.call(this, event);
+        } finally {
+          times.push(performance.now() - start);
+        }
+      };
+      wrapped.set(listener, timed);
+    }
+    return add.call(this, type, timed, options);
+  };
+  EventTarget.prototype.removeEventListener = function (
+    type,
+    listener,
+    options,
+  ) {
+    return remove.call(this, type, wrapped.get(listener) ?? listener, options);
+  };
+}
+
+function p95(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[
+    Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95) - 1)
+  ];
+}
 
 /** scrollTop of the chat's scroller every 100 ms for `ms`. */
 async function samples(panel, ms) {
@@ -80,6 +127,9 @@ describe("a long chat scrolls steadily (KB-RAG K27, U1)", () => {
         const log = panel.locator('[role="log"]');
 
         await log.hover();
+        await panel.evaluate(() => {
+          globalThis.__aptyScrollHandlerTimes.length = 0;
+        });
         for (let i = 0; i < 15; i++) await panel.mouse.wheel(0, -600);
         await panel.keyboard.press("PageUp");
         // Playwright returns before Chrome applies a wheel scroll: let the
@@ -91,6 +141,17 @@ describe("a long chat scrolls steadily (KB-RAG K27, U1)", () => {
           `scrollTop moved after the last input: ${Math.min(...held)} to ${Math.max(...held)}`,
         );
         assert.ok(held[0] > 0, "the reader scrolled up");
+        const handlerTimes = await panel.evaluate(() => [
+          ...globalThis.__aptyScrollHandlerTimes,
+        ]);
+        assert.ok(handlerTimes.length > 0, "the scroll handlers ran");
+        assert.ok(
+          p95(handlerTimes) < 8,
+          `p95 scroll handler time ${p95(handlerTimes).toFixed(2)} ms over ${handlerTimes.length} calls`,
+        );
+        console.log(
+          `scroll handlers at ${width} px, ${theme}: p95 ${p95(handlerTimes).toFixed(2)} ms over ${handlerTimes.length} calls`,
+        );
 
         const nodes = await log.evaluate(
           (el) => el.querySelectorAll("*").length,
