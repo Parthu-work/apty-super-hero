@@ -285,6 +285,8 @@ function isLikelyCasualMessage(lowerText: string): boolean {
   const trimmed = lowerText.trim();
   if (trimmed.length === 0) return true;
   if (CASUAL_PATTERNS.some((re) => re.test(trimmed))) return true;
+  // K28, F4: a short message the KB reads as a symptom ("widget is missing") is not chat.
+  if (hasSymptomWord(trimmed)) return false;
   // A script written without spaces, such as Chinese, is not counted in words.
   if (isMostlyNonLatin(trimmed)) return [...trimmed].length < 4;
   return trimmed.split(/\s+/).length <= 3;

@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 };
 
 const { allBrowserTools, browserToolGroups } = await import("./index.js");
+const { hasSymptomWord } = await import("../kb/kb-intent.js");
 const {
   createStickyToolSelector,
   selectRelevantTools,
@@ -421,5 +422,27 @@ describe("content lookups (KB-RAG K27, F5)", () => {
         "inspect_extension_network",
       );
     }
+  });
+});
+
+describe("search_kb on every symptom (KB-RAG K28, F4)", () => {
+  it.each([
+    "widget is missing",
+    "workflow not working",
+    "the tooltip balloon flickers",
+    "the widget is not showing",
+  ])("offers search_kb within the symptom budget: %s", (message) => {
+    const offered = names(selectRelevantTools(message));
+    expect(offered).toContain("search_kb");
+    expect(offered.length).toBeLessThanOrEqual(TOOL_ROUTE_BUDGETS.symptom ?? 0);
+    expect(hasSymptomWord(message)).toBe(true);
+  });
+
+  it.each([
+    "how do I add a workflow to a segment",
+    "thanks",
+    "ok sounds good",
+  ])("does not offer search_kb: %s", (message) => {
+    expect(names(selectRelevantTools(message))).not.toContain("search_kb");
   });
 });
