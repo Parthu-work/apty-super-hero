@@ -165,6 +165,51 @@ A JSON file in Chrome's managed policy directory, for example
 }
 ```
 
+### Generating the files
+
+`pnpm policy:generate` writes all of the above from one small JSON config
+(KB-RAG K28, A1), so nobody encodes a list by hand:
+
+```bash
+pnpm policy:generate --config my-policy.json --out ./apty-policy
+```
+
+The config names the extension and holds the policy itself:
+
+```json
+{
+  "extension": {
+    "id": "bpiondflhhdplemamgggcdajclmoeple",
+    "updateUrl": "https://clients2.google.com/service/update2/crx"
+  },
+  "policy": {
+    "kbToModel": "approved",
+    "allowedProviders": ["azure"],
+    "allowedOrigins": ["https://<apty-tenant>.openai.azure.com"],
+    "kbPackSources": { "5.x": "https://<pack-host>/kb/5x.json" },
+    "kbPackCheckHours": 6
+  }
+}
+```
+
+The policy must pass the same `parseOrgPolicy` the extension runs, or
+nothing is written. The output folder holds:
+
+| File | For |
+| --- | --- |
+| `windows/chrome.reg`, `windows/edge.reg` | Imported as an administrator (UTF-16 with a byte order mark, as `regedit` expects). Each replaces the extension's whole `policy` key, so a key removed from the config does not linger. |
+| `macos/chrome.mobileconfig`, `macos/edge.mobileconfig` | Your MDM. One payload for the extension's domain, one for the browser's `ExtensionInstallForcelist`. |
+| `linux/apty-agent.json` | Chrome's, Chromium's and Edge's managed policy folders (`/etc/opt/chrome/policies/managed/`, `/etc/chromium/policies/managed/`, `/etc/opt/edge/policies/managed/`). |
+
+Each file also force-installs the extension from `updateUrl`. The `.reg` writes `ExtensionInstallForcelist` entry `1`: if your
+organization already force-installs other extensions that way, merge the
+entry into your own list instead of importing that key.
+
+`pnpm policy:check <file>` reads any of these files (or a bare policy JSON),
+validates it with `parseOrgPolicy`, and prints each key with its effect, or
+`Invalid policy:` and the reason the extension would give. It warns when
+`preset.aiToken` is set, and never prints the token.
+
 ## Checking it
 
 1. Open chrome://policy and click **Reload policies**. The extension's

@@ -1,0 +1,27 @@
+{
+  "extension": {
+    "id": "bpiondflhhdplemamgggcdajclmoeple",
+    "updateUrl": "https://clients2.google.com/service/update2/crx"
+  },
+  "policy": {
+    "kbToModel": "approved",
+    "allowedProviders": ["azure"],
+    "allowedOrigins": ["https://example-tenant.openai.azure.com"],
+    "allowedModels": ["example-model-1", "example-model-2"],
+    "redactionFloor": "strict",
+    "allowMcpBridge": false,
+    "caseRetentionDays": 60,
+    "kbPackCheckHours": 6,
+    "kbPackSources": {
+      "4.x": "https://packs.example.invalid/kb/4x.json",
+      "5.x": "https://packs.example.invalid/kb/5x.json"
+    },
+    "trustedPackKeys": [
+      {
+        "keyId": "98f5d70a1638cebc",
+        "spki": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEL3tvrQ9rb86vBd4a5YJ56HqsAneF1BFWX9lrAGzkiDHO4bkrocZ7T2h+8QhtiNhqNAa6x31cr/DVrDaAtcMc0A==",
+        "name": "Example KB owner (synthetic)"
+      }
+    ]
+  }
+}
