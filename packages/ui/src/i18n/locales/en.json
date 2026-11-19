@@ -1429,7 +1429,8 @@
     "kbUnknownCitation": "unknown citation",
     "kbUngroundedTitle": "Not found in the cited KB cards",
     "kbUngrounded": "Not found in the cited KB cards: {{phrases}}",
-    "kbCitation": "KB card {{pageId}}, layer {{layer}}"
+    "kbCitation": "KB card {{pageId}}, layer {{layer}}",
+    "moreQuestions": "More questions ({{count}})"
   },
   "investigation": {
     "componentHealth": "Apty component health",

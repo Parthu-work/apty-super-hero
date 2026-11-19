@@ -883,3 +883,48 @@ describe("DefaultMessageItem — a model answer that explains the chat's checks 
     );
   });
 });
+
+describe("DefaultMessageItem — one question per turn (KB-RAG K28, F5)", () => {
+  const THREE = [
+    "I need a little more to go on.",
+    "",
+    "- Which segment should see the workflow?",
+    "- Is it published?",
+    "- Does it fail for every user?",
+  ].join("\n");
+
+  it("shows the first question and folds the other two, with no text lost", () => {
+    const { container } = render(
+      <DefaultMessageItem message={assistantMessage(THREE)} />,
+    );
+    const more = screen.getByTestId("more-questions");
+    expect(more.tagName).toBe("DETAILS");
+    expect(more).not.toHaveAttribute("open");
+    expect(within(more).getByText("More questions (2)")).toBeInTheDocument();
+    expect(more).toHaveTextContent("Is it published?");
+    expect(more).toHaveTextContent("Does it fail for every user?");
+    expect(more).not.toHaveTextContent("Which segment");
+    for (const line of THREE.split("\n").filter(Boolean)) {
+      expect(container.textContent).toContain(line.replace(/^- /, ""));
+    }
+  });
+
+  it("leaves a one-question reply and a reply still streaming unfolded", () => {
+    render(
+      <DefaultMessageItem
+        message={assistantMessage(
+          "The rules match. Should I check the segment?",
+        )}
+      />,
+    );
+    expect(screen.queryByTestId("more-questions")).toBeNull();
+    render(
+      <DefaultMessageItem
+        message={{ ...assistantMessage(THREE), id: "msg-2" }}
+        isLast
+        isStreaming
+      />,
+    );
+    expect(screen.queryByTestId("more-questions")).toBeNull();
+  });
+});

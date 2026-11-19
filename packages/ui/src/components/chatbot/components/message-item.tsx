@@ -17,6 +17,7 @@ import { translatedToolName } from "../../../i18n/tool-names";
 import { downloadText, timestampedFilename } from "../../../lib/download";
 import { kbReturnedCards, linkKbCitations } from "../../../lib/kb-citations";
 import { markUngrounded, ungroundedPhrases } from "../../../lib/kb-grounding";
+import { foldQuestions } from "../../../lib/one-question";
 import { isLocalImageUrl } from "../../../lib/safe-media";
 import {
   resolveScreenshotUrls,
@@ -69,6 +70,29 @@ function getContextIcon(contextType: string) {
 }
 
 /**
+ * A model reply that asks several questions at its end shows the first and
+ * folds the others under "More questions" (K28, F5). Nothing is removed.
+ */
+function OneQuestionResponse({ text, fold }: { text: string; fold: boolean }) {
+  const { t } = useTranslation();
+  const folded = fold ? foldQuestions(text) : undefined;
+  if (!folded) return <Response>{text}</Response>;
+  return (
+    <>
+      <Response>{folded.shown}</Response>
+      <details className="group text-sm" data-testid="more-questions">
+        <summary className="cursor-pointer text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          {t("chat.moreQuestions", { count: folded.count })}
+        </summary>
+        <div className="mt-1">
+          <Response>{folded.folded}</Response>
+        </div>
+      </details>
+    </>
+  );
+}
+
+/**
  * Default MessageItem component
  */
 /**
@@ -80,9 +104,11 @@ function GroundedResponse({
   text,
   ungrounded,
   withoutCards = false,
+  fold,
 }: {
   text: string;
   ungrounded: string[];
+  fold: boolean;
   /** A model turn the KB returned no card for (K27, F2): nothing it names is grounded. */
   withoutCards?: boolean;
 }) {
@@ -106,7 +132,7 @@ function GroundedResponse({
   return (
     <>
       <div ref={ref}>
-        <Response>{text}</Response>
+        <OneQuestionResponse text={text} fold={fold} />
       </div>
       {ungrounded.length > 0 && (
         <p className="text-xs text-muted-foreground">
@@ -284,11 +310,17 @@ export function DefaultMessageItem({
                     <GroundedResponse
                       text={processedText}
                       withoutCards={withoutCards}
+                      fold={!(isStreaming && isLast)}
                       ungrounded={
                         isStreaming && isLast
                           ? []
                           : ungroundedPhrases(part.text, kbCards.texts)
                       }
+                    />
+                  ) : message.role === "assistant" ? (
+                    <OneQuestionResponse
+                      text={processedText}
+                      fold={!(isStreaming && isLast)}
                     />
                   ) : (
                     <Response>{processedText}</Response>
