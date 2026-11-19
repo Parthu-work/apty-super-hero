@@ -8,7 +8,7 @@ full commit-level history.
 
 - **Version 0.2.0** (manifest, extension and root `package.json`): KB-RAG K25 to K27.
 
-- **KB-RAG K27: fixes from the first real-pack test, stable scrolling, pilot readiness** ([`FIXES-K27.md`](docs/tasks/kb-rag/FIXES-K27.md)):
+- **KB-RAG K27: fixes from the first real-pack test, stable scrolling, pilot readiness, enhancements** ([`FIXES-K27.md`](docs/tasks/kb-rag/FIXES-K27.md)):
   - **F1**: a tool budget every provider accepts. Route-based tool sets (a file question at most 8 tools, a symptom at most 12, the whole investigation set once one is asked for or started) and a 20-strict-tool cap for Anthropic; the Apty question's tool schemas went from 4,464 to 1,913 tokens.
   - **F2**: the model never invents Apty settings. A setting no card has is answered by the KB with the closest cards and no model call (Ask the AI anyway sends it with a fixed instruction); a model turn with no card is told not to describe settings, menus, prices or features, is labelled "Not from the KB or a check", and its menu paths are flagged.
   - **F3**: "Start here" pages are routing cards whatever their layers.
@@ -21,6 +21,13 @@ full commit-level history.
   - **R1**: a captured body preview is redacted like any other tool result, in the mode it is read in; relative and non-http URLs in free text are masked like absolute ones. The K25 audit was redone ([`K25-AUDIT.md`](docs/tasks/kb-rag/K25-AUDIT.md)); `trustedPackKeys` is the pilot route for the KB owner's key.
   - **R2** to **R6**: documented commands without `pnpm -s` and with zsh forms; a first-run checklist in the side panel on an empty chat; pilot measures (first verdict time, counts by version and outcome, CSV) kept on the device; performance budgets in E2E; an Edge run script and axe in both themes on the new surfaces.
   - **R8**, **R9**: [`docs/se-guide.md`](docs/se-guide.md), [`docs/support-runbook.md`](docs/support-runbook.md), and the 4.x Client bridge's hand-patch review in [`4X-BRIDGE.md`](docs/integrations/apty/4X-BRIDGE.md).
+  - **E5**: a KB card for a symptom a check covers offers Run the check; a confirmed cause offers Prepare support bundle and a Right/Wrong mark that the close form starts from.
+  - **E6**: after a check or KB card, a model turn explains those results and asks one next question, never stating Apty facts the cards do not hold; card text still reaches the model only under an approving policy. An answer grounded in the cards is labelled "Explains the checks and KB cards above". With no request budget set, each provider has a default cap (Anthropic 150,000, Google 780,000, others 96,000 estimated tokens).
+  - **E7**: Wrong card takes a picker that searches card titles; a "This helped" mark; a not-covered answer lists the closest cards, marked "may not match"; Feedback exports proposed synonyms (proposals only, with the question opt-in); the feedback CSV gains a `mark` column.
+  - **E8**: one Get the evidence button picks Capture and reload (Injected mode) or a service-worker HAR with a drop zone (Extension mode) from what the page and the Client show, remembered per site on the device.
+  - **E9**: the panel header shows each pack's freshness; a banner says when delivery stored the pack in use; Options shows each pack's self-check counts and failing ids; `kb:eval --self-check` and Options share one self-check.
+  - **E10** (partial): the KB owner's approved terms are a signed pack setting (`kb:pack --approved-terms`, from an edited E7 export; an unedited proposals file is refused), and `kb:eval --compare-synonyms` reports Recall@3 and not-covered precision with and without them against the 0.90 gate. Dense vectors are not added; the gate waits on the owner's real-pack run.
+  - **U1 follow-up**: the long-chat test measures the p95 scroll handler time (1.4 to 1.6 ms, limit 8 ms).
 
 - **KB-RAG K26 D5 follow-up**: `kb-packs.yml` set `KB_WORK` from the `runner` context in the job's `env`, where GitHub does not allow it, so the workflow could not start; a first step now sets it. actionlint (with shellcheck) passes on every workflow.
 
