@@ -4,7 +4,7 @@
 
 ## Status
 
-**IN PROGRESS.** Part F (audit fixes) on `claude/kb-rag-k28-fixes`; Part A (rollout automation) on `claude/kb-rag-k28-automation`.
+**DONE, with partial steps.** Part F (F1 to F9) on `claude/kb-rag-k28-fixes`; Part A (A1 to A5) on `claude/kb-rag-k28-automation`. Partial, with what finishes each: A5's first Chrome Web Store upload, the listing and the `CWS_*` secrets and variables (store owner; the API calls are tested against a fake only); the `KB_QUESTIONS_URL_4X`/`_5X` variables and where the KB jobs run (owner, 60-day rule); the Edge E2E and SMOKE_TEST rows by hand. In this container `chat-scroll.e2e` exceeds the suite's 180 s per-file timeout on `main` and on these branches alike (six subtests of about 55 s each); it passes with `--test-timeout=600000`.
 
 ## How to run this prompt
 
