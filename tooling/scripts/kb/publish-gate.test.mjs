@@ -574,7 +574,7 @@ describe("the quality gate from the pack host (KB-RAG K28, A2)", () => {
     assert.equal(noToken.code, 1);
     assert.match(noToken.errors, /KB_PUBLISH_TOKEN is not set/);
     for (const text of [missing.errors, refused.errors]) {
-      assert.doesNotMatch(text, /packs\.example\.com/);
+      assert.doesNotMatch(text, /:\/\/|example/, "no URL or host");
       assert.doesNotMatch(text, /FIXTURE-wrong/);
     }
     assert.equal(missing.body.length, 0);

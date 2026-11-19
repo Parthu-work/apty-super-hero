@@ -35,10 +35,10 @@ const packBuiltHoursAgo = (hours, aptyVersion = "5.x") =>
   );
 
 const FILES = new Map([
-  ["/kb/fresh.json", () => packBuiltHoursAgo(3)],
-  ["/kb/old.json", () => packBuiltHoursAgo(49)],
-  ["/kb/sign-in.json", () => "<html>FIXTURE sign in</html>"],
-  ["/kb/4x.json", () => packBuiltHoursAgo(3, "4.x")],
+  ["/kb/fresh.json", packBuiltHoursAgo(3)],
+  ["/kb/old.json", packBuiltHoursAgo(49)],
+  ["/kb/sign-in.json", "<html>FIXTURE sign in</html>"],
+  ["/kb/4x.json", packBuiltHoursAgo(3, "4.x")],
 ]);
 
 describe("pack-age", () => {
@@ -54,7 +54,7 @@ describe("pack-age", () => {
       } else if (!body) {
         response.writeHead(404).end();
       } else {
-        response.writeHead(200).end(body());
+        response.writeHead(200).end(body);
       }
     });
     await new Promise((done) => server.listen(0, "127.0.0.1", done));
