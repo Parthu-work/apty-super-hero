@@ -10,6 +10,7 @@ import {
   type KbSourceTag,
   kbCardLocation,
   kbSourceTag,
+  type RunCheckRequest,
 } from "@apty/agent-core";
 import { measured, PERF } from "../runtime/perf-marks.js";
 import { createKbPackStore, type KbPackStore } from "../storage/kb-store.js";
@@ -159,6 +160,8 @@ export interface KbToolResult extends KbSourceTag {
   };
   /** K27, F4: a local answer's site, as `siteKeyOf(host)`; never the host itself, never sent to the model. */
   siteKey?: string;
+  /** K27, E5: the check the top card's symptom belongs to, for "Run the check"; never sent to the model. */
+  runCheck?: RunCheckRequest;
 }
 
 /** A card saying a feature has no equivalent in its Apty version. */

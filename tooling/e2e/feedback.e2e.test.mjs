@@ -126,7 +126,7 @@ describe("wrong-card feedback (KB-RAG K25, L3)", () => {
       .innerText();
     assert.equal(
       csv.split("\n")[0],
-      "date,case id,Apty version,pack built,card shown,right card,outcome,coverage,reason,note",
+      "date,case id,Apty version,pack built,card shown,right card,outcome,coverage,reason,note,mark",
     );
     assert.match(csv, /,202#L\d,101,open,/);
     assert.match(csv, /,resolved,/);

@@ -1,4 +1,4 @@
-import { STORAGE_KEYS } from "@apty/agent-core";
+import { DEFAULT_PROVIDER_REQUEST_CAP, STORAGE_KEYS } from "@apty/agent-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const storage = vi.hoisted(() => ({
@@ -21,6 +21,7 @@ const storage = vi.hoisted(() => ({
 
 import {
   currentSummaryWatermark,
+  getRequestBudget,
   getRequestLimits,
   limitsFromSettings,
   resetRequestLimitsForTests,
@@ -72,6 +73,40 @@ describe("getRequestLimits", () => {
       maxOutputTokens: 800,
     });
     expect(chrome.storage.local.get).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("getRequestBudget (KB-RAG K27, E6)", () => {
+  it("is the budget from Settings, else the chat provider's cap, and follows changes", async () => {
+    storage.value = { aiProvider: "anthropic" };
+    expect(await getRequestBudget()).toBe(150_000);
+
+    for (const listener of storage.listeners) {
+      listener(
+        { [STORAGE_KEYS.SETTINGS]: { newValue: { aiProvider: "groq" } } },
+        "local",
+      );
+    }
+    expect(await getRequestBudget()).toBe(DEFAULT_PROVIDER_REQUEST_CAP);
+
+    for (const listener of storage.listeners) {
+      listener(
+        {
+          [STORAGE_KEYS.SETTINGS]: {
+            newValue: { aiProvider: "groq", requestTokenBudget: 6_000 },
+          },
+        },
+        "local",
+      );
+    }
+    expect(await getRequestBudget()).toBe(6_000);
+  });
+
+  it("falls back to the default cap when the settings cannot be read", async () => {
+    vi.mocked(chrome.storage.local.get).mockRejectedValueOnce(
+      new Error("FIXTURE"),
+    );
+    expect(await getRequestBudget()).toBe(DEFAULT_PROVIDER_REQUEST_CAP);
   });
 });
 

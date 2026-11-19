@@ -71,6 +71,8 @@ export type KbOutcome =
       coverage: number;
       min: number;
       topPageId?: string;
+      /** K27, E7: the cards offered to the SE as "closest, may not match". */
+      closestPageIds?: string[];
       version: KbTabVersion;
       packs: KbSearchedPack[];
     }
@@ -174,12 +176,16 @@ export async function localKbMatches(
         packs,
       };
     }
+    const closestPageIds = [
+      ...new Set((found.closest ?? []).map((hit) => hit.chunk.pageId)),
+    ];
     return {
       kind: "not_covered",
       reason: found.reason ?? "no_match",
       coverage: Math.round(found.coverage * 100) / 100,
       min: found.min ?? 0,
       ...(found.topPageId ? { topPageId: found.topPageId } : {}),
+      ...(closestPageIds.length > 0 ? { closestPageIds } : {}),
       version,
       packs,
     };
@@ -246,6 +252,9 @@ export function kbDecisionOf(outcome: KbOutcome): KbDecision {
         coverage: outcome.coverage,
         min: outcome.min,
         ...(outcome.topPageId ? { topPageId: outcome.topPageId } : {}),
+        ...(outcome.closestPageIds
+          ? { closestPageIds: outcome.closestPageIds }
+          : {}),
         version: outcome.version,
       };
     case "error":

@@ -85,6 +85,18 @@ if (data.budgeted) {
   );
   console.log([line(head), ...table.map(line)].join("\n"));
 }
+if (data.providerCaps) {
+  const head = Object.keys(data.providerCaps[0] ?? {});
+  const table = data.providerCaps.map((row) => head.map((k) => String(row[k])));
+  const widths = head.map((h, i) =>
+    Math.max(h.length, ...table.map((r) => r[i].length)),
+  );
+  const line = (cells) => cells.map((c, i) => c.padEnd(widths[i])).join("  ");
+  console.log(
+    "\nWith no budget set (K27, E6): raw, as sent with no cap, and as sent under each provider's cap (provider, cap):\n",
+  );
+  console.log([line(head), ...table.map(line)].join("\n"));
+}
 if (data.summaries) {
   console.log(
     "\nWith summaries of earlier turns (Settings → AI), as sent: the long chat after a summary at its length limit, and the summary request itself:\n",

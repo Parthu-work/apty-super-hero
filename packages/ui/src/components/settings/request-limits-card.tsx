@@ -1,7 +1,9 @@
 import {
+  AI_PROVIDERS,
   type AppSettings,
   DEFAULT_ANTHROPIC_SUMMARY_MODEL,
   MAX_OUTPUT_TOKENS_RANGE,
+  providerRequestCap,
   REQUEST_TOKEN_BUDGET_RANGE,
 } from "@apty/agent-core";
 import { Gauge } from "lucide-react";
@@ -28,6 +30,10 @@ interface LimitFieldProps {
   id: string;
   label: string;
   hint: string;
+  /** Added to the hint while the field is empty: what applies then. */
+  unsetHint?: string;
+  /** Shown in the empty field; "No limit" by default. */
+  unsetPlaceholder?: string;
   value: number | undefined;
   range: { min: number; max: number };
   onCommit: (value: number | undefined) => void;
@@ -39,6 +45,8 @@ function LimitField({
   id,
   label,
   hint,
+  unsetHint,
+  unsetPlaceholder,
   value,
   range,
   onCommit,
@@ -65,7 +73,7 @@ function LimitField({
         id={id}
         inputMode="numeric"
         value={text}
-        placeholder={t("settings.requestLimits.unset")}
+        placeholder={unsetPlaceholder ?? t("settings.requestLimits.unset")}
         onChange={(e) => setText(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
@@ -87,7 +95,9 @@ function LimitField({
               min: formatted(range.min),
               max: formatted(range.max),
             })
-          : hint}
+          : value === undefined && unsetHint
+            ? `${hint} ${unsetHint}`
+            : hint}
       </p>
     </div>
   );
@@ -154,6 +164,14 @@ export function RequestLimitsCard({
           id="request-token-budget"
           label={t("settings.requestLimits.budgetLabel")}
           hint={t("settings.requestLimits.budgetHint")}
+          unsetHint={t("settings.requestLimits.providerCap", {
+            cap: formatted(providerRequestCap(settings)),
+            provider:
+              (settings.aiProvider &&
+                AI_PROVIDERS[settings.aiProvider]?.name) ||
+              AI_PROVIDERS.custom.name,
+          })}
+          unsetPlaceholder={t("settings.requestLimits.providerLimit")}
           value={settings.requestTokenBudget}
           range={REQUEST_TOKEN_BUDGET_RANGE}
           onCommit={(requestTokenBudget) => onChange({ requestTokenBudget })}

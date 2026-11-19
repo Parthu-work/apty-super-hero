@@ -33,6 +33,7 @@ import type { DomHealthAuditOutcome } from "../dom-health.js";
 import { tabElementProbeOf } from "../element-probe.js";
 import { listObservedResources } from "../extension-network-inspector.js";
 import { readAptyFilesForTab } from "./apty-files.js";
+import { checkForCard } from "./check-cards.js";
 import { diagnoseContentNotVisible, filesFor } from "./content-not-visible.js";
 import {
   CONTENT_FILES_4X,
@@ -70,7 +71,7 @@ import {
 } from "./lookup.js";
 import { jsonOf, looks4x, playerVersionOf, records } from "./pack-kit.js";
 import { diagnosePageReadiness } from "./page-readiness.js";
-import { type Route, routeSymptom } from "./router.js";
+import { type Route, routeCheck, routeSymptom } from "./router.js";
 import type {
   ClientEvidence,
   ContentKind,
@@ -577,6 +578,13 @@ function siteKeyFor(url: string | undefined): string | undefined {
   return host ? siteKeyOf(host) : undefined;
 }
 
+/** K27, E5: the check the top card's symptom belongs to, offered as "Run the check". */
+function topCardCheck(result: KbToolResult, input: string) {
+  if (result.status !== "ok" || result.choices) return undefined;
+  const pageId = /^kb:\/\/(\d+)/.exec(result.results[0]?.cite ?? "")?.[1];
+  return pageId ? checkForCard(pageId, input) : undefined;
+}
+
 /**
  * A message no check pack claims: answered from the KB pack's cards with no
  * model call, or left to the model with the KB's outcome as the decision.
@@ -625,13 +633,18 @@ async function kbAnswer(
   await getRedactionMode();
   const policy = currentValuePolicy();
   const shown = applyResultPrivacy(outcome.result, policy) as KbToolResult;
+  const runCheck = topCardCheck(shown, input);
   return {
     toolName: SEARCH_KB,
     params: applyResultPrivacy(
       { query: input.slice(0, 300), topK: 3 },
       policy,
     ) as { query: string; topK: number },
-    result: siteKey ? { ...shown, siteKey } : shown,
+    result: {
+      ...shown,
+      ...(siteKey ? { siteKey } : {}),
+      ...(runCheck ? { runCheck } : {}),
+    },
     transcript: JSON.stringify(shown),
     decision,
   };
@@ -684,14 +697,17 @@ export function createDiagnosisResponder(
   overrides: Partial<ResponderSources> = {},
 ): LocalResponder {
   const sources = { ...DEFAULT_SOURCES, ...overrides };
-  return async (input, { runContext }) => {
-    const lookup = routeLookup(input);
+  return async (input, { runContext, runCheck }) => {
+    const requested = runCheck ? routeCheck(input, runCheck) : undefined;
+    const lookup = requested ? undefined : routeLookup(input);
     if (lookup && sources.filesOf) {
       return lookupAnswer(lookup, sources, runContext);
     }
-    const route: CheckRoute | undefined = asksAboutDapty(input)
-      ? { packId: "dapty-conversation" }
-      : routeSymptom(input);
+    const route: CheckRoute | undefined =
+      requested ??
+      (asksAboutDapty(input)
+        ? { packId: "dapty-conversation" }
+        : routeSymptom(input));
     if (!route) return kbAnswer(input, sources, runContext);
     const trace =
       route.packId === "dapty-conversation" ? createDaptyTrace() : undefined;

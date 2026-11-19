@@ -48,7 +48,7 @@ import {
 } from "./url-patterns.js";
 import { diagnoseWidgetNotVisible4x } from "./widget-not-visible-4x.js";
 
-const WIDGET_CARD = "1496645690";
+export const WIDGET_CARD = "1496645690";
 const CARD_APP_URLS = "1496253321";
 const CARD_TEST_PROD = "1496645709";
 const CARD_TOO_SPECIFIC = "1497104451";

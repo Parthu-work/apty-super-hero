@@ -1,15 +1,21 @@
 /**
  * "Wrong card" on a KB matches hit and a verdict's KB excerpt (KB-RAG K25,
  * L3): records the card and layer shown, and optionally the card that was
- * right, as a feedback row on this device. The SE's question is kept
- * Strict-redacted and exported only when they choose.
+ * right, as a feedback row on this device. The right card is picked by its
+ * title from the loaded packs (K27, E7), the cards shown beside it first.
+ * The SE's question is kept Strict-redacted and exported only when they
+ * choose.
  */
+import type { KbCardTitle } from "@apty/agent-core";
 import { recordWrongCard } from "@apty/browser-runtime/case/feedback-store";
 import { ChatContext } from "@apty/ui/components/chatbot";
 import { Button } from "@apty/ui/components/ui/button";
 import { useTranslation } from "@apty/ui/i18n/context";
-import { useContext, useId, useState } from "react";
-import { caseRecorder, caseStore } from "../../services/cases";
+import { useContext, useMemo, useState } from "react";
+import { caseStore } from "../../services/cases";
+import { useKbCatalog } from "../../services/kb-cards";
+import { cardMarkContext } from "./card-mark-context";
+import { CardPicker } from "./card-picker";
 
 export function WrongCardButton({
   pageId,
@@ -22,34 +28,35 @@ export function WrongCardButton({
   layer?: number;
   aptyVersion?: string;
   question?: string;
-  /** Cards shown beside it, offered as the right one. */
+  /** Cards shown beside it, offered first as the right one. */
   otherCards?: Array<{ pageId: string; title: string }>;
 }) {
   const { t } = useTranslation();
   const sessionId = useContext(ChatContext)?.sessionId ?? null;
   const [open, setOpen] = useState(false);
-  const [right, setRight] = useState("");
+  const [right, setRight] = useState<string>();
   const [saved, setSaved] = useState(false);
-  const inputId = useId();
+  const catalog = useKbCatalog(open);
+  const cards = useMemo(() => {
+    const seen = new Set([pageId]);
+    const list: KbCardTitle[] = [];
+    for (const card of [...otherCards, ...(catalog?.cards ?? [])]) {
+      if (seen.has(card.pageId)) continue;
+      seen.add(card.pageId);
+      list.push(card);
+    }
+    return list;
+  }, [pageId, otherCards, catalog]);
 
   const save = async () => {
-    const record = sessionId
-      ? await caseRecorder().current(sessionId)
-      : undefined;
-    // Loaded on use: the pack store opens IndexedDB.
-    const packs = await import("../../services/kb-pack")
-      .then(({ kbPackStore }) => kbPackStore().info())
-      .catch(() => []);
-    const pack = packs.find(
-      (p) => p.aptyVersion === (aptyVersion ?? record?.aptyVersion),
-    );
+    const { record, pack } = await cardMarkContext(sessionId, aptyVersion);
     await recordWrongCard(caseStore(), {
       ...(record ? { record } : {}),
       shownCardId: pageId,
       ...(layer ? { shownLayer: layer } : {}),
-      ...(right.trim() ? { rightCardId: right.trim() } : {}),
+      ...(right ? { rightCardId: right } : {}),
       ...(aptyVersion ? { aptyVersion } : {}),
-      ...(pack ? { pack: { builtAt: pack.builtAt, sha256: pack.sha256 } } : {}),
+      ...(pack ? { pack } : {}),
       ...(question ? { question } : {}),
     });
     setSaved(true);
@@ -75,7 +82,6 @@ export function WrongCardButton({
       </Button>
     );
   }
-  const datalistId = `${inputId}-cards`;
   return (
     <form
       className="flex flex-wrap items-end gap-2"
@@ -84,26 +90,11 @@ export function WrongCardButton({
         void save();
       }}
     >
-      <label className="flex flex-col gap-1 text-xs" htmlFor={inputId}>
-        {t("feedback.rightCard")}
-        <input
-          id={inputId}
-          list={datalistId}
-          inputMode="numeric"
-          value={right}
-          onChange={(event) => setRight(event.target.value.replace(/\D/g, ""))}
-          className="h-8 w-40 rounded-md border border-input bg-background px-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-ring"
-        />
-        <datalist id={datalistId}>
-          {otherCards
-            .filter((card) => card.pageId !== pageId)
-            .map((card) => (
-              <option key={card.pageId} value={card.pageId}>
-                {card.title}
-              </option>
-            ))}
-        </datalist>
-      </label>
+      <CardPicker
+        label={t("feedback.rightCardPick")}
+        cards={cards}
+        onPick={setRight}
+      />
       <Button size="sm" type="submit">
         {t("feedback.save")}
       </Button>

@@ -125,12 +125,14 @@
     "showApiKey": "Show API key",
     "requestLimits": {
       "title": "Request size",
-      "description": "Limits on what each request to the AI provider may use. Leave a field empty for no limit. Sizes are estimates: characters divided by 4.",
+      "description": "Limits on what each request to the AI provider may use. An empty budget keeps requests under the provider's limit; an empty answer cap leaves the provider's default. Sizes are estimates: characters divided by 4.",
       "budgetLabel": "Request budget (tokens)",
       "budgetHint": "The largest request to send. Older turns are left out to fit, and a message that still cannot fit stops with a message instead of reaching the provider. Set it under your provider's per-request or per-minute token limit; the system prompt and tool descriptions alone can be about 8,000.",
       "outputLabel": "Answer length cap (tokens)",
       "outputHint": "The most tokens one answer may use. A lower cap keeps answers shorter, but a long report can be cut off.",
       "unset": "No limit",
+      "providerCap": "Empty: requests are kept under {{cap}}, the limit for {{provider}}.",
+      "providerLimit": "Provider's limit",
       "outOfRange": "Enter a whole number from {{min}} to {{max}}, or leave it empty.",
       "summariesLabel": "Summarize earlier turns",
       "summariesHint": "When a chat grows long (three quarters of the request budget, or 20,000 tokens without one), the model summarizes its earlier turns and later requests carry the summary instead. Each summary is one more request to the AI provider, masked like your messages, and some detail of the earlier turns is lost. Off by default.",
@@ -1355,6 +1357,7 @@
   "chat": {
     "showEarlier": "Show earlier messages",
     "notFromKb": "Not from the KB or a check",
+    "explainsEvidence": "Explains the checks and KB cards above",
     "kbNotFoundTitle": "Not found in the KB",
     "kbNotFound": "Not found in the KB: {{phrases}}",
     "copy": "Copy",
@@ -2720,6 +2723,7 @@
       "file_fetch": "Apty Client file",
       "model": "Model",
       "modelWithCards": "Model, with KB cards",
+      "modelExplains": "Model, explaining the checks and cards above",
       "versionUnknown": "Apty version unknown",
       "versionFiles": "{{version}}, from the files",
       "versionChosen": "{{version}}, your choice",
@@ -2755,6 +2759,7 @@
     "packsLine": "Packs searched: {{packs}}",
     "packsNone": "Packs searched: none",
     "kbLine": "KB: {{outcome}}",
+    "explainsLine": "The model explained the checks and KB cards earlier in this chat, and was told to state no Apty fact they do not hold.",
     "outcome": {
       "answer": "{{status}}, cards {{pageIds}}",
       "notCovered": "not covered ({{reason}}), coverage {{coverage}}, needs {{min}}, closest card {{top}}",
@@ -2952,8 +2957,38 @@
     "clear": "Clear",
     "clearLocked": "Your organization's policy is set: the feedback log cannot be cleared here.",
     "csvLabel": "Tracking sheet",
-    "csvDescription": "One row per entry: date, case id, Apty version, pack built, card shown, right card, outcome, coverage, reason, note. Review it, then copy or download it.",
+    "csvDescription": "One row per entry: date, case id, Apty version, pack built, card shown, right card, outcome, coverage, reason, note, mark (wrong card or helped). Review it, then copy or download it.",
     "questionsLabel": "Questions for kb:eval",
-    "questionsDescription": "Entries whose right card is known and whose question you included, in the kb:eval questions format. Review it, then copy or download it."
+    "questionsDescription": "Entries whose right card is known and whose question you included, in the kb:eval questions format. Review it, then copy or download it.",
+    "rightCardPick": "Which card was right? (search titles or ids, optional)",
+    "pickerNone": "No card title matches.",
+    "pickerCount": "{{count}} cards match. Use the arrow keys to choose, Enter to pick.",
+    "picked": "Right card: {{title}} ({{pageId}})",
+    "helped": "This helped",
+    "helpedFor": "This helped: {{pageId}}",
+    "helpedRecorded": "Marked as helpful. Thank you.",
+    "exportSynonyms": "Export proposed synonyms",
+    "synonymsLabel": "Proposed synonyms",
+    "synonymsDescription": "Words from your wrong-card questions that the right card does not contain, by card. Proposals only: the KB owner decides, and nothing changes a pack.",
+    "synonymsNeedQuestion": "Proposed synonyms come from your questions: tick Include my question to export them.",
+    "synonymsNote": "Proposals only. The KB owner decides; nothing here is applied to a pack.",
+    "pickerList": "Matching cards"
+  },
+  "kbClosest": {
+    "title": "Closest KB cards, may not match",
+    "description": "The KB did not cover this question. These cards came closest; check them before you rely on them."
+  },
+  "turnActions": {
+    "runCheck": "Run the check",
+    "markLabel": "Was this cause right?",
+    "mark": {
+      "yes": "Right",
+      "no": "Wrong"
+    },
+    "marked": {
+      "yes": "Marked right. You can change it until the case closes.",
+      "no": "Marked wrong. You can change it until the case closes."
+    },
+    "noCase": "No open case to mark."
   }
 }

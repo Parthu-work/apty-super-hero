@@ -162,5 +162,8 @@ export function decisionDetails(
       t("turnDecision.kbLine", { outcome: outcomeWords(decision.kb, t) }),
     );
   }
+  if (decision.grounding === "conversation") {
+    lines.push(t("turnDecision.explainsLine"));
+  }
   return lines;
 }
