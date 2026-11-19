@@ -7,6 +7,9 @@
  *   upload --url <url> --pack <file>: PUT the pack, then GET it back and
  *     compare its sha256 with the file's. With KB_PUBLISH_DRY_RUN=1 nothing
  *     is sent.
+ *   read --url <url>: GET a file from the pack host and write it to stdout,
+ *     for a pipe only (KB-RAG K28, A2: the question set goes straight into
+ *     `publish-gate.mjs --questions -`).
  *
  * Nothing is downloaded to a file: the gate (`publish-gate.mjs`) reads the
  * last published pack and the customer-name list into memory.
@@ -32,11 +35,15 @@ function parseArgs(argv) {
     }
     options[flag.slice(2)] = rest[i + 1];
   }
-  if (command !== "upload") throw new Error("Use upload.");
+  if (command !== "upload" && command !== "read") {
+    throw new Error("Use upload or read.");
+  }
   if (!options.url) throw new Error("--url is required.");
   const url = new URL(options.url);
   if (url.protocol !== "https:") throw new Error("--url must be https.");
-  if (!options.pack) throw new Error("--pack is required.");
+  if (command === "upload" && !options.pack) {
+    throw new Error("--pack is required.");
+  }
   return { ...options, url };
 }
 
@@ -47,6 +54,7 @@ export async function run({
   cwd = process.cwd(),
   out = (line) => console.log(line),
   err = (line) => console.error(line),
+  write = (bytes) => process.stdout.write(bytes),
 }) {
   let options;
   try {
@@ -56,7 +64,7 @@ export async function run({
     return 2;
   }
   const host = "the pack host";
-  const dryRun = env.KB_PUBLISH_DRY_RUN === "1";
+  const dryRun = env.KB_PUBLISH_DRY_RUN === "1" && options.command === "upload";
   const token = env.KB_PUBLISH_TOKEN;
   if (!token && !dryRun) {
     err("KB_PUBLISH_TOKEN is not set.");
@@ -74,6 +82,20 @@ export async function run({
       redirect: "error",
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
+  if (options.command === "read") {
+    try {
+      const response = await call("GET");
+      if (!response.ok) {
+        err(`Reading from ${host} failed: HTTP ${response.status}.`);
+        return 1;
+      }
+      write(Buffer.from(await response.arrayBuffer()));
+      return 0;
+    } catch (error) {
+      err(`read from ${host} failed (${error?.name ?? "Error"}).`);
+      return 1;
+    }
+  }
   try {
     const bytes = readFileSync(resolve(cwd, options.pack));
     const expected = sha256(bytes);

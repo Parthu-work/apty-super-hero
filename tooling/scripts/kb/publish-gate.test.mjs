@@ -6,8 +6,10 @@
 import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Readable } from "node:stream";
 import { after, before, describe, it } from "node:test";
 import { buildPack, signPack } from "./build-kb-pack.mjs";
 import { calibrateCoverage, loadAgentCore, readQuestions } from "./eval-kb.mjs";
@@ -444,5 +446,194 @@ describe("the gate's in-memory reads (no file is written)", () => {
     for (const secret of ["SECRET", "FIXTURE-token", "/kb/"]) {
       assert.equal(text.split(secret).length, 1, secret);
     }
+  });
+});
+
+describe("the quality gate from the pack host (KB-RAG K28, A2)", () => {
+  const TOKEN = "FIXTURE-publish-token";
+  const QUESTIONS_URL = "https://packs.example.com/kb/questions-5x.json";
+  const questionText = readFileSync(QUESTIONS, "utf8");
+  let server;
+  let origin;
+  const requests = [];
+
+  before(async () => {
+    server = createServer((request, response) => {
+      requests.push({
+        url: request.url,
+        authorization: request.headers.authorization,
+      });
+      if (request.headers.authorization !== `Bearer ${TOKEN}`) {
+        response.writeHead(401).end();
+      } else if (request.url === "/kb/questions-5x.json") {
+        response
+          .writeHead(200, { "Content-Type": "application/json" })
+          .end(questionText);
+      } else {
+        response.writeHead(404).end();
+      }
+    });
+    await new Promise((done) => server.listen(0, "127.0.0.1", done));
+    origin = `http://127.0.0.1:${server.address().port}`;
+  });
+  after(() => server.close());
+
+  /** The real fetch, sent to the fake host on this machine instead of the https URL. */
+  const toFakeHost = (target, init) =>
+    fetch(`${origin}${new URL(target).pathname}`, init);
+
+  async function download(
+    url = QUESTIONS_URL,
+    env = { KB_PUBLISH_TOKEN: TOKEN },
+  ) {
+    const chunks = [];
+    const errors = [];
+    const code = await transfer({
+      argv: ["read", "--url", url],
+      env,
+      fetchImpl: toFakeHost,
+      write: (bytes) => chunks.push(Buffer.from(bytes)),
+      err: (line) => errors.push(line),
+    });
+    return { code, body: Buffer.concat(chunks), errors: errors.join("\n") };
+  }
+
+  async function gateFromHost(pages, coverage) {
+    const { code: readCode, body } = await download();
+    assert.equal(readCode, 0);
+    const pack = join(dir, "host-gate-pack.json");
+    writeFileSync(
+      pack,
+      JSON.stringify(signPack(build(pages, undefined, coverage), KEY)),
+    );
+    const lines = [];
+    const code = await run({
+      argv: ["--version", "5.x", "--pack", pack, "--questions", "-"],
+      stdin: Readable.from([body]),
+      out: (line) => lines.push(line),
+      err: (line) => lines.push(line),
+    });
+    return { code, text: lines.join("\n") };
+  }
+
+  const calibrated = async () => {
+    const core = await loadAgentCore();
+    const { min, minIdf, minTerms } = calibrateCoverage(
+      core,
+      build(),
+      readQuestions(questionText),
+    );
+    return { min, minIdf, minTerms };
+  };
+
+  it("reads the question set from the host with the token, and the gate passes on a good pack", async () => {
+    const { code, text } = await gateFromHost(
+      SYNTHETIC_PAGES,
+      await calibrated(),
+    );
+    assert.equal(code, 0, text);
+    assert.match(
+      text,
+      /- Quality gate \(13 questions\): 10 covered, 3 not covered; Recall@1 [\d.]+, Recall@3 1\.00, not covered precision [\d.]+, recall [\d.]+, layer accuracy [\d.]+/,
+    );
+    assert.equal(requests.at(-1).authorization, `Bearer ${TOKEN}`);
+  });
+
+  it("fails the gate on a pack that misses the questions' cards", async () => {
+    const { code, text } = await gateFromHost(
+      SYNTHETIC_PAGES.slice(0, 2),
+      await calibrated(),
+    );
+    assert.equal(code, 1, text);
+    assert.match(text, /Failed: .*quality_gate \(recallAt3/);
+  });
+
+  it("puts metrics only in the summary, never a question", async () => {
+    const { text } = await gateFromHost(SYNTHETIC_PAGES, await calibrated());
+    for (const question of JSON.parse(questionText)) {
+      assert.ok(!text.includes(question.q), question.id);
+      assert.ok(!text.includes(question.id), question.id);
+    }
+    for (const secret of [TOKEN, "packs.example.com", "questions-5x"]) {
+      assert.ok(!text.includes(secret), secret);
+    }
+  });
+
+  it("names the HTTP status, never the URL or token, when the question set cannot be read", async () => {
+    const missing = await download(
+      "https://packs.example.com/kb/questions-4x.json",
+    );
+    assert.equal(missing.code, 1);
+    assert.match(missing.errors, /HTTP 404/);
+    const refused = await download(QUESTIONS_URL, {
+      KB_PUBLISH_TOKEN: "FIXTURE-wrong",
+    });
+    assert.equal(refused.code, 1);
+    assert.match(refused.errors, /HTTP 401/);
+    const noToken = await download(QUESTIONS_URL, {});
+    assert.equal(noToken.code, 1);
+    assert.match(noToken.errors, /KB_PUBLISH_TOKEN is not set/);
+    for (const text of [missing.errors, refused.errors]) {
+      assert.ok(!text.includes("packs.example.com"));
+      assert.ok(!text.includes("FIXTURE-wrong"));
+    }
+    assert.equal(missing.body.length, 0);
+  });
+
+  it("says visibly that the gate is not active when there is no question set", async () => {
+    for (const version of ["4.x", "5.x"]) {
+      const pack = join(dir, `no-questions-${version}.json`);
+      writeFileSync(
+        pack,
+        JSON.stringify(
+          signPack(
+            buildPack({
+              pages: SYNTHETIC_PAGES,
+              site: "synthetic.atlassian.invalid",
+              space: "SY",
+              label: "rag-card",
+              builtAt: "2026-11-12T00:00:00.000Z",
+              aptyVersion: version,
+            }).pack,
+            KEY,
+          ),
+        ),
+      );
+      const lines = [];
+      await run({
+        argv: ["--version", version, "--pack", pack],
+        out: (line) => lines.push(line),
+      });
+      assert.ok(
+        lines.includes(
+          `- Quality gate not active for ${version}: no question set`,
+        ),
+        lines.join("\n"),
+      );
+    }
+  });
+
+  it("the nightly job pipes each version's question set from its repository variable", () => {
+    const workflow = readFileSync(
+      new URL("../../../.github/workflows/kb-packs.yml", import.meta.url),
+      "utf8",
+    );
+    assert.match(
+      workflow,
+      /KB_QUESTIONS_URL_4X: \$\{\{ vars\.KB_QUESTIONS_URL_4X \}\}/,
+    );
+    assert.match(
+      workflow,
+      /KB_QUESTIONS_URL_5X: \$\{\{ vars\.KB_QUESTIONS_URL_5X \}\}/,
+    );
+    assert.match(
+      workflow,
+      /publish-pack\.mjs read --url "\$questions_url"\s*\\\s*\|\s*node tooling\/scripts\/kb\/publish-gate\.mjs "\$\{args\[@\]\}" --questions -/,
+    );
+    assert.match(
+      workflow,
+      /Quality gate not active for \$VERSION: no question set/,
+    );
+    assert.ok(!workflow.includes("tooling/scripts/kb/questions/"));
   });
 });

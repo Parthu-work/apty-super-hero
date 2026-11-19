@@ -38,9 +38,26 @@ nothing is uploaded:
 - the card count has not dropped more than 10% from the last published pack
   (a manual run may override this rule only, with a reason that is written
   in the job summary);
-- where `tooling/scripts/kb/questions/<version>.json` exists, the D-KB8
-  quality gate (Recall@3 ≥ 0.90, "not covered" precision ≥ 0.90 and recall
-  ≥ 0.80, layer accuracy ≥ 0.70).
+- where the version's question set is on the pack host
+  (`KB_QUESTIONS_URL_4X`, `KB_QUESTIONS_URL_5X`), the D-KB8 quality gate
+  (Recall@3 ≥ 0.90, "not covered" precision ≥ 0.90 and recall ≥ 0.80,
+  layer accuracy ≥ 0.70).
+
+The real question sets stay out of this public repository (KB-RAG K28, A2).
+The job reads each one from the pack host with the publish token and pipes
+it straight into the gate (`publish-pack.mjs read | publish-gate.mjs
+--questions -`), so it never touches the disk. The job summary shows the
+gate's metrics only: the question count, how many the KB should and should
+not cover, Recall@1, Recall@3, "not covered" precision and recall, and layer
+accuracy; never a question. When a version's variable is not set, the
+summary and the run's annotations say "Quality gate not active for 4.x: no
+question set" (or 5.x) instead of passing silently. The KB owner can run
+the same set locally the same way:
+
+```bash
+curl -fsS -H "Authorization: Bearer $KB_PUBLISH_TOKEN" "$KB_QUESTIONS_URL_5X" \
+  | pnpm -s kb:eval --pack 5x.kbpack.json --questions -
+```
 
 The gate reads the last published pack and the customer-name list from the
 pack host into memory with the publish token; nothing it downloads is
@@ -87,7 +104,8 @@ Choose an internal HTTPS host behind Apty SSO; never a public URL. It needs:
   answers a signed-out request with a sign-in page is reported to the SE as
   "sign in to the pack host";
 - for the job: a token that may **only** `GET` and `PUT` those two URLs, and
-  `GET` the customer-name list (`Authorization: Bearer <token>`).
+  `GET` the customer-name list and the question sets
+  (`Authorization: Bearer <token>`).
 
 In the repository settings (Settings → Secrets and variables → Actions):
 
@@ -100,6 +118,8 @@ In the repository settings (Settings → Secrets and variables → Actions):
 | `KB_PUBLISH_URL_4X` | variable | The 4.x pack URL |
 | `KB_PUBLISH_URL_5X` | variable | The 5.x pack URL |
 | `KB_CUSTOMER_NAMES_URL` | variable, optional | A URL on the pack host holding the customer-name list (one name per line), read with the same token |
+| `KB_QUESTIONS_URL_4X` | variable, optional | A URL on the pack host holding the 4.x question set (the `kb:eval` questions format), read with the same token; absent: the quality gate is not active for 4.x |
+| `KB_QUESTIONS_URL_5X` | variable, optional | The same for 5.x |
 
 A missing secret fails the run and names it; its value is never printed.
 The space and root page each version is built from are in

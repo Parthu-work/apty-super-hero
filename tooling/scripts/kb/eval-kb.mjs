@@ -17,7 +17,7 @@
  * not covered.
  *
  * Usage: pnpm kb:eval --pack <file> --self-check [--json]
- *        pnpm kb:eval --pack <file> --questions <file> [--calibrate]
+ *        pnpm kb:eval --pack <file> --questions <file | -> [--calibrate]
  *   [--coverage-min <x>] [--coverage-min-idf <y>] [--threshold <n>]
  *   [--coverage-min-floor <f>] (default 0.35: --calibrate never suggests a
  *   lower coverage min, and warns when the best Youden J sits below it)
@@ -25,6 +25,9 @@
  *   [--compare-synonyms] (K27, E10: the same questions without the pack's
  *   synonym groups and approved terms, and the 0.90 gate on Recall@3 and
  *   "not covered" precision that decides whether dense vectors are tried)
+ *
+ * `--questions -` reads the set from stdin (KB-RAG K28, A2), so a set held
+ * on the pack host can be piped in without being written to disk.
  *
  * A questions file is `[{ "id"?, "q", "expectedPageIds": [], "expectedLayer"?, "category"?, "surface"? }]`;
  * a "multi" question needs all its cards in the top 3, and one with
@@ -76,6 +79,16 @@ export async function readPack(core, text) {
   const parsed = await core.parseKbPack(text, { sha256 });
   if (!parsed.ok) throw new Error(`The pack was refused: ${parsed.code}`);
   return parsed.pack;
+}
+
+/** A question set's text: the file, or stdin for "-"; never empty. */
+export async function readQuestionsText(path, { cwd, stdin }) {
+  if (path !== "-") return readFileSync(resolve(cwd, path), "utf8");
+  const chunks = [];
+  for await (const chunk of stdin) chunks.push(Buffer.from(chunk));
+  const text = Buffer.concat(chunks).toString("utf8");
+  if (!text.trim()) throw new Error("There is no question set on stdin.");
+  return text;
 }
 
 export function readQuestions(text) {
@@ -472,6 +485,7 @@ export async function run({
   cwd = process.cwd(),
   out = (line) => console.log(line),
   err = (line) => console.error(line),
+  stdin = process.stdin,
 }) {
   try {
     const options = parseArgs(argv);
@@ -490,7 +504,7 @@ export async function run({
       return report.failingTitles.length > 0 ? 1 : 0;
     }
     const questions = readQuestions(
-      readFileSync(resolve(cwd, options.questions), "utf8"),
+      await readQuestionsText(options.questions, { cwd, stdin }),
     );
     const coverage =
       options.coverageMin !== undefined || options.coverageMinIdf !== undefined

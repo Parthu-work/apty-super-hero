@@ -171,6 +171,9 @@ jobs:
 
       # The gate reads the last published pack and the customer-name list
       # into memory with the publish token; nothing downloaded is written.
+      # The question set (KB-RAG K28, A2) is read from the pack host into a
+      # pipe, so it never touches the disk or this repository; the summary
+      # holds its metrics only.
       - name: Gate
         env:
           OVERRIDE: ${{ inputs.override_card_drop || false }}
@@ -180,17 +183,25 @@ jobs:
           KB_PUBLISH_TOKEN: ${{ secrets.KB_PUBLISH_TOKEN }}
           KB_PUBLISH_URL_4X: ${{ vars.KB_PUBLISH_URL_4X }}
           KB_PUBLISH_URL_5X: ${{ vars.KB_PUBLISH_URL_5X }}
+          KB_QUESTIONS_URL_4X: ${{ vars.KB_QUESTIONS_URL_4X }}
+          KB_QUESTIONS_URL_5X: ${{ vars.KB_QUESTIONS_URL_5X }}
           URL_NAME: ${{ steps.inputs.outputs.publish_url_name }}
           NAMES_URL: ${{ vars.KB_CUSTOMER_NAMES_URL }}
         run: |
           args=(--version "$VERSION" --pack "$KB_WORK/pack.json")
           [ "$HAS_HOST" = "true" ] && args+=(--previous-url "${!URL_NAME}")
           [ -n "$NAMES_URL" ] && [ "$SOURCE" = "confluence" ] && args+=(--names-url "$NAMES_URL")
-          questions="tooling/scripts/kb/questions/$VERSION.json"
-          [ -f "$questions" ] && args+=(--questions "$questions")
           if [ "$OVERRIDE" = "true" ]; then args+=(--override-card-drop --reason "$REASON"); fi
           [ "$KB_PUBLISH_DRY_RUN" = "1" ] && args+=(--dry-run)
-          node tooling/scripts/kb/publish-gate.mjs "${args[@]}" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$VERSION" = "4.x" ]; then questions_url="$KB_QUESTIONS_URL_4X"; else questions_url="$KB_QUESTIONS_URL_5X"; fi
+          if [ -n "$questions_url" ]; then
+            set -o pipefail
+            node tooling/scripts/kb/publish-pack.mjs read --url "$questions_url" \
+              | node tooling/scripts/kb/publish-gate.mjs "${args[@]}" --questions - >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::notice title=KB pack $VERSION::Quality gate not active for $VERSION: no question set"
+            node tooling/scripts/kb/publish-gate.mjs "${args[@]}" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Publish
         if: steps.inputs.outputs.has_host == 'true' || env.KB_PUBLISH_DRY_RUN == '1'
