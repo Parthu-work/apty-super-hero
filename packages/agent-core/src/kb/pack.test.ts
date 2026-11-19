@@ -359,3 +359,52 @@ describe("routing and skipped counts (KB-RAG K27, F11)", () => {
     expect(describeKbPack(pack, "x")).not.toHaveProperty("skippedCount");
   });
 });
+
+describe("approved terms (KB-RAG K27, E10)", () => {
+  const approvedTerms = [{ pageId: "101", terms: ["FIXTURE shimmer"] }];
+
+  it("keeps the KB owner's approved terms, under the pack's checksum", async () => {
+    const pack = syntheticPack([CARD], { approvedTerms });
+    const parsed = await parse(pack);
+    expect(parsed.ok && parsed.pack.retrieval.approvedTerms).toEqual(
+      approvedTerms,
+    );
+
+    const tampered = structuredClone(pack);
+    tampered.retrieval.approvedTerms = [
+      { pageId: "101", terms: ["FIXTURE shimmer", "FIXTURE added later"] },
+    ];
+    expect(await parse(tampered)).toEqual({
+      ok: false,
+      code: "checksum_mismatch",
+    });
+  });
+
+  it("refuses approved terms for a card the pack does not hold, twice for one card, or with no term", async () => {
+    const pack = syntheticPack([CARD]);
+    const orphan = structuredClone(pack) as KbPack;
+    orphan.retrieval.approvedTerms = [{ pageId: "999", terms: ["FIXTURE"] }];
+    expect(await parse(await reseal(orphan as never))).toEqual({
+      ok: false,
+      code: "invalid",
+      detail: "approved terms for 999 name no card",
+    });
+
+    const twice = structuredClone(pack) as KbPack;
+    twice.retrieval.approvedTerms = [
+      { pageId: "101", terms: ["FIXTURE a"] },
+      { pageId: "101", terms: ["FIXTURE b"] },
+    ];
+    expect(await parse(await reseal(twice as never))).toEqual({
+      ok: false,
+      code: "invalid",
+      detail: "approved terms for 101 appear twice",
+    });
+
+    const empty = structuredClone(pack) as KbPack;
+    empty.retrieval.approvedTerms = [{ pageId: "101", terms: [] }];
+    expect(await parse(await reseal(empty as never))).toMatchObject({
+      code: "invalid",
+    });
+  });
+});
