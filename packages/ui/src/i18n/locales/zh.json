@@ -1633,7 +1633,8 @@
       "reload": "重新加载技能",
       "none": "未找到技能",
       "adjustFilters": "请尝试调整搜索或筛选条件",
-      "uploadFirst": "上传您的第一个技能即可开始"
+      "uploadFirst": "上传您的第一个技能即可开始",
+      "exportFailed": "无法导出“{{name}}”。"
     },
     "uploader": {
       "invalidZip": "请选择有效的 ZIP 文件",

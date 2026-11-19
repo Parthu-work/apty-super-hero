@@ -33,6 +33,23 @@ export function downloadText(
   }
 }
 
+/** A binary download, such as a skill's ZIP (K28, F7), through the same object-URL path as `downloadText`. */
+export function downloadBlob(filename: string, blob: Blob): boolean {
+  try {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = sanitizeFilename(filename);
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function downloadViaChromeApi(
   filename: string,
   content: string,

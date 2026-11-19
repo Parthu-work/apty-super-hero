@@ -5,7 +5,12 @@
  * used by browser-ext UI components.
  */
 
-import { SkillConflictError, skillManager, zenfs } from "@apty/browser-runtime";
+import {
+  SkillConflictError,
+  skillManager,
+  skillStorage,
+  zenfs,
+} from "@apty/browser-runtime";
 import type {
   SkillClient,
   SkillDetail,
@@ -46,6 +51,11 @@ class SkillClientAdapter implements SkillClient {
         message: error instanceof Error ? error.message : "Upload failed",
       };
     }
+  }
+
+  async exportSkill(skillId: string): Promise<Blob> {
+    const zip = await skillStorage.exportSkill(skillId);
+    return new Blob([zip as BlobPart], { type: "application/zip" });
   }
 
   async enableSkill(skillId: string): Promise<void> {

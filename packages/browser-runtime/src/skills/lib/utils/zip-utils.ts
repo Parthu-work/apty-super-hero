@@ -4,7 +4,7 @@
  */
 
 import { createLogger } from "@apty/agent-core";
-import { strFromU8, type Unzipped, unzipSync } from "fflate";
+import { strFromU8, strToU8, type Unzipped, unzipSync, zipSync } from "fflate";
 import { zenfs } from "../../../vm/zenfs-manager";
 
 const log = createLogger("ZipUtils");
@@ -308,6 +308,34 @@ export async function extractZipToFS(
   }
 
   log.debug(`Extracted ${fileCount} files to ${targetPath}`);
+}
+
+/**
+ * K28, F7: a skill's folder as the ZIP the skills Import takes, its files
+ * under one folder named `folder`, which Import strips again; an export
+ * imports back unchanged.
+ */
+export async function zipSkillFromFS(
+  skillPath: string,
+  folder: string,
+): Promise<Uint8Array> {
+  await zenfs.initialize();
+  const files: Record<string, Uint8Array> = {};
+  const walk = async (dir: string, relative: string) => {
+    for (const name of [...(await zenfs.readdir(dir))].sort()) {
+      const path = `${dir}/${name}`;
+      const inZip = relative ? `${relative}/${name}` : name;
+      if ((await zenfs.stat(path)).isDirectory) {
+        await walk(path, inZip);
+        continue;
+      }
+      const data = await zenfs.readFile(path);
+      files[`${folder}/${inZip}`] =
+        typeof data === "string" ? strToU8(data) : new Uint8Array(data);
+    }
+  };
+  await walk(skillPath, "");
+  return zipSync(files);
 }
 
 /**

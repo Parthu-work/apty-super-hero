@@ -10,6 +10,7 @@ import {
   parseSkillMetadata,
   parseSkillMetadataFromZip,
   SkillConflictError,
+  zipSkillFromFS,
 } from "../utils/zip-utils";
 
 const log = createLogger("SkillStorage");
@@ -235,6 +236,12 @@ class SkillStorage {
 
     log.debug(`✅ Skill saved: ${skillName} at ${targetPath}`);
     return skillMetadata;
+  }
+
+  /** K28, F7: the skill as a ZIP the skills Import takes back unchanged. */
+  async exportSkill(skillId: string): Promise<Uint8Array> {
+    await this.initialize();
+    return zipSkillFromFS(zenfs.getSkillPath(skillId), skillId);
   }
 
   async loadSkill(skillId: string): Promise<ParsedSkill> {

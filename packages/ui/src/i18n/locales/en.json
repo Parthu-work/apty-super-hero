@@ -1633,7 +1633,8 @@
       "reload": "Reload skills",
       "none": "No skills found",
       "adjustFilters": "Try adjusting your search or filter criteria",
-      "uploadFirst": "Upload your first skill to get started"
+      "uploadFirst": "Upload your first skill to get started",
+      "exportFailed": "Could not export \"{{name}}\"."
     },
     "uploader": {
       "invalidZip": "Please select a valid ZIP file",
