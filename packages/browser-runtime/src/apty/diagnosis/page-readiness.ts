@@ -22,7 +22,7 @@ import type {
   Verdict,
 } from "./types.js";
 
-const PAGE_CARD = "1496875202";
+export const PAGE_CARD = "1496875202";
 const CARD_SELECTOR = "1496286045";
 const CARD_FRAMES = "1496973375";
 const CARD_FRAME_SELECTORS = "1496286117";

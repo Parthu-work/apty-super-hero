@@ -212,6 +212,22 @@ describe("the case recorder (KB-RAG K25, L1)", () => {
   });
 });
 
+describe("the right-or-wrong mark on a finding (KB-RAG K27, E5)", () => {
+  it("marks the open case's finding without closing it, and a closed case not at all", async () => {
+    const recorder = recorderWith();
+    expect(await recorder.markFinding("conv-1", "yes")).toBeUndefined();
+    await recorder.wrap(async () => CHECK)("my workflow is not visible", ctx);
+    expect(await recorder.markFinding("conv-1", "no")).toMatchObject({
+      outcome: "open",
+      findingRight: "no",
+    });
+    expect((await recorder.current("conv-1"))?.findingRight).toBe("no");
+    await recorder.close("conv-1", "resolved");
+    expect(await recorder.markFinding("conv-1", "yes")).toBeUndefined();
+    expect((await recorder.current("conv-1"))?.findingRight).toBe("no");
+  });
+});
+
 describe("DOM Config in a case (KB-RAG K26 C4)", () => {
   const RUN = {
     runId: "dc-1",

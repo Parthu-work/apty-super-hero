@@ -2949,5 +2949,18 @@
   "kbClosest": {
     "title": "Closest KB cards, may not match",
     "description": "The KB did not cover this question. These cards came closest; check them before you rely on them."
+  },
+  "turnActions": {
+    "runCheck": "Run the check",
+    "markLabel": "Was this cause right?",
+    "mark": {
+      "yes": "Right",
+      "no": "Wrong"
+    },
+    "marked": {
+      "yes": "Marked right. You can change it until the case closes.",
+      "no": "Marked wrong. You can change it until the case closes."
+    },
+    "noCase": "No open case to mark."
   }
 }
