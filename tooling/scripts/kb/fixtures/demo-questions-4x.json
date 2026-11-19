@@ -374,5 +374,11 @@
     "category": "not-in-version",
     "q": "where is the drop-off funnel chart for walkthroughs",
     "expectedPageIds": ["4014"]
+  },
+  {
+    "id": "d4-b1",
+    "category": "broad",
+    "q": "DEMO workflow not working",
+    "expectedPageIds": ["4013"]
   }
 ]

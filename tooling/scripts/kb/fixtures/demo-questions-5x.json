@@ -338,5 +338,11 @@
     "category": "names",
     "q": "Windows update fails on my laptop",
     "expectedPageIds": []
+  },
+  {
+    "id": "d5-b1",
+    "category": "broad",
+    "q": "who sees the DEMO panel",
+    "expectedPageIds": ["2014"]
   }
 ]
