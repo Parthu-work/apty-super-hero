@@ -76,18 +76,23 @@ const DAY_MS = 86_400_000;
 export function TurnSourceChips({
   decision,
   kbCardsReturned,
+  explains = false,
   now = Date.now(),
 }: {
   decision: TurnDecision;
   kbCardsReturned: boolean;
+  /** The model explained the checks and cards earlier in the chat (K27, E6). */
+  explains?: boolean;
   now?: number;
 }) {
   const { t } = useTranslation();
   const source =
     decision.route === "model"
-      ? kbCardsReturned
-        ? t("turnDecision.chip.modelWithCards")
-        : t("turnDecision.chip.model")
+      ? explains
+        ? t("turnDecision.chip.modelExplains")
+        : kbCardsReturned
+          ? t("turnDecision.chip.modelWithCards")
+          : t("turnDecision.chip.model")
       : t(`turnDecision.chip.${decision.route}`);
   const version =
     decision.version === "unknown"

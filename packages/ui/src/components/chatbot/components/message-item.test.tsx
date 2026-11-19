@@ -772,3 +772,66 @@ describe("DefaultMessageItem — where an answer came from (KB-RAG K27, E1)", ()
     expect(chips()).toEqual(["Model", "Apty version unknown"]);
   });
 });
+
+describe("DefaultMessageItem — a model answer that explains the chat's checks and cards (KB-RAG K27, E6)", () => {
+  const decision = {
+    route: "model" as const,
+    version: "4.x" as const,
+    versionSource: "files" as const,
+    packs: [],
+    kb: {
+      kind: "not_covered" as const,
+      reason: "no_match" as const,
+      coverage: 0,
+      min: 0.5,
+      version: "4.x" as const,
+    },
+    grounding: "conversation" as const,
+  };
+  const earlierCards = {
+    searched: true,
+    urls: new Map([["101", "https://fixture.atlassian.net/wiki/101"]]),
+    texts: ["- In Studio, turn on the FIXTURE Glowing Banner setting."],
+  };
+  const explained = (text: string) => (
+    <DefaultMessageItem
+      message={{ ...assistantMessage(text), metadata: { decision } }}
+      kbCards={earlierCards}
+      isLast
+    />
+  );
+
+  it("flags nothing a card in the chat holds, and says what it explains instead of 'Not from the KB'", async () => {
+    render(
+      explained(
+        "The check found the banner off. Turn on Glowing Banner (kb://101#L1). Does the banner glow now?",
+      ),
+    );
+    expect(screen.getByTestId("explains-evidence")).toHaveTextContent(
+      "Explains the checks and KB cards above",
+    );
+    expect(screen.queryByTestId("not-from-kb")).toBeNull();
+    expect(
+      screen.getByTestId("turn-source-chips").querySelector("li")?.textContent,
+    ).toBe("Model, explaining the checks and cards above");
+    expect(screen.queryByText(/unknown citation/)).toBeNull();
+    expect(document.querySelector("[data-kb-ungrounded]")).toBeNull();
+    expect(screen.queryByText(/Not found in/)).toBeNull();
+  });
+
+  it("still flags a setting no card in the chat holds", async () => {
+    render(explained("Then open Widget Activation in Admin."));
+    expect(
+      await screen.findByText(
+        "Not found in the cited KB cards: Widget Activation",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("adds a line to Why this answer", () => {
+    render(explained("FIXTURE answer"));
+    expect(screen.getByTestId("turn-decision")).toHaveTextContent(
+      "The model explained the checks and KB cards earlier in this chat",
+    );
+  });
+});

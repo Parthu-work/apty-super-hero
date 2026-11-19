@@ -2,7 +2,10 @@ import { BrainIcon, ChevronDownIcon, Loader2Icon } from "lucide-react";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useStickToBottomContext } from "use-stick-to-bottom";
 import { useTranslation } from "../../../i18n/context";
-import { kbReturnedCards } from "../../../lib/kb-citations";
+import {
+  type KbReturnedCards,
+  kbReturnedCards,
+} from "../../../lib/kb-citations";
 import { cn } from "../../../lib/utils";
 import type { MessageListProps, UIMessage } from "../../../types";
 import {
@@ -49,6 +52,33 @@ function groupIntoTurns(messages: UIMessage[]): ConversationTurn[] {
   }
   if (current) turns.push(current);
   return turns;
+}
+
+/**
+ * Each turn's KB cards. A model turn that explains the chat (K27, E6) is
+ * checked against the cards every turn up to it returned.
+ */
+function kbCardsByTurn(
+  turns: ConversationTurn[],
+): Map<ConversationTurn, KbReturnedCards> {
+  const byTurn = new Map<ConversationTurn, KbReturnedCards>();
+  const urls = new Map<string, string>();
+  const texts: string[] = [];
+  let searched = false;
+  for (const turn of turns) {
+    const own = kbReturnedCards(turn.assistantMessages.flatMap((m) => m.parts));
+    for (const [pageId, url] of own.urls) urls.set(pageId, url);
+    texts.push(...own.texts);
+    searched ||= own.searched;
+    const explains = turn.assistantMessages.some(
+      (m) => m.metadata?.decision?.grounding === "conversation",
+    );
+    byTurn.set(
+      turn,
+      explains ? { searched, urls: new Map(urls), texts: [...texts] } : own,
+    );
+  }
+  return byTurn;
 }
 
 /** Above this many turns, only the newest `WINDOW_TURNS` are rendered at first (K27, U1). */
@@ -131,6 +161,7 @@ export function DefaultMessageList({
     () => groupIntoTurns(displayMessages),
     [displayMessages],
   );
+  const cardsByTurn = useMemo(() => kbCardsByTurn(turns), [turns]);
 
   // K27, U1: a long chat renders its newest turns; earlier ones on request.
   const firstMessageId = displayMessages[0]?.id;
@@ -237,11 +268,7 @@ export function DefaultMessageList({
                               <MessageItem
                                 key={finalMsg.id}
                                 message={finalMsg}
-                                kbCards={kbReturnedCards(
-                                  turn.assistantMessages.flatMap(
-                                    (m) => m.parts,
-                                  ),
-                                )}
+                                kbCards={cardsByTurn.get(turn)}
                                 isLast={finalMsg.id === lastMessageId}
                                 isStreaming={running}
                                 onRegenerate={onRegenerate}
@@ -257,9 +284,7 @@ export function DefaultMessageList({
                           <MessageItem
                             key={msg.id}
                             message={msg}
-                            kbCards={kbReturnedCards(
-                              turn.assistantMessages.flatMap((m) => m.parts),
-                            )}
+                            kbCards={cardsByTurn.get(turn)}
                             isLast={msg.id === lastMessageId}
                             isStreaming={running}
                             onRegenerate={onRegenerate}

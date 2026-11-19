@@ -64,6 +64,7 @@ export {
   DEFAULT_APP_SETTINGS,
   DEFAULT_CHAT_MODEL,
   DEFAULT_CONVERSATION_CONFIG,
+  DEFAULT_PROVIDER_REQUEST_CAP,
   detectProviderFromHost,
   isValidConversationStorage,
   MAX_OUTPUT_TOKENS_RANGE,
@@ -71,7 +72,9 @@ export {
   migrateSettings,
   normalizeConversationConfig,
   PHI_APPROVED_PROVIDERS,
+  PROVIDER_REQUEST_CAPS,
   type ProviderType,
+  providerRequestCap,
   REDACTION_MODES,
   REQUEST_TOKEN_BUDGET_RANGE,
   type RedactionModeSetting,
@@ -140,6 +143,7 @@ export { SessionStorage } from "./conversation/storage.js";
 export { isSummaryItem } from "./conversation/summary-item.js";
 export {
   type DecisionPack,
+  KB_EXPLAIN_INSTRUCTION,
   KB_NO_CARD_INSTRUCTION,
   type KbDecision,
   type KbDeliveryFailure,

@@ -89,3 +89,64 @@ describe("a long chat (KB-RAG K27, U1)", () => {
     ).toBeNull();
   });
 });
+
+describe("a model answer after a KB card (KB-RAG K27, E6)", () => {
+  const modelDecision = (grounding?: "conversation") => ({
+    route: "model" as const,
+    version: "4.x" as const,
+    versionSource: "files" as const,
+    packs: [],
+    ...(grounding ? { grounding } : {}),
+  });
+  const chat = (grounding?: "conversation"): UIMessage[] => [
+    { id: "u1", role: "user", parts: [{ type: "text", text: "banner?" }] },
+    {
+      id: "a1",
+      role: "assistant",
+      parts: [
+        {
+          type: "tool",
+          toolName: "search_kb",
+          toolCallId: "local-1",
+          state: "completed",
+          input: { query: "banner" },
+          output: {
+            status: "ok",
+            results: [
+              {
+                cite: "kb://101#L1",
+                site: "fixture.atlassian.net",
+                space: "FX",
+                text: "- In Studio, turn on the FIXTURE Glowing Banner setting.",
+              },
+            ],
+          },
+        },
+      ],
+    },
+    { id: "u2", role: "user", parts: [{ type: "text", text: "why?" }] },
+    {
+      id: "a2",
+      role: "assistant",
+      parts: [{ type: "text", text: "Turn on Glowing Banner first." }],
+      metadata: { decision: modelDecision(grounding) },
+    },
+  ];
+
+  it("grounds an answer that explains the chat against the cards earlier turns returned", () => {
+    render(
+      <DefaultMessageList messages={chat("conversation")} status="idle" />,
+    );
+    expect(screen.getByTestId("explains-evidence")).toBeInTheDocument();
+    expect(screen.queryByTestId("not-from-kb")).toBeNull();
+    expect(screen.queryByText(/Not found in/)).toBeNull();
+  });
+
+  it("keeps 'Not from the KB or a check' on an answer that does not explain the chat", () => {
+    render(<DefaultMessageList messages={chat()} status="idle" />);
+    expect(screen.getByTestId("not-from-kb")).toBeInTheDocument();
+    expect(
+      screen.getByText("Not found in the KB: Glowing Banner"),
+    ).toBeInTheDocument();
+  });
+});

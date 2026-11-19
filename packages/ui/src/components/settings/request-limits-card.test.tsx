@@ -21,6 +21,24 @@ describe("RequestLimitsCard", () => {
     expect(cap).toHaveAttribute("placeholder", "No limit");
   });
 
+  it("says an empty budget keeps requests under the chat provider's limit (KB-RAG K27, E6)", () => {
+    const { budget } = renderCard({ aiProvider: "anthropic" });
+
+    expect(budget).toHaveAttribute("placeholder", "Provider's limit");
+    expect(budget).toHaveAccessibleDescription(
+      /Empty: requests are kept under 150,000, the limit for Anthropic\.$/,
+    );
+  });
+
+  it("names no provider limit once a budget is set", () => {
+    const { budget } = renderCard({
+      aiProvider: "anthropic",
+      requestTokenBudget: 6_000,
+    });
+
+    expect(budget).not.toHaveAccessibleDescription(/Empty:/);
+  });
+
   it("saves a whole number when the field is left, and on Enter", () => {
     const { onChange, budget, cap } = renderCard();
 
