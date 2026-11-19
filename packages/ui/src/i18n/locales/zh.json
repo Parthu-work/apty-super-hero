@@ -2840,7 +2840,16 @@
       "segmentNotFound": "{{file}} 中没有名为“{{segment}}”的分段。",
       "itemAmbiguous": "有 {{count}} 个工作流与“{{item}}”匹配。",
       "segmentAmbiguous": "有 {{count}} 个分段与“{{segment}}”匹配。",
-      "fileUnread": "无法读取 {{file}}（{{status}}）。"
+      "fileUnread": "无法读取 {{file}}（{{status}}）。",
+      "itemHidden": "“{{item}}”在小部件中隐藏。",
+      "itemNotHidden": "“{{item}}”未在小部件中隐藏。",
+      "segmentMembers": "“{{segment}}”分段列出的工作流：{{count}} 个。",
+      "segmentEmpty": "“{{segment}}”分段没有列出任何工作流。",
+      "itemSegments": "列出“{{item}}”的分段：{{count}} 个。",
+      "itemSegmentsNone": "没有分段列出“{{item}}”。",
+      "versionUnknown": "此租户运行的是哪个 Apty 版本？",
+      "clientNotConnected": "Apty Client 未连接，因此无法读取其内容文件。",
+      "fileNotReported": "Apty Client 尚未报告 {{file}}。"
     },
     "column": {
       "workflow": "工作流",
@@ -2850,7 +2859,8 @@
       "environment": "环境",
       "id": "ID",
       "field": "字段",
-      "value": "值"
+      "value": "值",
+      "hidden": "在小部件中隐藏"
     },
     "word": {
       "yes": "是",
@@ -2865,12 +2875,27 @@
     },
     "ask": {
       "workflow": "你指的是哪个工作流？",
-      "segment": "你指的是哪个分段？"
+      "segment": "你指的是哪个分段？",
+      "version": "此租户运行的是哪个 Apty 版本？"
     },
     "source": {
       "client": "Apty {{version}} 文件（{{files}}），来自 Apty Client 的记录。未询问 AI 模型。",
       "cdn": "Apty {{version}} 文件（{{files}}），来自 Apty 内容 CDN。未询问 AI 模型。",
-      "capture": "Apty {{version}} 文件（{{files}}），来自页面的网络捕获。未询问 AI 模型。"
+      "capture": "Apty {{version}} 文件（{{files}}），来自页面的网络捕获。未询问 AI 模型。",
+      "none": "未询问 AI 模型。"
+    },
+    "choice": {
+      "active": "已启用",
+      "inactive": "未启用",
+      "hidden": "已隐藏",
+      "workflowsOne": "1 个工作流",
+      "workflows": "{{count}} 个工作流"
+    },
+    "evidence": {
+      "reload": "重新加载标签页",
+      "reloaded": "标签页正在重新加载。页面加载完成后请再问一次。",
+      "none": "捕获未看到任何 Apty 内容请求。请在开启 Apty Client 的情况下重新加载页面，或从 Client 的 service worker 保存 HAR。",
+      "failed": "无法从此标签页获取证据。"
     }
   },
   "cases": {
