@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -440,5 +441,26 @@ describe("the CLI", () => {
       /Gate 0\.90: met with the pack's synonyms; not met without them\./,
     );
     assert.ok(!text.includes("twinkles"), "no question or term text");
+  });
+
+  it("reads the questions from stdin with --questions - (KB-RAG K28, A2)", () => {
+    const script = new URL("./eval-kb.mjs", import.meta.url).pathname;
+    const piped = spawnSync(
+      process.execPath,
+      [script, "--pack", packFile, "--questions", "-"],
+      { input: readFileSync(QUESTIONS_FILE), encoding: "utf8" },
+    );
+    assert.equal(piped.status, 0, piped.stderr);
+    assert.match(piped.stdout, /13 questions \(10 the KB should cover\)/);
+    for (const secret of ["Glowing Banner", "glowIds", "never glows"]) {
+      assert.ok(!piped.stdout.includes(secret), secret);
+    }
+    const empty = spawnSync(
+      process.execPath,
+      [script, "--pack", packFile, "--questions", "-"],
+      { input: "", encoding: "utf8" },
+    );
+    assert.equal(empty.status, 1);
+    assert.match(empty.stderr, /There is no question set on stdin/);
   });
 });

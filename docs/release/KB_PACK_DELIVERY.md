@@ -38,9 +38,26 @@ nothing is uploaded:
 - the card count has not dropped more than 10% from the last published pack
   (a manual run may override this rule only, with a reason that is written
   in the job summary);
-- where `tooling/scripts/kb/questions/<version>.json` exists, the D-KB8
-  quality gate (Recall@3 ≥ 0.90, "not covered" precision ≥ 0.90 and recall
-  ≥ 0.80, layer accuracy ≥ 0.70).
+- where the version's question set is on the pack host
+  (`KB_QUESTIONS_URL_4X`, `KB_QUESTIONS_URL_5X`), the D-KB8 quality gate
+  (Recall@3 ≥ 0.90, "not covered" precision ≥ 0.90 and recall ≥ 0.80,
+  layer accuracy ≥ 0.70).
+
+The real question sets stay out of this public repository (KB-RAG K28, A2).
+The job reads each one from the pack host with the publish token and pipes
+it straight into the gate (`publish-pack.mjs read | publish-gate.mjs
+--questions -`), so it never touches the disk. The job summary shows the
+gate's metrics only: the question count, how many the KB should and should
+not cover, Recall@1, Recall@3, "not covered" precision and recall, and layer
+accuracy; never a question. When a version's variable is not set, the
+summary and the run's annotations say "Quality gate not active for 4.x: no
+question set" (or 5.x) instead of passing silently. The KB owner can run
+the same set locally the same way:
+
+```bash
+curl -fsS -H "Authorization: Bearer $KB_PUBLISH_TOKEN" "$KB_QUESTIONS_URL_5X" \
+  | pnpm -s kb:eval --pack 5x.kbpack.json --questions -
+```
 
 The gate reads the last published pack and the customer-name list from the
 pack host into memory with the publish token; nothing it downloads is
@@ -87,7 +104,8 @@ Choose an internal HTTPS host behind Apty SSO; never a public URL. It needs:
   answers a signed-out request with a sign-in page is reported to the SE as
   "sign in to the pack host";
 - for the job: a token that may **only** `GET` and `PUT` those two URLs, and
-  `GET` the customer-name list (`Authorization: Bearer <token>`).
+  `GET` the customer-name list and the question sets
+  (`Authorization: Bearer <token>`).
 
 In the repository settings (Settings → Secrets and variables → Actions):
 
@@ -100,6 +118,8 @@ In the repository settings (Settings → Secrets and variables → Actions):
 | `KB_PUBLISH_URL_4X` | variable | The 4.x pack URL |
 | `KB_PUBLISH_URL_5X` | variable | The 5.x pack URL |
 | `KB_CUSTOMER_NAMES_URL` | variable, optional | A URL on the pack host holding the customer-name list (one name per line), read with the same token |
+| `KB_QUESTIONS_URL_4X` | variable, optional | A URL on the pack host holding the 4.x question set (the `kb:eval` questions format), read with the same token; absent: the quality gate is not active for 4.x |
+| `KB_QUESTIONS_URL_5X` | variable, optional | The same for 5.x |
 
 A missing secret fails the run and names it; its value is never printed.
 The space and root page each version is built from are in
@@ -143,6 +163,49 @@ build date is the run's.
 To try the job without a pack host or Confluence (on a fork, for example),
 set the repository variable `KB_PUBLISH_DRY_RUN` to `1`: the job builds the
 demo packs, checks them and uploads nothing.
+
+## Watching the pipeline (KB-RAG K28, A3)
+
+Two signals tell the KB owner the packs stopped moving, without anyone
+reading the Actions page:
+
+- **Failure alert.** When the nightly job fails, its `alert` job opens one
+  GitHub issue labelled `kb-pipeline` ("KB pipeline failing"), or comments
+  on the one already open, with the run link and the names of the failing
+  steps (never card text). It uses the workflow's own `GITHUB_TOKEN` with
+  `issues: write`; no secret is involved. Close the issue once a run is
+  green again; the next failure opens a new one.
+- **Pack age.** `.github/workflows/kb-pack-health.yml` runs every day at
+  13:20 UTC (and by hand). It reads each published pack (the
+  `KB_PUBLISH_URL_4X` and `KB_PUBLISH_URL_5X` variables, with
+  `KB_PUBLISH_TOKEN`) into memory, parses it with the extension's parser and
+  fails when its `builtAt` is more than 48 hours old or it cannot be read;
+  the failure raises the same `kb-pipeline` issue. Its summary holds
+  versions, build times and ages only. Locally:
+
+  ```bash
+  KB_PUBLISH_TOKEN=... node tooling/scripts/kb/pack-age.mjs --version 5.x --url "$KB_PUBLISH_URL_5X"
+  ```
+
+### The 60-day rule: where the KB jobs run (owner's choice)
+
+GitHub disables the scheduled workflows of a **public** repository after 60
+days without activity in it (no commit, for example), and a schedule cannot
+keep itself alive. Both jobs above would then stop quietly, and so would
+the failure alert, which only runs when the nightly job runs.
+
+Recommendation: run the KB jobs from somewhere this rule does not touch.
+The KB owner chooses one:
+
+| Option | How | Trade-off |
+| --- | --- | --- |
+| **A private repository** (recommended) | A small private repository holds copies of `kb-packs.yml` and `kb-pack-health.yml` whose steps check out this repository (`actions/checkout` with `repository: Parthu-work/apty-super-hero`) and run the same scripts; the secrets and variables move there. | Private repositories keep their schedules; failed packs can also be kept as artifacts there (they never are on this public repository). |
+| **IT's scheduler** | IT runs the same commands (`kb:pack`, `publish-gate.mjs`, `publish-pack.mjs upload`, `pack-age.mjs`) on a schedule it already operates, with the same secrets in its own store. | No GitHub schedule at all; IT owns the alerting. |
+| Stay here | Keep the jobs in this repository. | Works only while the repository has activity at least every 60 days; re-enable the workflows by hand (Actions → the workflow → Enable) if GitHub disabled them. |
+
+Whatever runs them, the SE-side **KB packs up to date** row in Preflight
+stays the second signal: it turns amber or red on an SE's machine when a
+pack is stale, independently of any scheduler.
 
 ## 5. Revoking a key
 

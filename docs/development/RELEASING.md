@@ -40,10 +40,47 @@ The `Release` workflow (`.github/workflows/release.yml`) then:
   with write access, checks them and creates the GitHub release with all
   three files.
 
-Upload the `-webstore` zip to the Chrome Web Store by hand. The answers for
+Upload the `-webstore` zip to the Chrome Web Store by hand the first time
+(the upload creates the listing and assigns its ID). The answers for
 the store's privacy form (single purpose, each permission, remote code,
 data use) are in [`docs/store/WEB_STORE_LISTING.md`](../store/WEB_STORE_LISTING.md),
 and the privacy policy is [`PRIVACY.md`](../../PRIVACY.md).
+
+### Publishing to the Chrome Web Store from the release (optional)
+
+After the GitHub release, the workflow's `webstore` job (KB-RAG K28, A5)
+can upload the `-webstore` zip and publish it, with
+`tooling/scripts/publish-webstore.mjs` and the Chrome Web Store API v2. It
+publishes to the visibility the listing already has, so set the listing to
+**Private** (visible to the Apty Google Workspace domain only) in the
+developer dashboard once. It acts only when all of these are set in
+Settings → Secrets and variables → Actions:
+
+| Name | Kind | Value |
+| --- | --- | --- |
+| `CWS_PUBLISH` | variable | `1` turns the step on |
+| `CWS_PUBLISHER_ID` | variable | The publisher ID from the developer dashboard |
+| `CWS_ITEM_ID` | variable | The store's extension ID (`AGENT_WEB_STORE_ID`) |
+| `CWS_CLIENT_ID` | secret | The OAuth client of a Google Cloud project with the Chrome Web Store API enabled |
+| `CWS_CLIENT_SECRET` | secret | That client's secret |
+| `CWS_REFRESH_TOKEN` | secret | A refresh token for the publisher account, with the `https://www.googleapis.com/auth/chromewebstore` scope |
+
+Otherwise the job's summary says "Chrome Web Store: skipped" and names what
+is not set (names only, never a value); the GitHub release is not affected.
+The summary shows the item ID, the uploaded version and the publish state
+(usually `PENDING_REVIEW`), never a secret. A refused upload fails the job
+with the HTTP status and the API's error code. The first upload, the
+listing and these values are the store owner's; until then the step stays
+skipped. To try it by hand:
+
+```bash
+CWS_PUBLISH=1 CWS_PUBLISHER_ID=... CWS_ITEM_ID=... CWS_CLIENT_ID=... \
+  CWS_CLIENT_SECRET=... CWS_REFRESH_TOKEN=... \
+  node tooling/scripts/publish-webstore.mjs --zip apty-agent-vX.Y.Z-webstore.zip
+```
+
+To install it on every managed browser, see
+[Installing the extension by policy](../security/ORG_POLICY.md#installing-the-extension-by-policy).
 
 ## Extension IDs
 

@@ -165,6 +165,103 @@ A JSON file in Chrome's managed policy directory, for example
 }
 ```
 
+### Generating the files
+
+`pnpm policy:generate` writes all of the above from one small JSON config
+(KB-RAG K28, A1), so nobody encodes a list by hand:
+
+```bash
+pnpm policy:generate --config my-policy.json --out ./apty-policy
+```
+
+The config names the extension and holds the policy itself:
+
+```json
+{
+  "extension": {
+    "id": "bpiondflhhdplemamgggcdajclmoeple",
+    "updateUrl": "https://clients2.google.com/service/update2/crx"
+  },
+  "policy": {
+    "kbToModel": "approved",
+    "allowedProviders": ["azure"],
+    "allowedOrigins": ["https://<apty-tenant>.openai.azure.com"],
+    "kbPackSources": { "5.x": "https://<pack-host>/kb/5x.json" },
+    "kbPackCheckHours": 6
+  }
+}
+```
+
+The policy must pass the same `parseOrgPolicy` the extension runs, or
+nothing is written. The output folder holds:
+
+| File | For |
+| --- | --- |
+| `windows/chrome.reg`, `windows/edge.reg` | Imported as an administrator (UTF-16 with a byte order mark, as `regedit` expects). Each replaces the extension's whole `policy` key, so a key removed from the config does not linger. |
+| `macos/chrome.mobileconfig`, `macos/edge.mobileconfig` | Your MDM. One payload for the extension's domain, one for the browser's `ExtensionInstallForcelist`. |
+| `linux/apty-agent.json` | Chrome's, Chromium's and Edge's managed policy folders (`/etc/opt/chrome/policies/managed/`, `/etc/chromium/policies/managed/`, `/etc/opt/edge/policies/managed/`). |
+
+Each file also force-installs the extension from `updateUrl` (see
+[Installing the extension by policy](#installing-the-extension-by-policy)).
+The `.reg` writes `ExtensionInstallForcelist` entry `1`: if your
+organization already force-installs other extensions that way, merge the
+entry into your own list instead of importing that key.
+
+`pnpm policy:check <file>` reads any of these files (or a bare policy JSON),
+validates it with `parseOrgPolicy`, and prints each key with its effect, or
+`Invalid policy:` and the reason the extension would give. It warns when
+`preset.aiToken` is set, and never prints the token.
+
+## Installing the extension by policy
+
+The policy above configures the extension; IT also installs it, so an SE
+cannot remove it (KB-RAG K28, A5). `pnpm policy:generate` writes the entry
+below with the rest of the policy.
+
+### From the Chrome Web Store (Chrome and Edge)
+
+Once the release workflow publishes the `-webstore` zip to the store's
+private listing ([RELEASING.md](../development/RELEASING.md#publishing-to-the-chrome-web-store-from-the-release-optional)),
+force-install the store's ID with the store's update URL:
+
+```text
+<store-id>;https://clients2.google.com/service/update2/crx
+```
+
+- Chrome: the `ExtensionInstallForcelist` policy (Windows registry
+  `Software\Policies\Google\Chrome\ExtensionInstallForcelist`, a value
+  named `1`, `2`, … per entry; macOS domain `com.google.Chrome`; Linux the
+  `ExtensionInstallForcelist` list in the managed JSON).
+- Edge: the same entry in Edge's `ExtensionInstallForcelist`
+  (`Software\Policies\Microsoft\Edge\ExtensionInstallForcelist`, macOS
+  domain `com.microsoft.Edge`). Edge installs from the Chrome Web Store
+  update URL as long as `ExtensionInstallSources` or
+  `ExtensionInstallBlocklist` does not block it.
+
+The store assigns its own ID, so the extension's policy (above) goes under
+`3rdparty\extensions\<store-id>` too: generate it with that ID in the
+config's `extension.id`.
+
+### Self-hosted, with the pinned ID
+
+Without the store, IT can host the pinned-ID package
+(`apty-agent-vX.Y.Z.zip`, ID `bpiondflhhdplemamgggcdajclmoeple`) itself:
+pack it as a `.crx` signed with the key whose public half is the manifest's
+`key` (the private key stays with the release owner), put the `.crx` and an
+update manifest (`gupdate` XML naming the ID, the version and the `.crx`
+URL) on an internal HTTPS host, and force-install
+`bpiondflhhdplemamgggcdajclmoeple;https://<internal-host>/apty-agent/updates.xml`.
+On Windows and macOS, Chrome and Edge install a force-listed extension from
+outside the store only on managed (domain-joined or MDM-enrolled) machines.
+
+### The Apty Client and Studio must allow the ID
+
+The Agent talks to the Apty Client and Studio extensions only if their
+manifests list its ID in `externally_connectable.ids`. When the store ID is
+assigned, ask the Client and Studio teams to add it next to the pinned ID
+(see [Extension IDs](../integrations/apty/README.md#extension-ids)); until
+they ship that, the store-installed Agent cannot read Client or Studio data.
+
 ## Checking it
 
 1. Open chrome://policy and click **Reload policies**. The extension's

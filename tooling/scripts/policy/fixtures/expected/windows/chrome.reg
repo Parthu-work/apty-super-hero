@@ -1,0 +1,34 @@
+Windows Registry Editor Version 5.00
+
+[-HKEY_LOCAL_MACHINE\Software\Policies\Google\Chrome\3rdparty\extensions\bpiondflhhdplemamgggcdajclmoeple\policy]
+
+[HKEY_LOCAL_MACHINE\Software\Policies\Google\Chrome\3rdparty\extensions\bpiondflhhdplemamgggcdajclmoeple\policy]
+"kbToModel"="approved"
+"redactionFloor"="strict"
+"allowMcpBridge"=dword:00000000
+"caseRetentionDays"=dword:0000003c
+"kbPackCheckHours"=dword:00000006
+
+[HKEY_LOCAL_MACHINE\Software\Policies\Google\Chrome\3rdparty\extensions\bpiondflhhdplemamgggcdajclmoeple\policy\allowedProviders]
+"1"="azure"
+
+[HKEY_LOCAL_MACHINE\Software\Policies\Google\Chrome\3rdparty\extensions\bpiondflhhdplemamgggcdajclmoeple\policy\allowedOrigins]
+"1"="https://example-tenant.openai.azure.com"
+
+[HKEY_LOCAL_MACHINE\Software\Policies\Google\Chrome\3rdparty\extensions\bpiondflhhdplemamgggcdajclmoeple\policy\allowedModels]
+"1"="example-model-1"
+"2"="example-model-2"
+
+[HKEY_LOCAL_MACHINE\Software\Policies\Google\Chrome\3rdparty\extensions\bpiondflhhdplemamgggcdajclmoeple\policy\kbPackSources]
+"4.x"="https://packs.example.invalid/kb/4x.json"
+"5.x"="https://packs.example.invalid/kb/5x.json"
+
+[HKEY_LOCAL_MACHINE\Software\Policies\Google\Chrome\3rdparty\extensions\bpiondflhhdplemamgggcdajclmoeple\policy\trustedPackKeys]
+
+[HKEY_LOCAL_MACHINE\Software\Policies\Google\Chrome\3rdparty\extensions\bpiondflhhdplemamgggcdajclmoeple\policy\trustedPackKeys\1]
+"keyId"="98f5d70a1638cebc"
+"spki"="MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEL3tvrQ9rb86vBd4a5YJ56HqsAneF1BFWX9lrAGzkiDHO4bkrocZ7T2h+8QhtiNhqNAa6x31cr/DVrDaAtcMc0A=="
+"name"="Example KB owner (synthetic)"
+
+[HKEY_LOCAL_MACHINE\Software\Policies\Google\Chrome\ExtensionInstallForcelist]
+"1"="bpiondflhhdplemamgggcdajclmoeple;https://clients2.google.com/service/update2/crx"

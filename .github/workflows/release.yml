@@ -139,3 +139,36 @@ jobs:
             "apty-agent-${GITHUB_REF_NAME}.sha256" \
             --title "Apty Agent ${GITHUB_REF_NAME}" \
             --notes "See CHANGELOG.md for what changed. ${name} is for loading unpacked or enterprise policy; ${store} is for the Chrome Web Store. Verify the downloads with: sha256sum -c apty-agent-${GITHUB_REF_NAME}.sha256"
+
+  # KB-RAG K28 (A5), optional: uploads the -webstore zip to the Chrome Web
+  # Store and publishes it to the listing's (private) audience. It acts only
+  # when the repository variable CWS_PUBLISH is 1 and the secrets and the
+  # store ids are set; otherwise its summary says it was skipped and why.
+  # See docs/development/RELEASING.md.
+  webstore:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: tooling/scripts/publish-webstore.mjs
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release
+
+      - name: Upload to the Chrome Web Store (optional)
+        env:
+          CWS_PUBLISH: ${{ vars.CWS_PUBLISH }}
+          CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+          CWS_ITEM_ID: ${{ vars.CWS_ITEM_ID }}
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+        run: |
+          sha256sum -c "apty-agent-${GITHUB_REF_NAME}.sha256"
+          node tooling/scripts/publish-webstore.mjs --zip "apty-agent-${GITHUB_REF_NAME}-webstore.zip" >> "$GITHUB_STEP_SUMMARY"

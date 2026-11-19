@@ -4,9 +4,13 @@
  * (KB-RAG K26, D5, D-DEL8): the pack is the version asked for and parses;
  * it is signed (outside a dry run); the self-check passes; the card count has
  * not dropped more than 10% from the last published pack (a manual run may
- * override this rule only, with a reason); and, where the repository holds a
- * question set for the version, the D-KB8 quality gate passes; and no card
- * names a customer from the customer-name list.
+ * override this rule only, with a reason); where a question set is given,
+ * the D-KB8 quality gate passes; and no card names a customer from the
+ * customer-name list.
+ *
+ * In CI the question set is read from the pack host and piped in on stdin
+ * (`--questions -`, KB-RAG K28, A2), so it never touches the disk. Without
+ * one the summary says the quality gate is not active, by version.
  *
  * In CI the last published pack and the customer-name list are fetched
  * from the pack host with the publish token (`KB_PUBLISH_TOKEN`) into
@@ -19,7 +23,7 @@
  *
  * Usage: node tooling/scripts/kb/publish-gate.mjs --version 5.x --pack <file>
  *   [--previous <file> | --previous-url <https url>]
- *   [--customer-names <file> | --names-url <https url>] [--questions <file>]
+ *   [--customer-names <file> | --names-url <https url>] [--questions <file | ->]
  *   [--override-card-drop --reason <text>] [--dry-run]
  * Exits 1 when a gate fails, 2 on a usage error.
  */
@@ -32,6 +36,7 @@ import {
   loadAgentCore,
   readPack,
   readQuestions,
+  readQuestionsText,
   selfCheck,
 } from "./eval-kb.mjs";
 
@@ -153,16 +158,18 @@ export function gate({
     );
   }
   if (quality) {
-    const fmt = (n) => (n === null ? "n/a" : n.toFixed(2));
+    const fmt = (n) => (n == null ? "n/a" : n.toFixed(2));
+    const split =
+      typeof quality.covered === "number"
+        ? `${quality.covered} covered, ${quality.questions - quality.covered} not covered; `
+        : "";
     lines.push(
-      `- Quality gate (${quality.questions} questions): Recall@3 ${fmt(quality.recallAt3)}, not covered precision ${fmt(quality.notCoveredPrecision)}, recall ${fmt(quality.notCoveredRecall)}, layer accuracy ${fmt(quality.layerAccuracy)}`,
+      `- Quality gate (${quality.questions} questions): ${split}Recall@1 ${fmt(quality.recallAt1)}, Recall@3 ${fmt(quality.recallAt3)}, not covered precision ${fmt(quality.notCoveredPrecision)}, recall ${fmt(quality.notCoveredRecall)}, layer accuracy ${fmt(quality.layerAccuracy)}`,
     );
     const misses = qualityMisses(quality);
     if (misses.length > 0) failures.push(`quality_gate (${misses.join(", ")})`);
   } else {
-    lines.push(
-      "- Quality gate: no question set for this version in the repository.",
-    );
+    lines.push(`- Quality gate not active for ${version}: no question set`);
   }
   if (customerNames) {
     const hits = customerNameHits(pack, customerNames);
@@ -227,6 +234,7 @@ export async function run({
   err = (line) => console.error(line),
   env = process.env,
   fetchImpl = globalThis.fetch,
+  stdin = process.stdin,
 }) {
   let options;
   try {
@@ -269,10 +277,23 @@ export async function run({
     }
     const customerNames =
       namesText === undefined ? undefined : readNameList(namesText);
-    const quality =
-      options.questions && existsSync(resolve(cwd, options.questions))
-        ? evaluate(core, pack, readQuestions(read(options.questions)))
-        : undefined;
+    const hasQuestions =
+      options.questions === "-" ||
+      (options.questions && existsSync(resolve(cwd, options.questions)));
+    let quality;
+    if (hasQuestions) {
+      let questions;
+      try {
+        questions = readQuestions(
+          await readQuestionsText(options.questions, { cwd, stdin }),
+        );
+      } catch (error) {
+        throw new Error(
+          `the question set: ${error instanceof SyntaxError ? "not valid JSON" : error.message}`,
+        );
+      }
+      quality = evaluate(core, pack, questions);
+    }
     const result = gate({
       version: options.version,
       pack,

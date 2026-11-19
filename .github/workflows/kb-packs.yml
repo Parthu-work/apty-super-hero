@@ -171,6 +171,9 @@ jobs:
 
       # The gate reads the last published pack and the customer-name list
       # into memory with the publish token; nothing downloaded is written.
+      # The question set (KB-RAG K28, A2) is read from the pack host into a
+      # pipe, so it never touches the disk or this repository; the summary
+      # holds its metrics only.
       - name: Gate
         env:
           OVERRIDE: ${{ inputs.override_card_drop || false }}
@@ -180,17 +183,25 @@ jobs:
           KB_PUBLISH_TOKEN: ${{ secrets.KB_PUBLISH_TOKEN }}
           KB_PUBLISH_URL_4X: ${{ vars.KB_PUBLISH_URL_4X }}
           KB_PUBLISH_URL_5X: ${{ vars.KB_PUBLISH_URL_5X }}
+          KB_QUESTIONS_URL_4X: ${{ vars.KB_QUESTIONS_URL_4X }}
+          KB_QUESTIONS_URL_5X: ${{ vars.KB_QUESTIONS_URL_5X }}
           URL_NAME: ${{ steps.inputs.outputs.publish_url_name }}
           NAMES_URL: ${{ vars.KB_CUSTOMER_NAMES_URL }}
         run: |
           args=(--version "$VERSION" --pack "$KB_WORK/pack.json")
           [ "$HAS_HOST" = "true" ] && args+=(--previous-url "${!URL_NAME}")
           [ -n "$NAMES_URL" ] && [ "$SOURCE" = "confluence" ] && args+=(--names-url "$NAMES_URL")
-          questions="tooling/scripts/kb/questions/$VERSION.json"
-          [ -f "$questions" ] && args+=(--questions "$questions")
           if [ "$OVERRIDE" = "true" ]; then args+=(--override-card-drop --reason "$REASON"); fi
           [ "$KB_PUBLISH_DRY_RUN" = "1" ] && args+=(--dry-run)
-          node tooling/scripts/kb/publish-gate.mjs "${args[@]}" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$VERSION" = "4.x" ]; then questions_url="$KB_QUESTIONS_URL_4X"; else questions_url="$KB_QUESTIONS_URL_5X"; fi
+          if [ -n "$questions_url" ]; then
+            set -o pipefail
+            node tooling/scripts/kb/publish-pack.mjs read --url "$questions_url" \
+              | node tooling/scripts/kb/publish-gate.mjs "${args[@]}" --questions - >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::notice title=KB pack $VERSION::Quality gate not active for $VERSION: no question set"
+            node tooling/scripts/kb/publish-gate.mjs "${args[@]}" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Publish
         if: steps.inputs.outputs.has_host == 'true' || env.KB_PUBLISH_DRY_RUN == '1'
@@ -222,3 +233,30 @@ jobs:
       - name: Remove the signing key and work files
         if: always()
         run: rm -rf "${KB_WORK:?}"
+
+  # KB-RAG K28 (A3): a failed run opens one issue labelled kb-pipeline, or
+  # comments on the one already open, with the run link and the failing
+  # steps' names only.
+  alert:
+    needs: [plan, pack]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: tooling/scripts/kb/pipeline-alert.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: Open or update the kb-pipeline issue
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const { alertForRun } = await import(`${process.env.GITHUB_WORKSPACE}/tooling/scripts/kb/pipeline-alert.mjs`);
+            const result = await alertForRun({ github, context, workflow: "KB packs" });
+            core.summary.addRaw(`- Failure alert: issue #${result.number} ${result.action}.\n`);
+            await core.summary.write();
