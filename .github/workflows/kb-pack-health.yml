@@ -1,0 +1,84 @@
+# KB-RAG K28 (A3): checks that each published KB pack is less than 48 hours
+# old, so a nightly build that silently stopped is noticed. Reads each pack
+# from the pack host with the publish token into memory; the summary holds
+# versions, build times and ages only. A failure opens or updates the one
+# kb-pipeline issue. See docs/release/KB_PACK_DELIVERY.md.
+#
+# GitHub disables a public repository's schedules after 60 days without
+# activity; the same document says where to run this instead.
+name: KB pack health
+
+on:
+  schedule:
+    # 13:20 UTC, between two nightly builds.
+    - cron: "20 13 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kb-pack-health
+  cancel-in-progress: true
+
+jobs:
+  age:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+
+      - name: Use Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build @apty/agent-core
+        run: pnpm --filter @apty/agent-core build
+
+      - name: Check the age of each published pack
+        env:
+          KB_PUBLISH_TOKEN: ${{ secrets.KB_PUBLISH_TOKEN }}
+          KB_PUBLISH_URL_4X: ${{ vars.KB_PUBLISH_URL_4X }}
+          KB_PUBLISH_URL_5X: ${{ vars.KB_PUBLISH_URL_5X }}
+        run: |
+          args=()
+          [ -n "$KB_PUBLISH_URL_4X" ] && args+=(--version 4.x --url "$KB_PUBLISH_URL_4X")
+          [ -n "$KB_PUBLISH_URL_5X" ] && args+=(--version 5.x --url "$KB_PUBLISH_URL_5X")
+          if [ "${#args[@]}" -eq 0 ]; then
+            echo "::notice title=KB pack health::Pack age not checked: no KB_PUBLISH_URL_4X or KB_PUBLISH_URL_5X is set"
+            echo "- Pack age not checked: no KB_PUBLISH_URL_4X or KB_PUBLISH_URL_5X is set." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          node tooling/scripts/kb/pack-age.mjs "${args[@]}" >> "$GITHUB_STEP_SUMMARY"
+
+  alert:
+    needs: age
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: tooling/scripts/kb/pipeline-alert.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: Open or update the kb-pipeline issue
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const { alertForRun } = await import(`${process.env.GITHUB_WORKSPACE}/tooling/scripts/kb/pipeline-alert.mjs`);
+            const result = await alertForRun({ github, context, workflow: "KB pack health" });
+            core.summary.addRaw(`- Failure alert: issue #${result.number} ${result.action}.\n`);
+            await core.summary.write();

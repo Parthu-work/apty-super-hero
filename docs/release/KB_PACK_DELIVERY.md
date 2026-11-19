@@ -164,6 +164,49 @@ To try the job without a pack host or Confluence (on a fork, for example),
 set the repository variable `KB_PUBLISH_DRY_RUN` to `1`: the job builds the
 demo packs, checks them and uploads nothing.
 
+## Watching the pipeline (KB-RAG K28, A3)
+
+Two signals tell the KB owner the packs stopped moving, without anyone
+reading the Actions page:
+
+- **Failure alert.** When the nightly job fails, its `alert` job opens one
+  GitHub issue labelled `kb-pipeline` ("KB pipeline failing"), or comments
+  on the one already open, with the run link and the names of the failing
+  steps (never card text). It uses the workflow's own `GITHUB_TOKEN` with
+  `issues: write`; no secret is involved. Close the issue once a run is
+  green again; the next failure opens a new one.
+- **Pack age.** `.github/workflows/kb-pack-health.yml` runs every day at
+  13:20 UTC (and by hand). It reads each published pack (the
+  `KB_PUBLISH_URL_4X` and `KB_PUBLISH_URL_5X` variables, with
+  `KB_PUBLISH_TOKEN`) into memory, parses it with the extension's parser and
+  fails when its `builtAt` is more than 48 hours old or it cannot be read;
+  the failure raises the same `kb-pipeline` issue. Its summary holds
+  versions, build times and ages only. Locally:
+
+  ```bash
+  KB_PUBLISH_TOKEN=... node tooling/scripts/kb/pack-age.mjs --version 5.x --url "$KB_PUBLISH_URL_5X"
+  ```
+
+### The 60-day rule: where the KB jobs run (owner's choice)
+
+GitHub disables the scheduled workflows of a **public** repository after 60
+days without activity in it (no commit, for example), and a schedule cannot
+keep itself alive. Both jobs above would then stop quietly, and so would
+the failure alert, which only runs when the nightly job runs.
+
+Recommendation: run the KB jobs from somewhere this rule does not touch.
+The KB owner chooses one:
+
+| Option | How | Trade-off |
+| --- | --- | --- |
+| **A private repository** (recommended) | A small private repository holds copies of `kb-packs.yml` and `kb-pack-health.yml` whose steps check out this repository (`actions/checkout` with `repository: Parthu-work/apty-super-hero`) and run the same scripts; the secrets and variables move there. | Private repositories keep their schedules; failed packs can also be kept as artifacts there (they never are on this public repository). |
+| **IT's scheduler** | IT runs the same commands (`kb:pack`, `publish-gate.mjs`, `publish-pack.mjs upload`, `pack-age.mjs`) on a schedule it already operates, with the same secrets in its own store. | No GitHub schedule at all; IT owns the alerting. |
+| Stay here | Keep the jobs in this repository. | Works only while the repository has activity at least every 60 days; re-enable the workflows by hand (Actions → the workflow → Enable) if GitHub disabled them. |
+
+Whatever runs them, the SE-side **KB packs up to date** row in Preflight
+stays the second signal: it turns amber or red on an SE's machine when a
+pack is stale, independently of any scheduler.
+
 ## 5. Revoking a key
 
 If the CI key may have leaked:
