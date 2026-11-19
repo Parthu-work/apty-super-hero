@@ -1,0 +1,4 @@
+date,case id,Apty version,pack built,card shown,right card,outcome,coverage,reason,note,mark
+2026-11-10,CASE-20261110-A1B2,5.x,2026-11-09,2005#L1,2001,open,,,,wrong card
+2026-11-11,CASE-20261111-C3D4,5.x,2026-11-09,2002#L1,,open,,,,helped
+2026-11-11,,4.x,2026-11-09,4001#L1,,,,,,helped

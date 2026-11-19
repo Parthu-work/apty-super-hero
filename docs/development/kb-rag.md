@@ -631,6 +631,42 @@ pnpm kb:eval --pack <pack> --questions <exported questions file>
 
 Nothing in this section is sent anywhere by the extension.
 
+### Merging the SEs' exports (K28, A4)
+
+The SEs send the KB owner their exports by hand (Export CSV gives
+`apty-kb-feedback-<day>.csv`, Export questions `apty-kb-questions-<day>.json`).
+The KB owner puts them in one folder, in any subfolders (one per SE is
+easiest), and merges them:
+
+```bash
+pnpm kb:feedback-merge --in ~/apty-feedback/in --out ~/apty-feedback/merged
+```
+
+It writes, per Apty version (`4.x`, `5.x`, and `unknown` for rows or
+questions it cannot place):
+
+- `tracking-<version>.csv`: the tracking sheet's columns with an `id` first.
+  A row with the same case, card shown and mark as another is a duplicate
+  (the latest date is kept); a row with no case is a duplicate only of an
+  identical row. The id (`fb-` and 10 hex characters) comes from that key,
+  so the same row keeps its id in every merge.
+- `questions-<version>.json`: a `kb:eval` question set. A question with the
+  same text as another, ignoring case and spacing, is a duplicate; the id
+  (`field-` and 10 hex characters) comes from that text. A question's
+  version is the one the tracking rows give its card.
+- `summary.json`: the files read and skipped (the pilot measures CSV, for
+  example), and per version the rows, questions and duplicates removed, and
+  the counts by outcome and mark. The same counts are printed; no question
+  or note is.
+
+It copies only the questions the SEs included in their exports, and refuses
+an `--out` inside this repository, since the files hold the SEs' questions
+and notes. Then evaluate a version's merged set:
+
+```bash
+pnpm kb:eval --pack <5.x pack> --questions ~/apty-feedback/merged/questions-5.x.json
+```
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |

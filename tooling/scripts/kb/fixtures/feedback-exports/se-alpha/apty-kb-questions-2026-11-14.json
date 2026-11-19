@@ -1,0 +1,14 @@
+[
+  {
+    "id": "field-001",
+    "category": "field",
+    "q": "the tooltip keeps flickering when I hover the field",
+    "expectedPageIds": ["2001"]
+  },
+  {
+    "id": "field-002",
+    "category": "field",
+    "q": "the walkthrough stops after I reload the page",
+    "expectedPageIds": ["2002"]
+  }
+]
