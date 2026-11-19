@@ -84,7 +84,7 @@ const NOT_CONTENT_WORD =
   /\b(?:errors?|console|logs?|network|requests?|har|screenshots?|dom|html|evidence|cases?|settings?|options|json|toggle|widget|tooltip|balloon|steps?|calls?|files?|version)\b/i;
 /** Without a marker or quotes, a "show X" name holding one of these is a request, not a name. */
 const NOT_A_BARE_NAME =
-  /\b(?:and|or|on|at|from|to|for|with|of|by|about|again|this|that|these|those|its?|data|everything|all|button|buttons|field|fields|link|links|element|elements|selector|summar\w*|text|content|details|info)\b/i;
+  /\b(?:and|or|on|at|from|to|for|with|of|by|about|again|this|that|these|those|its?|data|everything|all|button|buttons|field|fields|link|links|element|elements|selector|summari[sz]e[ds]?|summary|text|content|details|info)\b/i;
 /** A bare name is written as Apty shows it: two or more words, each capitalised or a number ("Alpha Ledger Page"). */
 const TITLE_CASE =
   /^(?:[\p{Lu}\d][\p{L}\d'’&-]*)(?:\s+[\p{Lu}\d][\p{L}\d'’&-]*)+$/u;
