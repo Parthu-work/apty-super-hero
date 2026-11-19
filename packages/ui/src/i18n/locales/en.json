@@ -2932,5 +2932,18 @@
     "csvDescription": "One row per entry: date, case id, Apty version, pack built, card shown, right card, outcome, coverage, reason, note. Review it, then copy or download it.",
     "questionsLabel": "Questions for kb:eval",
     "questionsDescription": "Entries whose right card is known and whose question you included, in the kb:eval questions format. Review it, then copy or download it."
+  },
+  "turnActions": {
+    "runCheck": "Run the check",
+    "markLabel": "Was this cause right?",
+    "mark": {
+      "yes": "Right",
+      "no": "Wrong"
+    },
+    "marked": {
+      "yes": "Marked right. You can change it until the case closes.",
+      "no": "Marked wrong. You can change it until the case closes."
+    },
+    "noCase": "No open case to mark."
   }
 }

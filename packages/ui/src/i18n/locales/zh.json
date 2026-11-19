@@ -2932,5 +2932,18 @@
     "csvDescription": "每条一行：日期、案例编号、Apty 版本、知识包构建日期、显示的卡片、正确的卡片、结果、覆盖率、原因、备注。请先查看，再复制或下载。",
     "questionsLabel": "kb:eval 问题",
     "questionsDescription": "已知正确卡片且您选择包含问题的条目，采用 kb:eval 问题格式。请先查看，再复制或下载。"
+  },
+  "turnActions": {
+    "runCheck": "运行检查",
+    "markLabel": "这个原因对吗？",
+    "mark": {
+      "yes": "对",
+      "no": "不对"
+    },
+    "marked": {
+      "yes": "已标记为对。结案前可以更改。",
+      "no": "已标记为不对。结案前可以更改。"
+    },
+    "noCase": "没有可标记的未结案例。"
   }
 }

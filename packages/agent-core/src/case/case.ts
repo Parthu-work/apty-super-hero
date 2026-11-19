@@ -220,6 +220,15 @@ export function closeCase(
   };
 }
 
+/** K27, E5: the SE's right-or-wrong mark on the case's finding, before the case closes. */
+export function markFinding(
+  record: CaseRecord,
+  findingRight: NonNullable<CaseRecord["findingRight"]>,
+  now: Date,
+): CaseRecord {
+  return { ...record, findingRight, updatedAt: now.toISOString() };
+}
+
 /** Whether a case is past its retention: last updated more than `days` ago. */
 export function caseExpired(
   record: Pick<CaseRecord, "updatedAt">,
