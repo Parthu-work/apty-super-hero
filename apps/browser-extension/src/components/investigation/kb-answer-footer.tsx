@@ -117,7 +117,7 @@ export function KbAnswerFooter({
   const expiry = decision ? packExpiryText(decision, t) : undefined;
   const about = aboutLines ?? [
     t("kbMatches.provenance"),
-    egress,
+    ...(egress.sent ? [] : [egress.line]),
     ...(expiry ? [expiry] : []),
   ];
   const url = card?.url ?? openUrl;
@@ -154,6 +154,14 @@ export function KbAnswerFooter({
           </button>
         </span>
       </div>
+      {egress.sent && !aboutLines && (
+        <p
+          className="text-xs text-muted-foreground"
+          data-testid="kb-egress-sent"
+        >
+          {egress.line}
+        </p>
+      )}
       <div
         id={`${id}-about`}
         role="note"

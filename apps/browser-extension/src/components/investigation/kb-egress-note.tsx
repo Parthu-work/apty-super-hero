@@ -37,13 +37,14 @@ export function KbShownHereOnly() {
 }
 
 /**
- * For KB matches, which the session holds and the next request may carry:
- * the line in a KB answer's source (i) (K29, D2).
+ * For KB matches, which the session holds and the next request may carry
+ * (K29, D2): "not sent" goes in the source's (i); "also sent to …" is shown
+ * under the source line, because card text leaving the device stays visible.
  */
-export function useKbEgressLine(): string {
+export function useKbEgressLine(): { line: string; sent: boolean } {
   const { t } = useTranslation();
   const destination = useKbDestination();
   return destination
-    ? t("kbMatches.sentTo", { destination })
-    : t("kbMatches.notSent");
+    ? { line: t("kbMatches.sentTo", { destination }), sent: true }
+    : { line: t("kbMatches.notSent"), sent: false };
 }

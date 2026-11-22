@@ -9,7 +9,7 @@ vi.mock("@apty/browser-runtime/runtime/kb-egress", () => ({
 import { KbShownHereOnly, useKbEgressLine } from "./kb-egress-note";
 
 function KbEgressNote() {
-  return <p data-testid="kb-egress-note">{useKbEgressLine()}</p>;
+  return <p data-testid="kb-egress-note">{useKbEgressLine().line}</p>;
 }
 
 describe("the KB egress note (KB-RAG K22)", () => {
