@@ -102,8 +102,8 @@ function OneQuestionResponse({ text, fold }: { text: string; fold: boolean }) {
  */
 /**
  * An answer that rests on KB cards (K18): each setting-like phrase no
- * returned chunk holds is underlined, with a tooltip, and named under the
- * answer. The answer's text is never changed.
+ * returned chunk holds is underlined, with a tooltip, and one line under
+ * the answer counts them (K29, D5). The answer's text is never changed.
  */
 function GroundedResponse({
   text,
@@ -127,6 +127,8 @@ function GroundedResponse({
   );
   const placeTitle = t("chat.kbLocationTitle");
   const key = ungrounded.join("\n");
+  // K29, D5: the phrases stay underlined with a tooltip; one line counts them.
+  const flagged = ungrounded.length + locations.length;
   const placesKey = locations.join("\n");
   useEffect(() => {
     const root = ref.current;
@@ -147,19 +149,14 @@ function GroundedResponse({
       <div ref={ref}>
         <OneQuestionResponse text={text} fold={fold} />
       </div>
-      {ungrounded.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          {t(withoutCards ? "chat.kbNotFound" : "chat.kbUngrounded", {
-            phrases: ungrounded.join(", "),
-          })}
-        </p>
-      )}
-      {locations.length > 0 && (
+      {flagged > 0 && (
         <p
           className="text-xs text-muted-foreground"
-          data-testid="kb-location-guess"
+          data-testid="kb-ungrounded-line"
         >
-          {t("chat.kbLocation")}
+          {flagged === 1
+            ? t("chat.kbFlaggedOne")
+            : t("chat.kbFlagged", { count: flagged })}
         </p>
       )}
     </>
@@ -275,13 +272,16 @@ export function DefaultMessageItem({
           </Sources>
         )}
 
-        {message.role === "assistant" && decision && !cardCarriesSource && (
-          <TurnSourceChips
-            decision={decision}
-            kbCardsReturned={kbCards.texts.length > 0}
-            explains={explains}
-          />
-        )}
+        {message.role === "assistant" &&
+          decision &&
+          !cardCarriesSource &&
+          !(withoutCards && text.trim()) && (
+            <TurnSourceChips
+              decision={decision}
+              kbCardsReturned={kbCards.texts.length > 0}
+              explains={explains}
+            />
+          )}
         {message.role === "assistant" && message.metadata?.decision && (
           <TurnDecisionLine decision={message.metadata.decision} />
         )}
@@ -298,7 +298,7 @@ export function DefaultMessageItem({
             className="text-small font-medium text-muted-foreground"
             data-testid="not-from-kb"
           >
-            {t("chat.notFromKb")}
+            {t("chat.aiAnswer")}
           </p>
         )}
 

@@ -453,11 +453,9 @@ describe("DefaultMessageItem — KB grounding (K18)", () => {
 
   it("names and underlines a setting no returned card holds, and does not link a citation the turn did not return", async () => {
     render(<DefaultMessageItem message={searched} isLast />);
-    expect(
-      await screen.findByText(
-        "Not found in the cited KB cards: Widget Activation",
-      ),
-    ).toBeInTheDocument();
+    expect(await screen.findByTestId("kb-ungrounded-line")).toHaveTextContent(
+      "1 phrase is not in the KB",
+    );
     await waitFor(() =>
       expect(document.querySelector("[data-kb-ungrounded]")?.textContent).toBe(
         "Widget Activation",
@@ -512,13 +510,19 @@ describe("DefaultMessageItem — a model answer with no KB card (KB-RAG K27, F2)
       />,
     );
     expect(screen.getByTestId("not-from-kb")).toHaveTextContent(
-      "Not from the KB or a check",
+      "AI answer, not from the KB or a check",
     );
-    expect(
-      await screen.findByText(
-        "Not found in the KB: Admin Portal → Applications → Settings",
-      ),
-    ).toBeInTheDocument();
+    // K29, D5: the phrase is underlined with a tooltip, and one line counts them.
+    expect(screen.getByTestId("kb-ungrounded-line")).toHaveTextContent(
+      "1 phrase is not in the KB",
+    );
+    await waitFor(() =>
+      expect(
+        [...document.querySelectorAll("[data-kb-ungrounded]")].map(
+          (mark) => mark.textContent,
+        ),
+      ).toEqual(["Admin Portal → Applications → Settings"]),
+    );
   });
 
   it("offers the closest cards through the kbClosest slot, only on a model turn the KB did not cover (K27, E7)", () => {
@@ -783,7 +787,6 @@ describe("DefaultMessageItem — where an answer came from (KB-RAG K27, E1)", ()
   it.each([
     ["check", "Check"],
     ["kb", "KB card"],
-    ["model", "Model"],
   ] as const)("%s: names its source and the version and how it was decided; the pack's expiry is in the header (K29, D2)", (route, source) => {
     render(
       <DefaultMessageItem
@@ -798,13 +801,35 @@ describe("DefaultMessageItem — where an answer came from (KB-RAG K27, E1)", ()
     expect(screen.queryByText(/Pack expires/)).toBeNull();
   });
 
+  it("model: one line in place of the chips (K29, D5); the source and the version are in Why this answer", () => {
+    render(
+      <DefaultMessageItem
+        message={{
+          ...assistantMessage("FIXTURE answer"),
+          metadata: { decision: decision("model") as never },
+        }}
+        isLast
+      />,
+    );
+    expect(screen.queryByTestId("turn-source-chips")).toBeNull();
+    expect(screen.getByTestId("not-from-kb")).toHaveTextContent(
+      "AI answer, not from the KB or a check",
+    );
+    expect(screen.getByTestId("turn-decision")).toHaveTextContent(
+      "Answered by: the AI model",
+    );
+    expect(screen.getByTestId("turn-decision")).toHaveTextContent(
+      "Apty version: 4.x (from the Apty Client's files)",
+    );
+  });
+
   it("says the version is the SE's choice, or unknown, and shows no pack chip without a pack", () => {
     render(
       <DefaultMessageItem
         message={{
           ...assistantMessage("FIXTURE answer"),
           metadata: {
-            decision: decision("model", {
+            decision: decision("check", {
               version: "unknown",
               versionSource: "unknown",
               packs: [],
@@ -814,7 +839,7 @@ describe("DefaultMessageItem — where an answer came from (KB-RAG K27, E1)", ()
         isLast
       />,
     );
-    expect(chips()).toEqual(["Model", "Apty version unknown"]);
+    expect(chips()).toEqual(["Check", "Apty version unknown"]);
   });
 });
 
@@ -866,11 +891,14 @@ describe("DefaultMessageItem — a model answer that explains the chat's checks 
 
   it("still flags a setting no card in the chat holds", async () => {
     render(explained("Then open Widget Activation in Admin."));
-    expect(
-      await screen.findByText(
-        "Not found in the cited KB cards: Widget Activation",
+    expect(await screen.findByTestId("kb-ungrounded-line")).toHaveTextContent(
+      "1 phrase is not in the KB",
+    );
+    await waitFor(() =>
+      expect(document.querySelector("[data-kb-ungrounded]")?.textContent).toBe(
+        "Widget Activation",
       ),
-    ).toBeInTheDocument();
+    );
   });
 
   it("adds a line to Why this answer", () => {
@@ -943,7 +971,18 @@ describe("DefaultMessageItem — a KB answer carries its own source line and act
         toolName: "search_kb",
         toolCallId: "call-kb",
         input: { query: "FIXTURE question" },
-        output: { status: "ok", results: [] },
+        output: {
+          status: "ok",
+          results: [
+            {
+              cite: "kb://101#L1",
+              title: "FIXTURE card",
+              site: "fixture.atlassian.net",
+              space: "FX",
+              text: "- In Studio, turn on the FIXTURE setting.",
+            },
+          ],
+        },
         state: "completed",
       },
     ],
@@ -1025,5 +1064,80 @@ describe("WhyThisAnswerPanel (KB-RAG K29, D2)", () => {
     );
     fireEvent.click(within(panel).getByRole("button", { name: "Close" }));
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe("DefaultMessageItem — model answers that say what they are (KB-RAG K29, D5)", () => {
+  const decision = {
+    route: "model" as const,
+    version: "5.x" as const,
+    versionSource: "user" as const,
+    packs: [{ version: "5.x" as const, sha256: "0123456789ab" }],
+    kb: {
+      kind: "not_covered" as const,
+      reason: "unknown_setting" as const,
+      coverage: 0,
+      min: 0.5,
+      version: "5.x" as const,
+    },
+  };
+  const REPLY = [
+    'I could not find a "Widget Activation" setting in the Apty KB.',
+    "The toggle may be in the application settings, widget configuration, or environment settings area.",
+    "Ask Apty Support or the KB owner, or check Apty Studio and Apty Admin; Confluence may help.",
+  ].join(" ");
+
+  it("a model-only answer carries one line in place of the chips", () => {
+    render(
+      <DefaultMessageItem
+        message={{
+          ...assistantMessage("FIXTURE model answer"),
+          metadata: { decision },
+        }}
+        isLast
+      />,
+    );
+    expect(screen.getByTestId("not-from-kb")).toHaveTextContent(
+      "AI answer, not from the KB or a check",
+    );
+    expect(screen.queryByTestId("turn-source-chips")).toBeNull();
+  });
+
+  it("the Widget Activation reply shows one line and flags only Widget Activation and the guessed place, never a product or role name", async () => {
+    render(
+      <DefaultMessageItem
+        message={{ ...assistantMessage(REPLY), metadata: { decision } }}
+        isLast
+      />,
+    );
+    expect(screen.getByTestId("kb-ungrounded-line")).toHaveTextContent(
+      "2 phrases are not in the KB",
+    );
+    expect(screen.queryByText(/^Not found in the KB:/)).toBeNull();
+    await waitFor(() =>
+      expect(
+        [...document.querySelectorAll("[data-kb-ungrounded]")].map(
+          (mark) => mark.textContent,
+        ),
+      ).toEqual([
+        "Widget Activation",
+        "The toggle may be in the application settings, widget configuration, or environment settings area.",
+      ]),
+    );
+    const marks = [...document.querySelectorAll("[data-kb-ungrounded]")];
+    for (const name of [
+      "Apty",
+      "Apty Studio",
+      "Apty Admin",
+      "Apty Support",
+      "KB owner",
+      "Confluence",
+    ]) {
+      expect(marks.some((mark) => mark.textContent === name)).toBe(false);
+    }
+    expect(marks.every((mark) => mark.getAttribute("title"))).toBe(true);
+    expect(
+      marks.every((mark) => mark.className.includes("decoration-dotted")),
+    ).toBe(true);
   });
 });

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { ChatStatus, UIMessage } from "../../../types";
 import { DefaultMessageList } from "./message-list";
@@ -142,11 +142,18 @@ describe("a model answer after a KB card (KB-RAG K27, E6)", () => {
     expect(screen.queryByText(/Not found in/)).toBeNull();
   });
 
-  it("keeps 'Not from the KB or a check' on an answer that does not explain the chat", () => {
+  it("keeps 'AI answer, not from the KB or a check' on an answer that does not explain the chat", async () => {
     render(<DefaultMessageList messages={chat()} status="idle" />);
-    expect(screen.getByTestId("not-from-kb")).toBeInTheDocument();
-    expect(
-      screen.getByText("Not found in the KB: Glowing Banner"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("not-from-kb")).toHaveTextContent(
+      "AI answer, not from the KB or a check",
+    );
+    expect(screen.getByTestId("kb-ungrounded-line")).toHaveTextContent(
+      "1 phrase is not in the KB",
+    );
+    await waitFor(() =>
+      expect(document.querySelector("[data-kb-ungrounded]")?.textContent).toBe(
+        "Glowing Banner",
+      ),
+    );
   });
 });

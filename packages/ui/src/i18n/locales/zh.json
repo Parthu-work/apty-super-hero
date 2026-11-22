@@ -1364,10 +1364,8 @@
   },
   "chat": {
     "showEarlier": "显示更早的消息",
-    "notFromKb": "并非来自 KB 或检查",
     "explainsEvidence": "解释上方的检查和 KB 卡片",
     "kbNotFoundTitle": "在 KB 中未找到",
-    "kbNotFound": "在 KB 中未找到：{{phrases}}",
     "copy": "复制",
     "saveAsSkill": "保存为技能",
     "retry": "重试",
@@ -1428,13 +1426,14 @@
     "summarizing": "正在总结...",
     "kbUnknownCitation": "未知引用",
     "kbUngroundedTitle": "在引用的 KB 卡片中未找到",
-    "kbUngrounded": "在引用的 KB 卡片中未找到：{{phrases}}",
     "kbCitation": "KB 卡片 {{pageId}}，第 {{layer}} 层",
     "moreQuestions": "更多问题（{{count}}）",
     "newAnswers": "{{count}} 条新",
     "scrollToBottomNew": "滚动到最新消息（{{count}} 条新）",
     "kbLocationTitle": "KB 没有说明它在哪里",
-    "kbLocation": "有一句话猜测了设置可能所在的位置；KB 并未这样说明。"
+    "aiAnswer": "AI 回答，并非来自 KB 或检查",
+    "kbFlaggedOne": "有 1 处说法不在 KB 中",
+    "kbFlagged": "有 {{count}} 处说法不在 KB 中"
   },
   "investigation": {
     "componentHealth": "Apty 组件健康状况",
