@@ -48,11 +48,19 @@ interface Anchor {
   applied: boolean;
 }
 
+/** More than one screen from the bottom: Scroll to bottom is offered (L4). */
+function isFarFromBottom(m: ScrollMetrics): boolean {
+  return distanceFromBottom(m) > m.clientHeight;
+}
+
 interface ConversationScroll {
   scrollRef: RefObject<HTMLDivElement | null>;
   contentRef: RefObject<HTMLDivElement | null>;
-  /** More than the reading slack from the bottom: Scroll to bottom is offered. */
-  away: boolean;
+  far: boolean;
+  /** Answers that arrived below since the SE was last within a screen of the bottom. */
+  unseen: number;
+  /** The scroller's scrollbar width: the scroll button sits left of it. */
+  scrollbar: number;
   scrollToBottom: () => void;
   /** Keeps `el` at its screen position through the next content change. */
   keepInPlace: (el: Element) => void;
@@ -77,11 +85,15 @@ export function useConversationScroll(): ConversationScroll {
  * the element at the top of the view stays where it was. Nothing is
  * animated, and nothing scrolls for a change the SE made.
  */
-function useScrollEngine(resetKey: unknown) {
+function useScrollEngine(resetKey: unknown, answers: number) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
-  const [away, setAway] = useState(false);
+  const [far, setFar] = useState(false);
+  const [unseen, setUnseen] = useState(0);
+  const [scrollbar, setScrollbar] = useState(0);
   const engine = useRef({
+    answers,
+    seen: answers,
     near: true,
     anchor: null as Anchor | null,
     reading: null as { el: Element; top: number; at: number } | null,
@@ -125,7 +137,11 @@ function useScrollEngine(resetKey: unknown) {
       clientHeight: state.clientHeight,
     });
     state.near = near;
-    setAway(!near);
+    const away = isFarFromBottom(scroller);
+    if (!away) state.seen = state.answers;
+    setFar(away);
+    setUnseen(away ? Math.max(0, state.answers - state.seen) : 0);
+    setScrollbar(scroller.offsetWidth - scroller.clientWidth);
   }, []);
 
   const readAnchor = useCallback(() => {
@@ -270,25 +286,35 @@ function useScrollEngine(resetKey: unknown) {
   useLayoutEffect(() => {
     engine.current.near = true;
     engine.current.anchor = null;
+    engine.current.seen = engine.current.answers;
     scrollToBottom();
   }, [resetKey, scrollToBottom]);
+
+  useLayoutEffect(() => {
+    engine.current.answers = answers;
+    settle(true);
+  }, [answers, settle]);
 
   return useMemo(
     () => ({
       scrollRef,
       contentRef,
-      away,
+      far,
+      unseen,
+      scrollbar,
       scrollToBottom,
       keepInPlace,
       realign,
     }),
-    [away, scrollToBottom, keepInPlace, realign],
+    [far, unseen, scrollbar, scrollToBottom, keepInPlace, realign],
   );
 }
 
 type ConversationProps = ComponentProps<"div"> & {
   /** Changes when another chat is shown; it opens at the bottom. */
   resetKey?: unknown;
+  /** How many answers the chat holds, for the scroll button's "2 new". */
+  answers?: number;
   children?: ReactNode;
 };
 
@@ -299,10 +325,11 @@ type ConversationProps = ComponentProps<"div"> & {
 export const Conversation = ({
   className,
   resetKey,
+  answers = 0,
   children,
   ...props
 }: ConversationProps) => {
-  const scroll = useScrollEngine(resetKey);
+  const scroll = useScrollEngine(resetKey, answers);
   return (
     <ConversationContext.Provider value={scroll}>
       <div
@@ -335,7 +362,11 @@ export const ConversationContent = ({
         scrollClassName,
       )}
     >
-      <div ref={contentRef} className={cn("p-4", className)} {...props} />
+      <div
+        ref={contentRef}
+        className={cn("py-4 pr-11 pl-4", className)}
+        {...props}
+      />
     </div>
   );
 };
@@ -377,29 +408,44 @@ const ConversationEmptyState = ({
 
 type ConversationScrollButtonProps = ComponentProps<typeof Button>;
 
+/**
+ * Scroll to the latest message (KB-RAG K29, L4): only more than one screen
+ * from the bottom, a small round button in the bottom-right gutter the
+ * content leaves free, so it never covers text; it counts the answers that
+ * arrived below ("2 new").
+ */
 export const ConversationScrollButton = ({
   className,
+  style,
   ...props
 }: ConversationScrollButtonProps) => {
   const { t } = useTranslation();
-  const { away, scrollToBottom } = useConversationScroll();
-
+  const { far, unseen, scrollbar, scrollToBottom } = useConversationScroll();
+  if (!far) return null;
   return (
-    away && (
-      <Button
-        aria-label={t("chat.scrollToBottom")}
-        className={cn(
-          "absolute bottom-4 left-[50%] translate-x-[-50%] shadow-sm",
-          className,
-        )}
-        onClick={scrollToBottom}
-        size="icon-sm"
-        type="button"
-        variant="secondary"
-        {...props}
-      >
-        <ArrowDownIcon aria-hidden="true" className="size-4" />
-      </Button>
-    )
+    <Button
+      aria-label={
+        unseen > 0
+          ? t("chat.scrollToBottomNew", { count: unseen })
+          : t("chat.scrollToBottom")
+      }
+      className={cn(
+        "absolute bottom-2 h-auto min-h-8 w-8 flex-col gap-0.5 rounded-full px-0 py-1.5 text-xs leading-tight shadow-sm",
+        className,
+      )}
+      style={{ right: scrollbar + 4, ...style }}
+      data-testid="scroll-to-bottom"
+      onClick={scrollToBottom}
+      type="button"
+      variant="secondary"
+      {...props}
+    >
+      {unseen > 0 && (
+        <span className="w-min text-center font-medium">
+          {t("chat.newAnswers", { count: unseen })}
+        </span>
+      )}
+      <ArrowDownIcon aria-hidden="true" className="size-4" />
+    </Button>
   );
 };

@@ -171,6 +171,43 @@ describe("ConversationScrollButton", () => {
     ).toBeInTheDocument();
   });
 
+  it("stays hidden within one screen of the bottom (L4)", () => {
+    const { scroller } = setup();
+    scrollTo(scroller, 1100);
+    expect(screen.queryByTestId("scroll-to-bottom")).toBeNull();
+    scrollTo(scroller, 900);
+    expect(screen.getByTestId("scroll-to-bottom")).toBeInTheDocument();
+  });
+
+  it("counts the answers that arrived while the SE read more than a screen up (L4)", () => {
+    const size = { scrollHeight: 2000, clientHeight: 500 };
+    const view = (answers: number) => (
+      <Conversation answers={answers}>
+        <ConversationContent>
+          <div>answers</div>
+        </ConversationContent>
+        <ConversationScrollButton />
+      </Conversation>
+    );
+    const { rerender } = render(view(3));
+    const scroller = screen.getByRole("log").firstElementChild as HTMLElement;
+    sizeScroller(scroller, size);
+    resize();
+    scrollTo(scroller, 200);
+    expect(screen.getByTestId("scroll-to-bottom")).toHaveAccessibleName(
+      "Scroll to the latest message",
+    );
+    size.scrollHeight = 2600;
+    rerender(view(5));
+    const button = screen.getByTestId("scroll-to-bottom");
+    expect(button).toHaveTextContent("2 new");
+    expect(button).toHaveAccessibleName("Scroll to the latest message (2 new)");
+    fireEvent.click(button);
+    expect(screen.queryByTestId("scroll-to-bottom")).toBeNull();
+    scrollTo(scroller, 200);
+    expect(screen.getByTestId("scroll-to-bottom")).not.toHaveTextContent("new");
+  });
+
   it("is not shown at the bottom", () => {
     const { scroller } = setup();
     scrollTo(scroller, 1500);

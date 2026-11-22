@@ -147,6 +147,9 @@ export function DefaultMessageList({
     [displayMessages],
   );
   const cardsByTurn = useMemo(() => kbCardsByTurn(turns), [turns]);
+  const answerCount = turns.filter(
+    (turn) => turn.assistantMessages.length > 0,
+  ).length;
 
   // K27, U1: a long chat renders its newest turns; earlier ones on request.
   const firstMessageId = displayMessages[0]?.id;
@@ -171,7 +174,11 @@ export function DefaultMessageList({
       className={cn("min-h-0 min-w-0 flex-1 overflow-hidden", className)}
       {...props}
     >
-      <Conversation className="h-full" resetKey={firstMessageId}>
+      <Conversation
+        className="h-full"
+        resetKey={firstMessageId}
+        answers={answerCount}
+      >
         <ConversationContent className="space-y-4">
           {/* Before messages slot - for banners, announcements */}
           {slots.beforeMessages?.()}

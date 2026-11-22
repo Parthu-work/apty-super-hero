@@ -1430,7 +1430,9 @@
     "kbUngroundedTitle": "在引用的 KB 卡片中未找到",
     "kbUngrounded": "在引用的 KB 卡片中未找到：{{phrases}}",
     "kbCitation": "KB 卡片 {{pageId}}，第 {{layer}} 层",
-    "moreQuestions": "更多问题（{{count}}）"
+    "moreQuestions": "更多问题（{{count}}）",
+    "newAnswers": "{{count}} 条新",
+    "scrollToBottomNew": "滚动到最新消息（{{count}} 条新）"
   },
   "investigation": {
     "componentHealth": "Apty 组件健康状况",

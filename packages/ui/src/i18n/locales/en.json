@@ -1430,7 +1430,9 @@
     "kbUngroundedTitle": "Not found in the cited KB cards",
     "kbUngrounded": "Not found in the cited KB cards: {{phrases}}",
     "kbCitation": "KB card {{pageId}}, layer {{layer}}",
-    "moreQuestions": "More questions ({{count}})"
+    "moreQuestions": "More questions ({{count}})",
+    "newAnswers": "{{count}} new",
+    "scrollToBottomNew": "Scroll to the latest message ({{count}} new)"
   },
   "investigation": {
     "componentHealth": "Apty component health",

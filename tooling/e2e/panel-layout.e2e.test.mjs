@@ -362,3 +362,87 @@ describe("nothing jumps when a card changes height (KB-RAG K29, L3)", () => {
     assert.equal(model.requests.length, 0);
   });
 });
+
+/** The scroll button's box and every text box in the chat it overlaps. */
+function scrollButtonOverlaps() {
+  const button = document.querySelector('[data-testid="scroll-to-bottom"]');
+  if (!button) return null;
+  const b = button.getBoundingClientRect();
+  const log = document.querySelector('[role="log"]');
+  const walker = document.createTreeWalker(log, NodeFilter.SHOW_TEXT);
+  const hits = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.textContent.trim() || button.contains(node)) continue;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    for (const r of range.getClientRects()) {
+      if (
+        r.width > 0 &&
+        r.left < b.right &&
+        r.right > b.left &&
+        r.top < b.bottom &&
+        r.bottom > b.top
+      ) {
+        hits.push(node.textContent.trim().slice(0, 40));
+      }
+    }
+  }
+  const view = log.getBoundingClientRect();
+  return {
+    hits,
+    right: view.right - b.right,
+    bottom: view.bottom - b.bottom,
+    text: button.textContent.trim(),
+    name: button.getAttribute("aria-label"),
+  };
+}
+
+const toFromBottom = (screens) =>
+  panel.evaluate((screens) => {
+    const el = window.__chatScroller();
+    el.scrollTop = el.scrollHeight - el.clientHeight * (1 + screens);
+  }, screens);
+
+describe("a scroll button that never covers text (KB-RAG K29, L4)", () => {
+  for (const width of WIDTHS) {
+    it(`at ${width} px it shows only more than a screen up, in the corner, over no text`, async () => {
+      await atSize(width, 600);
+      await toFromBottom(0.5);
+      await settled();
+      assert.equal(await panel.evaluate(scrollButtonOverlaps), null);
+
+      for (const screens of [1.2, 2.5, 4]) {
+        await toFromBottom(screens);
+        await settled();
+        const found = await panel.evaluate(scrollButtonOverlaps);
+        assert.ok(found, `no scroll button ${screens} screens up`);
+        assert.deepEqual(found.hits, [], JSON.stringify(found));
+        assert.ok(
+          found.right <= 24 && found.bottom <= 16,
+          JSON.stringify(found),
+        );
+      }
+    });
+  }
+
+  it('counts the answers that arrived below ("1 new") and scrolls down', async () => {
+    await atSize(400, 900);
+    await toFromBottom(2);
+    await settled();
+    const checks = panel.getByRole("region", {
+      name: "Why “Take a tour” may not be visible",
+    });
+    const count = await checks.count();
+    await sendChat(panel, SYMPTOM);
+    await checks.nth(count).waitFor({ timeout: 60_000 });
+    await settled();
+    const found = await panel.evaluate(scrollButtonOverlaps);
+    assert.equal(found?.text, "1 new", JSON.stringify(found));
+    assert.match(found.name, /Scroll to the latest message.*1 new/);
+    assert.deepEqual(found.hits, []);
+    await panel.getByTestId("scroll-to-bottom").click();
+    await settled();
+    assert.equal(await panel.evaluate(scrollButtonOverlaps), null);
+    assert.equal(model.requests.length, 0);
+  });
+});
