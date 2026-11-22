@@ -24,6 +24,8 @@ import {
   kbVersionSourceForHost,
   rememberKbVersion,
   resolveKbVersionFromClient,
+  touchKbVersion,
+  whenKbVersionsLoaded,
 } from "../../kb/kb-version.js";
 import { getRedactionMode } from "../../runtime/redaction-mode.js";
 import { applyResultPrivacy } from "../../runtime/result-privacy.js";
@@ -595,6 +597,8 @@ async function kbAnswer(
   runContext: unknown,
 ) {
   const pageUrl = await sources.pageUrlOf(runContext);
+  await whenKbVersionsLoaded();
+  touchKbVersion(siteHostOf(pageUrl));
   const observed = sources.observedNamesOf;
   if (observed) {
     await resolveKbVersionFromClient(siteHostOf(pageUrl), () =>

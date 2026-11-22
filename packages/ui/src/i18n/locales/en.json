@@ -1795,7 +1795,7 @@
     "confirm": "Delete every stored conversation and screenshot?",
     "deleteEverything": "Delete everything",
     "deleteNow": "Delete stored data now",
-    "done": "All stored conversations and screenshots were deleted.",
+    "done": "All stored conversations, screenshots and remembered site versions were deleted.",
     "failed": "Deleting stored data failed. Try again."
   },
   "ui": {
@@ -2681,7 +2681,8 @@
     "versionChip": {
       "client": "{{version}}, from the Client's files",
       "evidence": "{{version}}, from a check's files",
-      "user": "{{version}}, your choice"
+      "user": "{{version}}, your choice",
+      "question": "{{version}}, from a file name in your question"
     },
     "layers": "Card layers",
     "layerButton": "L{{layer}}",

@@ -13,6 +13,7 @@ import {
   axeInBothThemes,
   chatAndWait,
   describeViolations,
+  extensionPage,
   launchBrowser,
   openSidePanel,
   sendChat,
@@ -88,6 +89,45 @@ describe("visible KB decisions (KB-RAG K25, A2)", () => {
     );
     await panel.close();
     await app.close();
+  });
+
+  it("keeps the site's version for a new chat after a panel reload, until Delete stored data now (KB-RAG K29, B1)", async () => {
+    const again = await panelWith({ aiToken: "" });
+    await sendChat(
+      again.panel,
+      "the tooltip opens twice when I hover the help icon",
+    );
+    const line = again.panel.getByTestId("kb-decision-line");
+    await line.waitFor({ timeout: 30_000 });
+    assert.equal(
+      await line.innerText(),
+      "No 4.x pack is loaded. Connect an AI provider to ask the AI model.",
+    );
+    await again.panel.close();
+    await again.app.close();
+
+    const options = await extensionPage(browser);
+    await options
+      .getByRole("button", { name: "Delete stored data now" })
+      .click();
+    await options.getByRole("button", { name: "Delete everything" }).click();
+    await options
+      .getByText(
+        "All stored conversations, screenshots and remembered site versions were deleted.",
+      )
+      .waitFor({ timeout: 15_000 });
+    await options.close();
+
+    const cleared = await panelWith({ aiToken: "" });
+    await sendChat(
+      cleared.panel,
+      "the tooltip opens twice when I hover the help icon",
+    );
+    await cleared.panel
+      .getByRole("region", { name: "KB cards that match" })
+      .waitFor({ timeout: 30_000 });
+    await cleared.panel.close();
+    await cleared.app.close();
   });
 
   it("with a key: one quiet line above the model's reply, and Why this answer holds no question text", async () => {
