@@ -2679,8 +2679,6 @@
       "3": "网络数据",
       "4": "联系支持"
     },
-    "layerTitled": "第 {{layer}} 层：{{name}}",
-    "layerButtonName": "第 {{layer}} 层，{{name}}",
     "nextLayer": "下一步：{{name}}",
     "versionChip": {
       "client": "{{version}}，来自 Client 的文件",
@@ -2689,7 +2687,6 @@
       "question": "{{version}}，来自你问题中的文件名"
     },
     "layers": "卡片层",
-    "layerButton": "L{{layer}}",
     "layerMissing": "已加载的包中没有这一层。",
     "unknownSetting": "KB 中没有名为“{{phrase}}”的设置。",
     "closestCards": "最接近的卡片，可能未提及该设置：",
@@ -2713,7 +2710,17 @@
       "workflowSteps": "工作流的步骤文件",
       "segments": "分段列表",
       "rules": "规则列表"
-    }
+    },
+    "layerTab": {
+      "1": "设置",
+      "2": "控制台",
+      "3": "网络",
+      "4": "支持"
+    },
+    "layerDescription": "L{{layer}}，{{name}}",
+    "otherCards": "其他 {{count}} 张可能的卡片",
+    "otherCardsOne": "其他 1 张可能的卡片",
+    "notVerifiedStatement": "未验证的说法"
   },
   "orgPolicy": {
     "setByOrg": "由您的组织设置",

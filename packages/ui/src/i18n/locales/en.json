@@ -2679,8 +2679,6 @@
       "3": "Network data",
       "4": "Contact support"
     },
-    "layerTitled": "Layer {{layer}}: {{name}}",
-    "layerButtonName": "Layer {{layer}}, {{name}}",
     "nextLayer": "Next: {{name}}",
     "versionChip": {
       "client": "{{version}}, from the Client's files",
@@ -2689,7 +2687,6 @@
       "question": "{{version}}, from a file name in your question"
     },
     "layers": "Card layers",
-    "layerButton": "L{{layer}}",
     "layerMissing": "This layer is not in the loaded pack.",
     "unknownSetting": "The KB has no setting called \"{{phrase}}\".",
     "closestCards": "Closest cards, they may not mention it:",
@@ -2713,7 +2710,17 @@
       "workflowSteps": "workflow's steps file",
       "segments": "segment list",
       "rules": "rule list"
-    }
+    },
+    "layerTab": {
+      "1": "Settings",
+      "2": "Console",
+      "3": "Network",
+      "4": "Support"
+    },
+    "layerDescription": "L{{layer}}, {{name}}",
+    "otherCards": "{{count}} other possible cards",
+    "otherCardsOne": "1 other possible card",
+    "notVerifiedStatement": "Not verified statement"
   },
   "orgPolicy": {
     "setByOrg": "Set by your organization",
@@ -3026,8 +3033,8 @@
     "pickerNone": "No card title matches.",
     "pickerCount": "{{count}} cards match. Use the arrow keys to choose, Enter to pick.",
     "picked": "Right card: {{title}} ({{pageId}})",
-    "helped": "This helped",
-    "helpedFor": "This helped: {{pageId}}",
+    "helped": "Helpful",
+    "helpedFor": "Helpful: {{pageId}}",
     "helpedRecorded": "Marked as helpful. Thank you.",
     "exportSynonyms": "Export proposed synonyms",
     "synonymsLabel": "Proposed synonyms",

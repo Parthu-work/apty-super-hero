@@ -54,6 +54,95 @@ const hit = (
   text,
 });
 
+const threeCards = () =>
+  tool({
+    status: "ok",
+    results: [
+      hit("601", 1, "- FIXTURE first step.\n- FIXTURE second step."),
+      hit("602", 2, "- FIXTURE console step."),
+      hit("603", 1, "- FIXTURE other step."),
+    ],
+  });
+
+/** The elements Tab reaches, in order. */
+function tabStops(root: HTMLElement): HTMLElement[] {
+  return [
+    ...root.querySelectorAll<HTMLElement>("a[href], button, input, select"),
+  ].filter((el) => el.tabIndex >= 0 && !(el as HTMLButtonElement).disabled);
+}
+
+describe("one best card, the others folded (KB-RAG K29, D1)", () => {
+  it("shows one open card and one fold line for a three-card answer", () => {
+    render(<AptyToolDisplay tool={threeCards()} />);
+    const card = screen.getByRole("region", { name: "KB cards that match" });
+    expect(within(card).getAllByRole("article")).toHaveLength(1);
+    expect(
+      within(within(card).getByRole("article")).getByRole("link", {
+        name: /FIXTURE card 601/,
+      }),
+    ).toBeInTheDocument();
+    const fold = within(card).getByRole("button", {
+      name: "2 other possible cards",
+    });
+    expect(fold).toHaveAttribute("aria-expanded", "false");
+    expect(within(card).queryByText(/FIXTURE card 602/)).toBeNull();
+  });
+
+  it("reaches every card in one click and opens a folded card in place of the first", () => {
+    render(<AptyToolDisplay tool={threeCards()} />);
+    const card = screen.getByRole("region", { name: "KB cards that match" });
+    fireEvent.click(
+      within(card).getByRole("button", { name: "2 other possible cards" }),
+    );
+    const lines = within(card).getByRole("list", {
+      name: "2 other possible cards",
+    });
+    expect(
+      within(lines)
+        .getAllByRole("button")
+        .map((line) => line.textContent),
+    ).toEqual(["FIXTURE card 6025.x", "FIXTURE card 6035.x"]);
+    fireEvent.click(
+      within(lines).getByRole("button", { name: "FIXTURE card 602, 5.x" }),
+    );
+    const open = within(card).getByRole("article");
+    expect(
+      within(open).getByRole("link", { name: /FIXTURE card 602/ }),
+    ).toBeInTheDocument();
+    expect(within(open).getByText("FIXTURE console step.")).toBeInTheDocument();
+    fireEvent.click(
+      within(card).getByRole("button", { name: "2 other possible cards" }),
+    );
+    expect(
+      within(card)
+        .getAllByRole("button", { name: /^FIXTURE card 60[13], 5\.x$/ })
+        .map((line) => line.textContent),
+    ).toEqual(["FIXTURE card 6015.x", "FIXTURE card 6035.x"]);
+  });
+
+  it("takes the open card first, then the fold, then the actions, by keyboard", () => {
+    render(<AptyToolDisplay tool={threeCards()} />);
+    const card = screen.getByRole("region", { name: "KB cards that match" });
+    const stops = tabStops(card);
+    const at = (el: HTMLElement) => stops.indexOf(el);
+    const open = within(card).getByRole("article");
+    const link = within(open).getByRole("link", { name: /FIXTURE card 601/ });
+    const tab = within(open).getByRole("tab", { name: "Settings" });
+    const next = within(open).getByRole("button", { name: "Next: Console" });
+    const fold = within(card).getByRole("button", {
+      name: "2 other possible cards",
+    });
+    const helped = within(card).getByRole("button", { name: /^Helpful/ });
+    const wrong = within(card).getByRole("button", { name: /^Wrong card/ });
+    expect(at(link)).toBe(0);
+    expect(at(tab)).toBe(1);
+    expect(at(next)).toBeGreaterThan(at(tab));
+    expect(at(fold)).toBeGreaterThan(at(next));
+    expect(at(helped)).toBeGreaterThan(at(fold));
+    expect(at(wrong)).toBeGreaterThan(at(helped));
+  });
+});
+
 describe("a named file of the other version (KB-RAG K29, B3)", () => {
   it("says what the site's version calls the file, above the cards", () => {
     render(
@@ -93,7 +182,7 @@ describe("a named file of the other version (KB-RAG K29, B3)", () => {
 });
 
 describe("KbMatchesCard", () => {
-  it("labels each card with its version and asks which one the tenant runs when they differ (K12)", () => {
+  it("labels the open card and each folded card with its version (K12)", () => {
     render(
       <AptyToolDisplay
         tool={tool({
@@ -107,21 +196,19 @@ describe("KbMatchesCard", () => {
       />,
     );
     const card = screen.getByRole("region", { name: "KB cards that match" });
-    const [four, five] = within(card).getAllByRole("listitem");
-    expect(within(four as HTMLElement).getByText("4.x")).toBeInTheDocument();
+    const open = within(card).getByRole("article");
+    expect(within(open).getByText("4.x")).toBeInTheDocument();
     expect(
-      within(four as HTMLElement).getByRole("link", {
-        name: /FIXTURE card 401/,
-      }),
+      within(open).getByRole("link", { name: /FIXTURE card 401/ }),
     ).toHaveAttribute(
       "href",
       "https://fixture.atlassian.net/wiki/spaces/A4X/pages/401",
     );
-    expect(within(five as HTMLElement).getByText("5.x")).toBeInTheDocument();
+    fireEvent.click(
+      within(card).getByRole("button", { name: "1 other possible card" }),
+    );
     expect(
-      within(card).getByText(
-        "These cards are for different Apty versions; which does this tenant run?",
-      ),
+      within(card).getByRole("button", { name: "FIXTURE card 501, 5.x" }),
     ).toBeInTheDocument();
   });
 
@@ -204,7 +291,7 @@ describe("KbMatchesCard", () => {
     );
   });
 
-  it("lists each card with its link, layer, text, Verified on line and Not verified badge", () => {
+  it("opens the best card at its layer as numbered steps, with its link, Verified on line and Not verified badge", () => {
     render(
       <AptyToolDisplay
         tool={tool({
@@ -213,7 +300,7 @@ describe("KbMatchesCard", () => {
             hit(
               "202",
               1,
-              "- In Studio, clear the FIXTURE Double Trigger setting.",
+              "- In Studio, clear the FIXTURE Double Trigger setting.\n- Publish.",
             ),
             hit("101", 3, "- NOT VERIFIED: FIXTURE glow.json.", true),
           ],
@@ -221,35 +308,41 @@ describe("KbMatchesCard", () => {
       />,
     );
     const card = screen.getByRole("region", { name: "KB cards that match" });
-    const items = within(card).getAllByRole("listitem");
-    expect(items).toHaveLength(2);
-    const first = within(items[0] as HTMLElement);
+    const open = within(card).getByRole("article");
     expect(
-      first.getByRole("link", { name: /FIXTURE card 202/ }),
+      within(open).getByRole("link", { name: /FIXTURE card 202/ }),
     ).toHaveAttribute(
       "href",
       "https://fixture.atlassian.net/wiki/spaces/JX/pages/202",
     );
-    expect(first.getByText("Layer 1: Settings")).toBeInTheDocument();
-    expect(
-      first.getByText("- In Studio, clear the FIXTURE Double Trigger setting."),
-    ).toBeInTheDocument();
-    expect(first.queryByText("Not verified")).toBeNull();
-    expect(
-      within(items[1] as HTMLElement).getByText("Not verified"),
-    ).toBeInTheDocument();
-  });
-
-  it("shortens a long layer on a word boundary", () => {
-    const long = `- ${"FIXTURE word ".repeat(40)}`;
-    render(
-      <AptyToolDisplay
-        tool={tool({ status: "ok", results: [hit("5", 2, long)] })}
-      />,
+    expect(within(open).getByRole("tab", { name: "Settings" })).toHaveAttribute(
+      "aria-selected",
+      "true",
     );
-    const text = screen.getByText(/^- FIXTURE word/).textContent ?? "";
-    expect(text.endsWith("…")).toBe(true);
-    expect(text.length).toBeLessThanOrEqual(281);
+    expect(
+      within(within(open).getByTestId("kb-layer-text"))
+        .getAllByRole("listitem")
+        .map((step) => step.textContent),
+    ).toEqual([
+      "In Studio, clear the FIXTURE Double Trigger setting.",
+      "Publish.",
+    ]);
+    expect(within(open).queryByText("Not verified")).toBeNull();
+    fireEvent.click(
+      within(card).getByRole("button", { name: "1 other possible card" }),
+    );
+    fireEvent.click(
+      within(card).getByRole("button", { name: "FIXTURE card 101, 5.x" }),
+    );
+    const next = within(card).getByRole("article");
+    expect(
+      within(next).getByRole("link", { name: /FIXTURE card 101/ }),
+    ).toBeInTheDocument();
+    expect(within(next).getByRole("tab", { name: "Network" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(within(next).getByText("Not verified")).toBeInTheDocument();
   });
 
   it("keeps the default display for not covered, no pack, or anything malformed", () => {

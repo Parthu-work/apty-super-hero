@@ -363,25 +363,35 @@ export function panelLayoutSuite(names) {
           const answer = panel
             .getByRole("region", { name: "KB cards that match" })
             .nth(1);
+          // K29, D1: the second card opens from the fold, in place of the first.
+          const second = /^FIXTURE banner glows for some users/;
+          if (
+            (await answer.getByRole("link", { name: second }).count()) === 0
+          ) {
+            await answer
+              .getByRole("button", { name: "2 other possible cards" })
+              .click();
+            await answer.getByRole("button", { name: second }).click();
+          }
           const layers = answer
-            .getByRole("group", { name: "Card layers" })
-            .nth(1);
+            .getByRole("article")
+            .getByRole("tablist", { name: "Card layers" });
           await bringNearBottom(layers, 12);
           const before = await layers.boundingBox();
-          await layers
-            .getByRole("button", { name: "Layer 4, Contact support" })
-            .focus();
+          const support = layers.getByRole("tab", { name: "Support" });
+          await support.focus();
           await panel.keyboard.press("Enter");
-          await answer.getByText("Layer 4: Contact support").first().waitFor();
+          await panel.waitForFunction(
+            (el) => el.getAttribute("aria-selected") === "true",
+            await support.elementHandle(),
+          );
           await settled();
           const after = await layers.boundingBox();
           assert.ok(
             Math.abs(after.y - before.y) <= 2,
             `the card moved from ${before.y} to ${after.y}`,
           );
-          await layers
-            .getByRole("button", { name: "Layer 1, Settings" })
-            .click();
+          await layers.getByRole("tab", { name: "Settings" }).click();
           await settled();
         });
       }

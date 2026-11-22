@@ -209,7 +209,7 @@ export function longChatSuite(width) {
           .last()
           .focus();
         await panel
-          .getByRole("group", { name: "Card layers" })
+          .getByRole("tablist", { name: "Card layers" })
           .last()
           .waitFor();
         const violations = await runAxe(panel);

@@ -16,9 +16,10 @@ import {
 } from "@apty/browser-runtime/kb/kb-matches";
 import { StatusBadge } from "@apty/ui/components/ui/badge";
 import { useTranslation } from "@apty/ui/i18n/context";
+import { cn } from "@apty/ui/lib/utils";
 import type { ToolDisplaySlotProps } from "@apty/ui/types";
-import { ExternalLinkIcon } from "lucide-react";
-import { useState } from "react";
+import { ChevronRightIcon, ExternalLinkIcon } from "lucide-react";
+import { useId, useRef, useState } from "react";
 import { HelpedButton } from "../cases/helped-button";
 import { WrongCardButton } from "../cases/wrong-card-button";
 import { KbChoices } from "./kb-choices";
@@ -28,7 +29,6 @@ import { UnknownSettingCard } from "./kb-unknown-setting";
 import { KbVersionControl, useActiveSiteHost } from "./kb-version-control";
 
 const CITE = /^kb:\/\/(\d+)#L([1-4])$/;
-const EXCERPT_CHARS = 280;
 
 const STUB_CITE = /^kb:\/\/(\d+)$/;
 
@@ -71,14 +71,145 @@ export function isKbMatches(output: unknown): output is KbToolResult {
   );
 }
 
-function excerpt(text: string): string {
-  if (text.length <= EXCERPT_CHARS) return text;
-  const cut = text.slice(0, EXCERPT_CHARS);
-  return `${cut.slice(0, cut.lastIndexOf(" ") > 0 ? cut.lastIndexOf(" ") : EXCERPT_CHARS)}…`;
-}
-
 const LINK_CLASS =
   "inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+
+type KbHit = KbToolResult["results"][number];
+
+function citeOf(hit: KbHit): { pageId: string; layer: KbLayer } {
+  const [, pageId = "", layer = "1"] = CITE.exec(hit.cite) ?? [];
+  return { pageId, layer: Number(layer) as KbLayer };
+}
+
+/**
+ * K29, D1: the best card open at its layer, the others folded under one
+ * line each; picking a folded card opens it in place of the open one.
+ */
+function KbAnswerCards({
+  results,
+  query,
+}: {
+  results: KbHit[];
+  query: string;
+}) {
+  const { t } = useTranslation();
+  const foldId = useId();
+  const [openCite, setOpenCite] = useState(results[0]?.cite);
+  const [foldOpen, setFoldOpen] = useState(false);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const open = results.find((hit) => hit.cite === openCite) ?? results[0];
+  if (!open) return null;
+  const folded = results.filter((hit) => hit !== open);
+  const { pageId, layer } = citeOf(open);
+  const foldLabel =
+    folded.length === 1
+      ? t("kbMatches.otherCardsOne")
+      : t("kbMatches.otherCards", { count: folded.length });
+  return (
+    <>
+      <article
+        key={open.cite}
+        aria-labelledby={`${foldId}-title`}
+        className="space-y-1.5 rounded-md border border-border p-2.5"
+      >
+        <h4
+          id={`${foldId}-title`}
+          ref={heading}
+          tabIndex={-1}
+          className="flex flex-wrap items-center gap-2 outline-none"
+        >
+          <a
+            href={kbCardUrl(pageId, { site: open.site, space: open.space })}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={LINK_CLASS}
+          >
+            {open.title}
+            <ExternalLinkIcon aria-hidden="true" className="size-3" />
+          </a>
+          {open.aptyVersion && (
+            <StatusBadge tone="neutral">{open.aptyVersion}</StatusBadge>
+          )}
+        </h4>
+        <KbLayerSwitcher
+          pageId={pageId}
+          layer={layer}
+          text={open.text}
+          notVerified={open.notVerified}
+        />
+        {open.verifiedOn && (
+          <p className="text-xs text-muted-foreground">{open.verifiedOn}</p>
+        )}
+      </article>
+      {folded.length > 0 && (
+        <div>
+          <button
+            type="button"
+            aria-expanded={foldOpen}
+            aria-controls={`${foldId}-fold`}
+            className="group inline-flex items-center gap-1 rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            onClick={() => setFoldOpen((value) => !value)}
+          >
+            <ChevronRightIcon
+              aria-hidden="true"
+              className={cn(
+                "size-3.5 transition-transform",
+                foldOpen && "rotate-90",
+              )}
+            />
+            {foldLabel}
+          </button>
+          {foldOpen && (
+            <ul
+              id={`${foldId}-fold`}
+              aria-label={foldLabel}
+              className="mt-1 space-y-0.5"
+            >
+              {folded.map((hit) => (
+                <li key={hit.cite}>
+                  <button
+                    type="button"
+                    aria-label={`${hit.title}${hit.aptyVersion ? `, ${hit.aptyVersion}` : ""}`}
+                    className="flex w-full items-center gap-2 rounded-sm px-1 py-0.5 text-left text-sm text-foreground hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    onClick={() => {
+                      setOpenCite(hit.cite);
+                      setFoldOpen(false);
+                      requestAnimationFrame(() => heading.current?.focus());
+                    }}
+                  >
+                    <span className="min-w-0 flex-1 truncate">{hit.title}</span>
+                    {hit.aptyVersion && (
+                      <StatusBadge tone="neutral">
+                        {hit.aptyVersion}
+                      </StatusBadge>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-1">
+        <HelpedButton
+          pageId={pageId}
+          layer={layer}
+          aptyVersion={open.aptyVersion}
+        />
+        <WrongCardButton
+          pageId={pageId}
+          layer={layer}
+          aptyVersion={open.aptyVersion}
+          question={query}
+          otherCards={results.map((other) => ({
+            pageId: citeOf(other).pageId,
+            title: other.title,
+          }))}
+        />
+      </div>
+    </>
+  );
+}
 
 /** The search again for the version the user picked; undefined: not covered there. */
 type Rerun = { version: KbTabVersion; result: KbToolResult | undefined };
@@ -241,64 +372,7 @@ export function KbMatchesCard({ tool }: ToolDisplaySlotProps) {
           })}
         </p>
       )}
-      <ul className="space-y-2">
-        {output.results.map((hit) => {
-          const [, pageId = "", layer = ""] = CITE.exec(hit.cite) ?? [];
-          return (
-            <li
-              key={hit.cite}
-              className="space-y-1 rounded-md border border-border p-2.5"
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <a
-                  href={kbCardUrl(pageId, {
-                    site: hit.site,
-                    space: hit.space,
-                  })}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={LINK_CLASS}
-                >
-                  {hit.title}
-                  <ExternalLinkIcon aria-hidden="true" className="size-3" />
-                </a>
-                {hit.aptyVersion && (
-                  <StatusBadge tone="neutral">{hit.aptyVersion}</StatusBadge>
-                )}
-              </div>
-              <KbLayerSwitcher
-                pageId={pageId}
-                layer={Number(layer) as KbLayer}
-                text={hit.text}
-                notVerified={hit.notVerified}
-                render={excerpt}
-              />
-              {hit.verifiedOn && (
-                <p className="text-xs text-muted-foreground">
-                  {hit.verifiedOn}
-                </p>
-              )}
-              <div className="flex flex-wrap items-center gap-1">
-                <HelpedButton
-                  pageId={pageId}
-                  layer={Number(layer)}
-                  aptyVersion={hit.aptyVersion}
-                />
-                <WrongCardButton
-                  pageId={pageId}
-                  layer={Number(layer)}
-                  aptyVersion={hit.aptyVersion}
-                  question={query}
-                  otherCards={output.results.map((other) => ({
-                    pageId: CITE.exec(other.cite)?.[1] ?? "",
-                    title: other.title,
-                  }))}
-                />
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+      <KbAnswerCards results={output.results} query={query} />
       {output.mixedVersions && (
         <p className="text-sm font-medium text-foreground">
           {t("kbMatches.mixedVersions")}

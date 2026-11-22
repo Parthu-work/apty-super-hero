@@ -81,7 +81,7 @@ describe("the learning loop (KB-RAG K27, E7)", () => {
     const card = panel.getByRole("region", { name: "KB cards that match" });
     await card.waitFor({ timeout: 30_000 });
 
-    await card.getByRole("button", { name: "This helped: 202" }).click();
+    await card.getByRole("button", { name: "Helpful: 202" }).click();
     await card.getByText("Marked as helpful. Thank you.").waitFor();
 
     await card.getByRole("button", { name: "Wrong card: 202" }).click();
