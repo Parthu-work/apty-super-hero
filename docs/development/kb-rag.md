@@ -415,6 +415,18 @@ public, and `npm run audit:kb-pack` fails CI on a pack in the tree or the
 build, and on a source comment that quotes a card title next to its page id
 (name a card by its id and a description in your own words).
 
+**Check for leaks** (K29, P4) after each rebuild, with the packs outside the
+repository:
+
+```bash
+pnpm kb:check-leaks --pack "$(ls -t ~/apty-kb/apty-kb-A4PKH-4.x-*.kbpack.json | head -1)" --pack "$(ls -t ~/apty-kb/apty-kb-*5.x-*.kbpack.json | head -1)"
+```
+
+It scans every git-tracked file for any card title or symptom line of four
+words or more (case-insensitive, whitespace-normalised, also when a line
+wraps), prints the file, line and page id of each hit (never the text) and
+exits 1 on any hit. Replace each hit with the card's page id.
+
 ## Lifecycle: each SE
 
 Options → Settings → General → **Knowledge base** → **Import pack…**, once

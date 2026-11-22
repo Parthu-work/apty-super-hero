@@ -4,9 +4,14 @@
 
 ## Status
 
-**IN PROGRESS.** Part P on `claude/kb-rag-k29-pipeline`; Part L on
-`claude/kb-rag-k29-layout`; Part B on `claude/kb-rag-k29-behaviour`; Part D
-on `claude/kb-rag-k29-delivery` (on top of L).
+**IN PROGRESS.** Part P (P1 to P4) **done** on `claude/kb-rag-k29-pipeline`,
+with partial steps: the leak check against the two real packs is the KB
+owner's (`pnpm kb:check-leaks --pack <4.x pack> --pack <5.x pack>`, see How
+to test); the GitHub runs by hand (KB packs without the switch names the
+missing inputs; the next scheduled run succeeds quietly) are checked after
+merge. Part L on `claude/kb-rag-k29-layout`; Part B on
+`claude/kb-rag-k29-behaviour`; Part D on `claude/kb-rag-k29-delivery` (on
+top of L).
 
 ## How to run this prompt
 
