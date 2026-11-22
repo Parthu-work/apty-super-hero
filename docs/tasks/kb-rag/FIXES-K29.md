@@ -19,8 +19,10 @@ Partial, with what finishes each:
 - After merge, in GitHub: run KB packs by hand without the switch (it names
   the missing inputs), and check that the next scheduled run succeeds
   quietly.
-- The full `npm run test:e2e` and `npm run release:dry-run` on the merged
-  tree; each PR ran its affected E2E files (P 2, B 13, L 24, D 30).
+- Done: the release dry run with the full `npm run test:e2e` on a local
+  merge of all four parts. Every step passed except one E2E test
+  (org-policy, 324 of 325); that was a D2 regression, fixed on the delivery
+  branch (`d44fdbb`), and the file now passes 4 of 4.
 - The 22 Nov hand session in Chrome and its screen recording (needs a real
   browser, both packs and an Anthropic key).
 - Not checked: whether Confluence redirects old JA links by page id, so 5.x
