@@ -71,11 +71,42 @@ describe("the case chip (KB-RAG K29, L1)", () => {
       within(openMenu()).getByRole("menuitem", { name: "Open in Cases" }),
     );
     expect(mocks.openOptions).toHaveBeenCalledWith({ section: "cases" });
+  });
+
+  it("closes the case in a modal dialog that Escape and Cancel close, giving focus back to the chip (L2)", async () => {
+    const record = {
+      ...newCase("conv-1", NOW, { tabHost: "app.example.com" }),
+      id: "CASE-20261122-AB12",
+    };
+    mocks.current.mockResolvedValue(record);
+    render(<CaseChip />);
+    const chip = await screen.findByTestId("case-chip");
 
     fireEvent.click(
       within(openMenu()).getByRole("menuitem", { name: "Close case…" }),
     );
-    expect(await screen.findByTestId("close-case-form")).toBeInTheDocument();
+    const dialog = await screen.findByRole("dialog", {
+      name: "Close CASE-20261122-AB12",
+    });
+    expect(within(dialog).getByTestId("close-case-form")).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("radio", { name: "Resolved" }),
+    ).toBeChecked();
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await vi.waitFor(() => expect(chip).toHaveFocus());
+
+    fireEvent.click(
+      within(openMenu()).getByRole("menuitem", { name: "Close case…" }),
+    );
+    fireEvent.click(
+      within(await screen.findByRole("dialog")).getByRole("button", {
+        name: "Cancel",
+      }),
+    );
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await vi.waitFor(() => expect(chip).toHaveFocus());
   });
 
   it("shows how a closed case ended and offers no Close case", async () => {

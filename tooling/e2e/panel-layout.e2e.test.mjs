@@ -187,3 +187,74 @@ describe("the header by keyboard, light and dark (KB-RAG K29, L1)", () => {
     );
   });
 });
+
+/** The message list's height and its scroller's scrollTop. */
+function chatBox() {
+  const log = document.querySelector('[role="log"]');
+  const scroller = [...log.querySelectorAll("*")].find((el) =>
+    ["auto", "scroll"].includes(getComputedStyle(el).overflowY),
+  );
+  return {
+    height: log.getBoundingClientRect().height,
+    scrollTop: scroller.scrollTop,
+  };
+}
+
+describe("Close case as a dialog (KB-RAG K29, L2)", () => {
+  for (const width of WIDTHS) {
+    for (const height of HEIGHTS) {
+      it(`at ${width}x${height}, by keyboard, the chat keeps its height and place`, async () => {
+        await atSize(width, height);
+        await panel.evaluate(() => {
+          const log = document.querySelector('[role="log"]');
+          const scroller = [...log.querySelectorAll("*")].find((el) =>
+            ["auto", "scroll"].includes(getComputedStyle(el).overflowY),
+          );
+          scroller.scrollTop = Math.floor(scroller.scrollHeight / 3);
+        });
+        await panel.waitForTimeout(100);
+        const before = await panel.evaluate(chatBox);
+
+        const chip = caseChip(panel);
+        await openMenuByKeyboard();
+        await arrowTo("Close case…");
+        await panel.keyboard.press("Enter");
+        const dialog = panel.getByRole("dialog", { name: /^Close CASE-/ });
+        await dialog.waitFor();
+        assert.equal(
+          await dialog.evaluate((el) => el.contains(document.activeElement)),
+          true,
+          "focus moves into the dialog",
+        );
+        await dialog.getByTestId("close-case-form").waitFor();
+        assert.equal(
+          await dialog.getByRole("radio", { name: "Resolved" }).isChecked(),
+          true,
+        );
+        await dialog
+          .getByRole("group", { name: "Was the finding right?" })
+          .waitFor();
+        const open = await panel.evaluate(chatBox);
+        assert.deepEqual(open, before, "the chat while the dialog is open");
+        const m = await panel.evaluate(measure);
+        assert.ok(m.above <= 96, JSON.stringify(m));
+        assert.ok(m.chat >= 0.65 * m.panel, JSON.stringify(m));
+
+        if (width === 400 && height === 900) {
+          const violations = await axeInBothThemes(panel);
+          assert.deepEqual(violations, [], describeViolations(violations));
+        }
+
+        await panel.keyboard.press("Escape");
+        await dialog.waitFor({ state: "hidden" });
+        assert.equal(
+          await chip.evaluate((el) => el === document.activeElement),
+          true,
+          "focus returns to the case chip",
+        );
+        assert.deepEqual(await panel.evaluate(chatBox), before);
+        assert.equal(model.requests.length, 0);
+      });
+    }
+  }
+});

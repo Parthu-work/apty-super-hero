@@ -2944,7 +2944,9 @@
     "copyCaseId": "Copy case id",
     "closeCaseMenu": "Close case…",
     "openInCases": "Open in Cases",
-    "chipName": "Case {{id}}"
+    "chipName": "Case {{id}}",
+    "closeDialogTitle": "Close {{id}}",
+    "closeDialogDescription": "How did the case end? The answer stays on this device."
   },
   "supportBundle": {
     "nothingYet": "Nothing to bundle yet: run a check or open a KB card",

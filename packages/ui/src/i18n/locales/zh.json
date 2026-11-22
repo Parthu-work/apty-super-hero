@@ -2944,7 +2944,9 @@
     "copyCaseId": "复制案例编号",
     "closeCaseMenu": "结束案例…",
     "openInCases": "在“案例”中打开",
-    "chipName": "案例 {{id}}"
+    "chipName": "案例 {{id}}",
+    "closeDialogTitle": "结束 {{id}}",
+    "closeDialogDescription": "案例的结果如何？答案只保存在此设备上。"
   },
   "supportBundle": {
     "nothingYet": "暂无可打包内容：请先运行检查或打开 KB 卡片",

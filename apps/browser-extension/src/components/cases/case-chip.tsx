@@ -9,6 +9,13 @@ import { type CaseRecord, caseToContinue } from "@apty/agent-core";
 import { useChatContext } from "@apty/ui/components/chatbot";
 import { Button } from "@apty/ui/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@apty/ui/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -26,7 +33,7 @@ import {
   PlusIcon,
   XIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { openOptions } from "../../lib/open-options";
 import { caseRecorder, setActiveConversation } from "../../services/cases";
 import { useReadiness } from "../connections/use-readiness";
@@ -151,6 +158,7 @@ export function CaseChip() {
   const { label } = useSiteLabels();
   const [copied, setCopied] = useState(false);
   const [closing, setClosing] = useState(false);
+  const chipRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!copied) return undefined;
@@ -168,6 +176,7 @@ export function CaseChip() {
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <Button
+            ref={chipRef}
             size="sm"
             variant="outline"
             className="h-7 min-w-0 shrink-0 gap-1 px-1.5 text-xs"
@@ -242,11 +251,24 @@ export function CaseChip() {
       <span className="sr-only" aria-live="polite">
         {copied ? t("common.copied") : ""}
       </span>
-      {closing && (
-        <div className="absolute inset-x-2 top-full z-20 mt-2 rounded-lg border border-border bg-card p-3 shadow-md">
+      <Dialog open={closing} onOpenChange={setClosing}>
+        <DialogContent
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            chipRef.current?.focus();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>
+              {t("cases.closeDialogTitle", { id: record.id })}
+            </DialogTitle>
+            <DialogDescription>
+              {t("cases.closeDialogDescription")}
+            </DialogDescription>
+          </DialogHeader>
           <CloseCaseForm record={record} onDone={() => setClosing(false)} />
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
