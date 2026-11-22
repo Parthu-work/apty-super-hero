@@ -9,11 +9,19 @@ import {
   createKbIndex,
   type KbIndex,
   type KbIndexInfo,
+  type KbSearchHit,
   type KbSearchOptions,
   type KbSearchResult,
 } from "./search.js";
 
 const ALL_HITS = 20;
+/**
+ * KB-RAG K29, B2: with the tab's version unknown, another version's card
+ * comes beside the best one only when its pack covers the question with at
+ * least this share of the best card's coverage, and the card scores at
+ * least this share of its pack's top card.
+ */
+const STRONG_SHARE = 0.7;
 
 /**
  * The order packs take turns in a merged result: the tab's version, then
@@ -39,7 +47,8 @@ function packOrder(
  * `packOrder`; else the uncovered result that came closest. Page ids are
  * unique across spaces, so a card is in one pack only. Each hit carries its
  * pack's version, and `mixedVersions` says when the top two come from
- * different versions.
+ * different versions. With the tab's version unknown, another version's
+ * cards come only when they are strong next to the best card (K29, B2).
  */
 export function createKbIndexSet(
   packs: readonly KbPack[],
@@ -72,6 +81,31 @@ export function createKbIndexSet(
 
   const holdsPhrase = (phrase: string) =>
     indexes.some((index) => index.holdsPhrase(phrase));
+
+  /**
+   * The tab's version unknown: each covered pack's hits by rank, keeping
+   * another version's only when they are strong next to `best` (B2); common
+   * cards are no version's and stay.
+   */
+  function strongHits(
+    covered: readonly KbSearchResult[],
+    best: { version?: KbAptyVersion; coverage: number },
+    topK: number,
+  ): KbSearchHit[] {
+    const lists = covered.map((result) => {
+      const version = result.hits[0]?.aptyVersion;
+      if (version === best.version || version === "common") return result.hits;
+      if (
+        result.status !== "ok" ||
+        result.coverage < STRONG_SHARE * best.coverage
+      ) {
+        return [];
+      }
+      const top = result.hits[0]?.score ?? 0;
+      return result.hits.filter((hit) => hit.score >= STRONG_SHARE * top);
+    });
+    return roundRobin(lists).slice(0, topK);
+  }
 
   function search(
     query: string,
@@ -106,8 +140,12 @@ export function createKbIndexSet(
       // the other versions' cards that match come beside it.
       const beside =
         tabVersion === "unknown"
-          ? roundRobin(covered.map((r) => r.hits)).slice(
-              0,
+          ? strongHits(
+              covered,
+              {
+                ...(absent.cardVersion ? { version: absent.cardVersion } : {}),
+                coverage: absent.coverage,
+              },
               Math.max(1, Math.floor(topK)),
             )
           : [];
@@ -118,10 +156,19 @@ export function createKbIndexSet(
       };
     }
     if (covered.length > 0) {
-      const hits = roundRobin(covered.map((r) => r.hits)).slice(
-        0,
-        Math.max(1, Math.floor(topK)),
-      );
+      const count = Math.max(1, Math.floor(topK));
+      const bestVersion = bestCovered?.hits[0]?.aptyVersion;
+      const hits =
+        tabVersion === "unknown"
+          ? strongHits(
+              covered,
+              {
+                ...(bestVersion ? { version: bestVersion } : {}),
+                coverage: bestCovered?.coverage ?? 0,
+              },
+              count,
+            )
+          : roundRobin(covered.map((r) => r.hits)).slice(0, count);
       const contextIgnored = covered[0]?.contextIgnored;
       // K27, E3: the choices of the closest covering pack, when it has them.
       const choices = bestCovered?.choices;
