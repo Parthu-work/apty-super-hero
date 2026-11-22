@@ -2899,7 +2899,8 @@
       "client": "Apty {{version}} 文件（{{files}}），来自 Apty Client 的记录。未询问 AI 模型。",
       "cdn": "Apty {{version}} 文件（{{files}}），来自 Apty 内容 CDN。未询问 AI 模型。",
       "capture": "Apty {{version}} 文件（{{files}}），来自页面的网络捕获。未询问 AI 模型。",
-      "none": "未询问 AI 模型。"
+      "none": "未询问 AI 模型。",
+      "unknownVersion": "文件（{{files}}）的 Apty 版本尚不清楚。未询问 AI 模型。"
     },
     "choice": {
       "active": "已启用",
@@ -2913,7 +2914,9 @@
       "reloaded": "标签页正在重新加载。页面加载完成后请再问一次。",
       "none": "捕获未看到任何 Apty 内容请求。请在开启 Apty Client 的情况下重新加载页面，或从 Client 的 service worker 保存 HAR。",
       "failed": "无法从此标签页获取证据。"
-    }
+    },
+    "titleNotConnected": "查询：Apty 客户端未连接",
+    "titleVersionUnknown": "查询：Apty 版本未知"
   },
   "cases": {
     "site": "站点：{{site}}",

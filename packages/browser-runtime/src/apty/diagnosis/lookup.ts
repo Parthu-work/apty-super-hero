@@ -223,9 +223,12 @@ const pick = <T extends { marked: boolean }>(
   candidates: Array<T | undefined>,
 ) => candidates.find((c) => c?.marked);
 
+/**
+ * A statement ("Sign in workflow in All Users segment", K29 B8) routes only
+ * when it marks both names: the workflow and the segment.
+ */
 function membership(cleaned: Cleaned): LookupQuestion | undefined {
-  if (!cleaned.asked) return undefined;
-  const { text, slots } = cleaned;
+  const { text, slots, asked } = cleaned;
   const itemFirst = splits(text, IN_VERBS).map(([left, right]) => {
     const item = itemName(left, slots);
     const segment = segmentName(right, slots);
@@ -233,9 +236,17 @@ function membership(cleaned: Cleaned): LookupQuestion | undefined {
     return {
       item: item.value,
       segment: segment.value,
-      marked: item.marked || segment.marked || (item.quoted && segment.quoted),
+      marked: asked
+        ? item.marked || segment.marked || (item.quoted && segment.quoted)
+        : item.marked && segment.marked,
     };
   });
+  if (!asked) {
+    const stated = pick(itemFirst);
+    return stated
+      ? { kind: "membership", item: stated.item, segment: stated.segment }
+      : undefined;
+  }
   const segmentFirst = splits(text, HOLDS_VERBS).map(([left, right]) => {
     const segment = segmentName(left, slots);
     const item = itemName(right, slots);
@@ -882,6 +893,18 @@ const WORDS: Record<LookupWord, string> = {
   "@segments": "segments that list it",
 };
 
+/** K29, B8: what the lookup read, in words, also when nothing was read. */
+function lookupHeading(result: LookupResult): string {
+  if (result.message.key === "clientNotConnected") {
+    return "Lookup: the Apty Client is not connected.";
+  }
+  if (result.aptyVersion === "unknown") {
+    return "Lookup: the Apty version is not known.";
+  }
+  const files = result.files.length > 0 ? `${result.files.join(", ")}, ` : "";
+  return `Lookup from the Apty ${result.aptyVersion} content files (${files}source ${result.source}):`;
+}
+
 export function lookupTranscript(result: LookupResult): string {
   const word = (cell: string) => WORDS[cell as LookupWord] ?? cell;
   const table = result.rows
@@ -889,9 +912,8 @@ export function lookupTranscript(result: LookupResult): string {
       row.map((cell, i) => `${result.columns[i]}: ${word(cell)}`).join("; "),
     )
     .join("\n");
-  const files = result.files.length > 0 ? `${result.files.join(", ")}, ` : "";
   return [
-    `Lookup from the Apty ${result.aptyVersion} content files (${files}source ${result.source}): ${result.headline}`,
+    `${lookupHeading(result)} ${result.headline}`,
     table,
     result.ask
       ? `Ask the user which ${result.ask.what}: ${result.ask.options.map((o) => o.label).join("; ")}.`

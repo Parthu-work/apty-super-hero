@@ -2899,7 +2899,8 @@
       "client": "Apty {{version}} files ({{files}}), from the Apty Client's record. No AI model was asked.",
       "cdn": "Apty {{version}} files ({{files}}), from Apty's content CDN. No AI model was asked.",
       "capture": "Apty {{version}} files ({{files}}), from the page's network capture. No AI model was asked.",
-      "none": "No AI model was asked."
+      "none": "No AI model was asked.",
+      "unknownVersion": "Files ({{files}}) of an Apty version not known yet. No AI model was asked."
     },
     "choice": {
       "active": "active",
@@ -2913,7 +2914,9 @@
       "reloaded": "The tab is reloading. Ask again once the page has loaded.",
       "none": "The capture saw no Apty content call. Reload the page with the Apty Client on, or save a HAR from the Client's service worker.",
       "failed": "The evidence could not be taken from this tab."
-    }
+    },
+    "titleNotConnected": "Lookup: the Apty Client is not connected",
+    "titleVersionUnknown": "Lookup: the Apty version is not known"
   },
   "cases": {
     "site": "Site: {{site}}",

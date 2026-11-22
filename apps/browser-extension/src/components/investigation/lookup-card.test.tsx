@@ -141,3 +141,28 @@ describe("LookupCard choices and missing files (KB-RAG K28, F2 and F3)", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("the lookup heading (KB-RAG K29, B8)", () => {
+  it("says in words that the Client is not connected", () => {
+    render(
+      <AptyToolDisplay
+        tool={tool(
+          answerLookup(
+            { kind: "membership", item: "Alpha Ledger Page", segment: "All" },
+            {
+              connection: { ok: false, failure: "no_receiver", message: "x" },
+              observedNames: [],
+              files: {},
+            },
+          ),
+        )}
+      />,
+    );
+    expect(
+      screen.getByRole("heading", {
+        name: "Lookup: the Apty Client is not connected",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Apty unknown/)).toBeNull();
+  });
+});
