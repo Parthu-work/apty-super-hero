@@ -490,6 +490,7 @@ const FUZZY_MIN_CHARS = 5;
 const FUZZY_TWO_EDITS_CHARS = 8;
 const PREFIX_MIN_CHARS = 4;
 const APPROXIMATE_MATCH = 0.5;
+const NEGATED = /\bnot\b|n't\b/;
 
 const maxEdits = (typed: string) =>
   typed.length >= FUZZY_TWO_EDITS_CHARS
@@ -892,10 +893,29 @@ function createV2Index(pack: KbPack): KbIndex {
       boost: { title: 2, symptom: 2.5, approved: 2 },
     },
   });
+  /**
+   * K29, B7: a card whose title or symptom says a group's negated phrase
+   * ("does not appear") is indexed with the group's first word too, as a
+   * card saying "missing" holds its own: the phrase's words alone mean the
+   * opposite, so they cannot stand in for it.
+   */
+  const negatedWords = (card: KbCard): string => {
+    const text = normalize(`${card.title} ${card.symptom ?? ""}`)
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+    return [...synonyms.groupsIn([], text)]
+      .filter((group) =>
+        synonyms
+          .phrases(group)
+          .some((phrase) => NEGATED.test(phrase) && hasPhrase(text, phrase)),
+      )
+      .map((group) => synonyms.words(group)[0] ?? "")
+      .join(" ");
+  };
   cardIndex.addAll(
     [...cards.values()].map((card) => ({
       id: card.pageId,
-      title: card.title,
+      title: `${card.title} ${negatedWords(card)}`.trim(),
       symptom: card.symptom ?? "",
       approved: approved.get(card.pageId) ?? "",
     })),
