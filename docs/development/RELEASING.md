@@ -7,7 +7,10 @@
    workflow with `dry_run` on does the same and uploads the packages
    without publishing. The dry run stops first when the tree has an
    uncommitted or untracked file, because the format check reads the whole
-   tree; `--allow-dirty` runs it anyway. Then run the manual browser checklist,
+   tree; `--allow-dirty` runs it anyway. To keep the step logs and packages
+   somewhere other than `/tmp/release-dry-run`, set `RELEASE_DRY_RUN_OUT`
+   to a directory; the dry run empties that directory first, so don't point
+   it at one holding anything else. Then run the manual browser checklist,
    [`docs/release/SMOKE_TEST.md`](../release/SMOKE_TEST.md), on Chrome and
    Edge with that package.
 1. Bump `version` in `apps/browser-extension/manifest.json` and
