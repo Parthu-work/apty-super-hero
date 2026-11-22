@@ -2702,7 +2702,14 @@
     "sentTo": "也会发送给位于 {{destination}} 的 AI 模型。",
     "askForNewPack": "请向 KB 负责人索取新的知识包。",
     "notInVersion": "Apty {{version}} 中没有此功能。",
-    "otherVersions": "其他 Apty 版本的卡片："
+    "otherVersions": "其他 Apty 版本的卡片：",
+    "fileVersion": "{{file}} 是 {{version}} 的文件。在 Apty {{siteVersion}} 中，{{what}}是 {{counterpart}}。",
+    "fileKinds": {
+      "workflows": "工作流列表",
+      "workflowSteps": "工作流的步骤文件",
+      "segments": "分段列表",
+      "rules": "规则列表"
+    }
   },
   "orgPolicy": {
     "setByOrg": "由您的组织设置",
@@ -2742,7 +2749,8 @@
       "versionChosen": "{{version}}，你的选择",
       "packExpiresInOne": "包将在 {{count}} 天后到期",
       "packExpiresIn": "包将在 {{count}} 天后到期",
-      "packExpired": "包已过期"
+      "packExpired": "包已过期",
+      "versionQuestion": "{{version}}，来自问题中的文件名"
     },
     "copy": "复制回答依据",
     "kbNotSearched": "未搜索 KB：由检查回答（已加载 {{packs}}）",
@@ -2767,7 +2775,8 @@
     "source": {
       "files": "来自 Apty Client 的文件",
       "user": "您的选择",
-      "unknown": "未知"
+      "unknown": "未知",
+      "question": "来自问题中的文件名"
     },
     "packsLine": "已搜索的知识包：{{packs}}",
     "packsNone": "已搜索的知识包：无",

@@ -2702,7 +2702,14 @@
     "sentTo": "Also sent to the AI model at {{destination}}.",
     "askForNewPack": "Ask the KB owner for a new one.",
     "notInVersion": "This does not exist in Apty {{version}}.",
-    "otherVersions": "Cards for other Apty versions:"
+    "otherVersions": "Cards for other Apty versions:",
+    "fileVersion": "{{file}} is a {{version}} file. On Apty {{siteVersion}} the {{what}} is {{counterpart}}.",
+    "fileKinds": {
+      "workflows": "workflow list",
+      "workflowSteps": "workflow's steps file",
+      "segments": "segment list",
+      "rules": "rule list"
+    }
   },
   "orgPolicy": {
     "setByOrg": "Set by your organization",
@@ -2742,7 +2749,8 @@
       "versionChosen": "{{version}}, your choice",
       "packExpiresInOne": "Pack expires in {{count}} day",
       "packExpiresIn": "Pack expires in {{count}} days",
-      "packExpired": "Pack expired"
+      "packExpired": "Pack expired",
+      "versionQuestion": "{{version}}, from a file name in the question"
     },
     "copy": "Copy why this answer",
     "kbNotSearched": "KB not searched: a check answered ({{packs}} loaded)",
@@ -2767,7 +2775,8 @@
     "source": {
       "files": "from the Apty Client's files",
       "user": "your choice",
-      "unknown": "not known"
+      "unknown": "not known",
+      "question": "from a file name in the question"
     },
     "packsLine": "Packs searched: {{packs}}",
     "packsNone": "Packs searched: none",

@@ -9,7 +9,8 @@ import type { KbNotCoveredReason } from "./search.js";
 
 export type TurnRoute = "check" | "kb" | "file_fetch" | "model";
 export type TabVersion = "4.x" | "5.x" | "unknown";
-export type TabVersionSource = "files" | "user" | "unknown";
+/** `question`: a content file the question named (KB-RAG K29, B3). */
+export type TabVersionSource = "files" | "user" | "question" | "unknown";
 
 /** A pack a search read: its version and the first 12 hex characters of its sha256. */
 export interface DecisionPack {

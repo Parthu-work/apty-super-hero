@@ -661,6 +661,30 @@ describe("the KB matches answer (KB-RAG K6)", () => {
     });
   });
 
+  it("takes the version a named content file says when the site's is unknown, below every other source (KB-RAG K29, B3)", async () => {
+    forgetKbVersions();
+    const pageUrlOf = async () => "https://acc.tenant.example/home";
+    const kbMatchesOf = vi.fn(async () => noMatch);
+    const respond = createDiagnosisResponder({ pageUrlOf, kbMatchesOf });
+
+    const answer = await respond("what does flow.json mean", {});
+
+    expect(kbMatchesOf).toHaveBeenLastCalledWith("what does flow.json mean", {
+      modelAvailable: false,
+      version: "4.x",
+    });
+    expect(answer?.decision).toMatchObject({
+      version: "4.x",
+      versionSource: "question",
+    });
+    rememberKbVersion("acc.tenant.example", "5.x", "user");
+    await respond("what does flow.json mean", {});
+    expect(kbMatchesOf).toHaveBeenLastCalledWith("what does flow.json mean", {
+      modelAvailable: false,
+      version: "5.x",
+    });
+  });
+
   it("leaves the message to the model when the KB has nothing above its threshold, with the reason", async () => {
     const respond = createDiagnosisResponder({
       kbMatchesOf: async () => noMatch,

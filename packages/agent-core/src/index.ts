@@ -165,6 +165,11 @@ export {
   kbWithheldText,
   withholdKbText,
 } from "./kb/egress.js";
+export {
+  type NamedFileKind,
+  type NamedFileVersion,
+  namedFileVersion,
+} from "./kb/file-version.js";
 export { createKbIndexSet } from "./kb/index-set.js";
 export {
   type KbCardTitle,
