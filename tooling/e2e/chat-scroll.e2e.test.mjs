@@ -89,7 +89,7 @@ function p95(values) {
 /** scrollTop of the chat's scroller every 100 ms for `ms`. */
 async function samples(panel, ms) {
   return panel.evaluate(async (ms) => {
-    // The element that scrolls: use-stick-to-bottom's inner scroller.
+    // The element that scrolls: the conversation's scroller.
     const log = [...document.querySelectorAll('[role="log"] *')].find((el) =>
       ["auto", "scroll"].includes(getComputedStyle(el).overflowY),
     );

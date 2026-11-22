@@ -1,6 +1,5 @@
 import { BrainIcon, ChevronDownIcon, Loader2Icon } from "lucide-react";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useStickToBottomContext } from "use-stick-to-bottom";
+import { useMemo, useState } from "react";
 import { useTranslation } from "../../../i18n/context";
 import {
   type KbReturnedCards,
@@ -12,6 +11,7 @@ import {
   Conversation,
   ConversationContent,
   ConversationScrollButton,
+  useConversationScroll,
 } from "../../ai-elements/conversation";
 import {
   Collapsible,
@@ -91,36 +91,21 @@ const WINDOW_TURNS = 60;
 
 /**
  * Show earlier messages: adds older turns above the shown ones and keeps
- * the reader where they were, by moving the scroller down by exactly the
- * height the new turns added.
+ * the reader where they were, by keeping the first shown turn in place.
  */
 function ShowEarlier({ onShow }: { onShow: () => void }) {
   const { t } = useTranslation();
-  const { scrollRef } = useStickToBottomContext();
-  const before = useRef<{ height: number; top: number } | null>(null);
-  const [shown, setShown] = useState(0);
-  useLayoutEffect(() => {
-    const scroller = scrollRef.current;
-    const was = before.current;
-    if (!scroller || !was || shown === 0) return;
-    scroller.scrollTop = was.top + (scroller.scrollHeight - was.height);
-    before.current = null;
-  }, [shown, scrollRef]);
+  const { keepInPlace } = useConversationScroll();
   return (
     <div className="flex justify-center">
       <button
         type="button"
         className="rounded-md border border-border px-3 py-1.5 text-sm text-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        onClick={() => {
-          const scroller = scrollRef.current;
-          if (scroller) {
-            before.current = {
-              height: scroller.scrollHeight,
-              top: scroller.scrollTop,
-            };
-          }
+        onClick={(event) => {
+          const firstTurn =
+            event.currentTarget.parentElement?.nextElementSibling;
+          if (firstTurn) keepInPlace(firstTurn);
           onShow();
-          setShown((n) => n + 1);
         }}
       >
         {t("chat.showEarlier")}
@@ -186,7 +171,7 @@ export function DefaultMessageList({
       className={cn("min-h-0 min-w-0 flex-1 overflow-hidden", className)}
       {...props}
     >
-      <Conversation className="h-full">
+      <Conversation className="h-full" resetKey={firstMessageId}>
         <ConversationContent className="space-y-4">
           {/* Before messages slot - for banners, announcements */}
           {slots.beforeMessages?.()}
@@ -214,7 +199,7 @@ export function DefaultMessageList({
                   ? turn.userMessage.id
                   : (turn.assistantMessages[0]?.id ?? "");
                 return (
-                  <div key={turnKey} className="space-y-2">
+                  <div key={turnKey} className="space-y-2" data-scroll-anchor>
                     {/* Render user message */}
                     {turn.userMessage && (
                       <MessageItem

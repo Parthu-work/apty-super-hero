@@ -258,3 +258,107 @@ describe("Close case as a dialog (KB-RAG K29, L2)", () => {
     }
   }
 });
+
+/** Scrolls the chat so `selector`'s nth match ends `gap` px above the view's bottom. */
+async function bringNearBottom(locator, gap) {
+  await locator.evaluate((el, gap) => {
+    const scroller = window.__chatScroller();
+    const view = scroller.getBoundingClientRect();
+    const box = el.getBoundingClientRect();
+    scroller.scrollTop += box.bottom - (view.bottom - gap);
+  }, gap);
+  await panel.waitForTimeout(150);
+}
+
+const scrollerTop = () =>
+  panel.evaluate(() => window.__chatScroller().scrollTop);
+
+async function settled() {
+  await panel.evaluate(
+    () =>
+      new Promise((r) =>
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => setTimeout(r, 300)),
+        ),
+      ),
+  );
+}
+
+describe("nothing jumps when a card changes height (KB-RAG K29, L3)", () => {
+  for (const [width, height] of [
+    [320, 600],
+    [400, 900],
+  ]) {
+    it(`switching L1 to L4 on the second of three cards keeps that card in place at ${width}x${height}`, async () => {
+      await atSize(width, height);
+      const answer = panel
+        .getByRole("region", { name: "KB cards that match" })
+        .nth(1);
+      const layers = answer.getByRole("group", { name: "Card layers" }).nth(1);
+      await bringNearBottom(layers, 12);
+      const before = await layers.boundingBox();
+      await layers
+        .getByRole("button", { name: "Layer 4, Contact support" })
+        .focus();
+      await panel.keyboard.press("Enter");
+      await answer.getByText("Layer 4: Contact support").first().waitFor();
+      await settled();
+      const after = await layers.boundingBox();
+      assert.ok(
+        Math.abs(after.y - before.y) <= 2,
+        `the card moved from ${before.y} to ${after.y}`,
+      );
+      await layers.getByRole("button", { name: "Layer 1, Settings" }).click();
+      await settled();
+    });
+  }
+
+  it('opening "Why this answer" on a middle turn does not scroll', async () => {
+    await atSize(400, 900);
+    const why = panel.getByTestId("turn-decision").nth(1);
+    const summary = why.locator("summary");
+    await bringNearBottom(summary, 8);
+    const top = await scrollerTop();
+    const before = await summary.boundingBox();
+    await summary.click();
+    await settled();
+    assert.equal(await why.evaluate((el) => el.open), true);
+    assert.equal(await scrollerTop(), top);
+    const after = await summary.boundingBox();
+    assert.ok(Math.abs(after.y - before.y) <= 2, `${before.y} → ${after.y}`);
+    await summary.click();
+    await settled();
+  });
+
+  it("a new answer while the SE reads higher up does not move the view; at the bottom it is followed", async () => {
+    await atSize(400, 900);
+    const checks = panel.getByRole("region", {
+      name: "Why “Take a tour” may not be visible",
+    });
+    const reading = panel.getByText("ANSWER 1:");
+    await bringNearBottom(reading, 200);
+    const top = await scrollerTop();
+    const before = await reading.boundingBox();
+    const count = await checks.count();
+    await sendChat(panel, SYMPTOM);
+    await checks.nth(count).waitFor({ timeout: 60_000 });
+    await settled();
+    assert.equal(await scrollerTop(), top, "the view moved");
+    assert.ok(Math.abs((await reading.boundingBox()).y - before.y) <= 2);
+
+    await panel.evaluate(() => {
+      const scroller = window.__chatScroller();
+      scroller.scrollTop = scroller.scrollHeight;
+    });
+    await settled();
+    await sendChat(panel, SYMPTOM);
+    await checks.nth(count + 1).waitFor({ timeout: 60_000 });
+    await settled();
+    const gap = await panel.evaluate(() => {
+      const el = window.__chatScroller();
+      return el.scrollHeight - el.scrollTop - el.clientHeight;
+    });
+    assert.ok(gap <= 2, `${gap} px from the bottom after a new answer`);
+    assert.equal(model.requests.length, 0);
+  });
+});
