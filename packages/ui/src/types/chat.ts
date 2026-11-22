@@ -1,6 +1,7 @@
 import type {
   AgentMetrics,
   FunctionTool,
+  KbFollowUp,
   RunCheckRequest,
 } from "@apty/agent-core";
 import type { ComponentType, HTMLAttributes, ReactNode } from "react";
@@ -295,5 +296,6 @@ export type { AgentMetrics } from "@apty/agent-core";
 export interface SendMessageOptions {
   skipLocalResponder?: boolean;
   turnInstruction?: string;
+  followsKb?: KbFollowUp;
   runCheck?: RunCheckRequest;
 }

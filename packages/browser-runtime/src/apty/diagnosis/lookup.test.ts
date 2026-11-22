@@ -263,6 +263,52 @@ describe("routeLookup: how SEs ask (KB-RAG K28, F1)", () => {
     expect(routeLookup(message)).toEqual(expected);
   });
 
+  it.each([
+    [
+      "Sign in workflow in All Users segment",
+      { kind: "membership", item: "Sign in", segment: "All Users" },
+    ],
+    [
+      "the Order in Progress workflow in the All Users segment",
+      { kind: "membership", item: "Order in Progress", segment: "All Users" },
+    ],
+  ])("routes a statement naming both a workflow and a segment (KB-RAG K29, B8): %s", (message, expected) => {
+    expect(routeLookup(message)).toEqual(expected);
+  });
+
+  it.each([
+    "Sign in in All Users",
+    "Sign in workflow in All Users",
+    "workflow in the segment",
+  ])("leaves a statement without both markers to the model (KB-RAG K29, B8): %s", (message) => {
+    expect(routeLookup(message)).toBeUndefined();
+  });
+
+  it("names a missing Client or an unknown version in words, never 'the Apty unknown content files' (KB-RAG K29, B8)", () => {
+    const question = routeLookup(
+      "is Alpha Ledger Page in All Users segment",
+    ) as never;
+    const noClient = answerLookup(question, {
+      connection: { ok: false, failure: "no_receiver", message: "none" },
+      observedNames: [],
+      files: {},
+    });
+    expect(lookupTranscript(noClient).split("\n")[0]).toMatch(
+      /^Lookup: the Apty Client is not connected\./,
+    );
+    const unknown = answerLookup(question, {
+      connection: { ok: true },
+      observedNames: ["app-urls.json"],
+      files: {},
+    });
+    expect(lookupTranscript(unknown).split("\n")[0]).toMatch(
+      /^Lookup: the Apty version is not known\./,
+    );
+    for (const result of [noClient, unknown]) {
+      expect(lookupTranscript(result)).not.toMatch(/Apty unknown/);
+    }
+  });
+
   it("answers the new kinds from the files", () => {
     expect(
       answerLookup(

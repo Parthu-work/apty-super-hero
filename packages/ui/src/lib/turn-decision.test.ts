@@ -101,3 +101,20 @@ describe("a check's record (KB-RAG K27, F8)", () => {
     );
   });
 });
+
+describe("the record of Ask the AI anyway (KB-RAG K29, B6)", () => {
+  it("shows the KB outcome it follows, not that no pack was searched", () => {
+    const lines = decisionDetails(
+      {
+        route: "model",
+        version: "unknown",
+        versionSource: "unknown",
+        packs: [],
+        follows: { kind: "unknown_setting", phrases: ["Widget Activation"] },
+      },
+      t,
+    );
+    expect(lines).toContain("KB: no setting named Widget Activation");
+    expect(lines.join("\n")).not.toMatch(/Packs searched/);
+  });
+});

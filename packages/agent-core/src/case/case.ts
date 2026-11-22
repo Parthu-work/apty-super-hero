@@ -59,7 +59,7 @@ export interface CaseRecord {
   /** The SE's first symptom message, Strict-redacted, at most 300 characters. */
   symptom?: string;
   aptyVersion?: "4.x" | "5.x" | "unknown";
-  versionSource?: "files" | "user" | "unknown";
+  versionSource?: "files" | "user" | "question" | "unknown";
   mode?: string;
   environment?: string;
   clientVersion?: string;

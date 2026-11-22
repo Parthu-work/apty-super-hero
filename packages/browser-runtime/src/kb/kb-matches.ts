@@ -10,11 +10,19 @@
  * Every search ends in a typed outcome (KB-RAG K25, A2), so the chat can
  * say why no card was shown: no pack, not covered with its numbers, or an
  * error with its code. Nothing is swallowed.
+ *
+ * A question naming a content file of one version (flow.json is 4.x,
+ * workflow.json 5.x) searches that version's pack (KB-RAG K29, B3); on a
+ * site of the other version the answer says what that version calls the
+ * file and adds its card for it when the pack has one.
  */
 import {
   type KbDecision,
   type KbDeliveryFailure,
+  type KbIndex,
   kbSourceTag,
+  type NamedFileVersion,
+  namedFileVersion,
   packIdOf,
 } from "@apty/agent-core";
 import { measured, PERF } from "../runtime/perf-marks.js";
@@ -101,23 +109,99 @@ function failed(
   };
 }
 
+const bareName = (file: string) => file.replace("<id>", "").toLowerCase();
+
+/** The question asking for the counterpart file in place of the named one. */
+function askedFor(text: string, named: NamedFileVersion): string {
+  const at = text.toLowerCase().indexOf(named.file);
+  if (at < 0) return bareName(named.counterpart);
+  return `${text.slice(0, at)}${bareName(named.counterpart)}${text.slice(at + named.file.length)}`;
+}
+
+/**
+ * The site's version's card for the counterpart file, when its pack has a
+ * covered card that names it; undefined otherwise.
+ */
+async function counterpartAnswer(
+  text: string,
+  named: NamedFileVersion,
+  siteIndex: KbIndex | null,
+): Promise<KbToolResult | undefined> {
+  if (!siteIndex) return undefined;
+  const found = siteIndex.search(askedFor(text, named), {
+    topK: 1,
+    onePerCard: true,
+  });
+  const [hit] = found.hits;
+  if (found.status !== "ok" || !hit) return undefined;
+  const shown = `${hit.card.title}\n${hit.chunk.text}`.toLowerCase();
+  if (!shown.includes(bareName(named.counterpart))) return undefined;
+  return kbToolResultOf({ ...found, hits: [hit] });
+}
+
+/** The answer with the file's line and the site's version's card for it, at the end. */
+function withCounterpart(
+  result: KbToolResult,
+  named: NamedFileVersion,
+  siteVersion: "4.x" | "5.x",
+  extra: KbToolResult | undefined,
+): KbToolResult {
+  const added = (extra?.results ?? []).filter(
+    (hit) =>
+      !result.results.some(
+        (shown) => shown.cite.split("#")[0] === hit.cite.split("#")[0],
+      ),
+  );
+  return {
+    ...result,
+    cards: [...result.cards, ...(added.length > 0 ? (extra?.cards ?? []) : [])],
+    results: [...result.results, ...added],
+    fileVersion: {
+      file: named.file,
+      version: named.version,
+      siteVersion,
+      counterpart: named.counterpart,
+      kind: named.kind,
+    },
+  };
+}
+
+const searchedPacks = (index: KbIndex): KbSearchedPack[] =>
+  index.info.packs.map((pack) => ({
+    version: pack.aptyVersion,
+    sha256: packIdOf(pack.sha256),
+    keyId: pack.keyId,
+    expiresAt: pack.expiresAt,
+  }));
+
 /** The pack's best cards, a stub, the English-cards notice, or why there is no card. */
 export async function localKbMatches(
   text: string,
   source: KbIndexSource = sharedKbIndexSource(),
   {
     modelAvailable = false,
-    version = "unknown",
+    version: siteVersion = "unknown",
     delivery = sharedKbDeliveryNote(),
   }: KbMatchesOptions = {},
 ): Promise<KbOutcome> {
   if (isBareHowTo(text)) return { kind: "how_to" };
+  const named = namedFileVersion(text.slice(0, MAX_QUERY_CHARS));
+  let version = siteVersion;
   let index: Awaited<ReturnType<KbIndexSource["current"]>>;
   try {
-    index = await source.current(version);
+    index = named ? await source.current(named.version) : null;
+    if (index && named) version = named.version;
+    else index = await source.current(siteVersion);
   } catch (error) {
     return failed("pack_read_failed", error);
   }
+  const otherSite =
+    named &&
+    version === named.version &&
+    siteVersion !== "unknown" &&
+    siteVersion !== named.version
+      ? siteVersion
+      : undefined;
   if (!index) {
     let blocked: KbUnusablePack | undefined;
     try {
@@ -137,12 +221,7 @@ export async function localKbMatches(
         }
       : { kind: "no_pack", version, ...note };
   }
-  const packs = index.info.packs.map((pack) => ({
-    version: pack.aptyVersion,
-    sha256: packIdOf(pack.sha256),
-    keyId: pack.keyId,
-    expiresAt: pack.expiresAt,
-  }));
+  const packs = searchedPacks(index);
   if (isMostlyNonLatin(text)) {
     return modelAvailable
       ? { kind: "non_english" }
@@ -158,6 +237,25 @@ export async function localKbMatches(
       index.search(query, { topK: KB_MATCHES, onePerCard: true }),
     );
     const result = kbToolResultOf(found);
+    if (
+      named &&
+      otherSite &&
+      result.status === "ok" &&
+      result.results.length > 0 &&
+      !result.choices
+    ) {
+      const siteIndex = await source.current(otherSite);
+      const extra = await counterpartAnswer(query, named, siteIndex);
+      const more = siteIndex ? searchedPacks(siteIndex) : [];
+      return {
+        kind: "answer",
+        result: withCounterpart(result, named, otherSite, extra),
+        packs: [
+          ...packs,
+          ...more.filter((p) => !packs.some((q) => q.sha256 === p.sha256)),
+        ],
+      };
+    }
     if (
       result.status === "stub" ||
       result.status === "not_in_version" ||

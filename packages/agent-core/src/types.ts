@@ -5,7 +5,7 @@ import type {
 } from "@openai/agents";
 import type { AiSdkModel } from "@openai/agents-extensions/ai-sdk";
 import type { Context, ContextManager } from "./context/index.js";
-import type { TurnDecision } from "./kb/decision.js";
+import type { KbFollowUp, TurnDecision } from "./kb/decision.js";
 import type { AgentError } from "./utils/errors.js";
 
 // Re-export types from @openai/agents for convenient access
@@ -286,6 +286,8 @@ export interface ChatOptions {
   skipLocalResponder?: boolean;
   /** A fixed instruction added to this turn's system prompt. */
   turnInstruction?: string;
+  /** With `skipLocalResponder`: the KB outcome the turn follows, for its decision record (K29, B6). */
+  followsKb?: KbFollowUp;
   /** Run this check on the message instead of routing it by its words (K27, E5). */
   runCheck?: RunCheckRequest;
 }

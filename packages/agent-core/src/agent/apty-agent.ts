@@ -696,6 +696,7 @@ export class AptyAgent {
           version: "unknown",
           versionSource: "unknown",
           packs: [],
+          ...(chatOptions.followsKb ? { follows: chatOptions.followsKb } : {}),
         }
       : undefined;
     let turnInstruction = chatOptions?.turnInstruction;

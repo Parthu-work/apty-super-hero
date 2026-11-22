@@ -224,6 +224,88 @@ describe("createKbIndexSet", () => {
     ).toEqual(["71", "81"]);
   });
 
+  describe("another version's cards only when strong (KB-RAG K29, B2)", () => {
+    const fourStrong = pack("4.x", [
+      card("41", "FIXTURE beacon hides behind the menu", "Beacon"),
+      card("42", "FIXTURE flow stops at the second step", "Flowstep"),
+    ]);
+    const fiveWeak = pack("5.x", [
+      card("55", "FIXTURE beacon reload loses the menu", "Ledger"),
+      card("56", "FIXTURE checklist resets every week", "Checklist"),
+    ]);
+
+    it("drops a weak other-version match beside a strong one", () => {
+      expect(
+        createKbIndexSet([fiveWeak]).search("beacon hides behind the menu")
+          .status,
+      ).toBe("ok");
+      const result = createKbIndexSet([fourStrong, fiveWeak]).search(
+        "beacon hides behind the menu",
+        { topK: 3, onePerCard: true },
+      );
+      expect(result.hits.map((hit) => hit.chunk.pageId)).toEqual(["41"]);
+      expect(result.mixedVersions).toBe(false);
+    });
+
+    it("keeps two strong matches of both versions, each labelled with its version", () => {
+      const four = pack("4.x", [
+        card("41", "FIXTURE beacon hides behind the menu", "Beacon"),
+        card("43", "FIXTURE beacon hides behind the menu bar", "Beaconbar"),
+      ]);
+      const five = pack("5.x", [
+        card("51", "FIXTURE beacon hides behind the menu", "Beacon"),
+        card("53", "FIXTURE beacon hides behind the menu bar", "Beaconbar"),
+      ]);
+      const result = createKbIndexSet([four, five]).search(
+        "beacon hides behind the menu",
+        { topK: 4, onePerCard: true },
+      );
+      expect(result.mixedVersions).toBe(true);
+      expect(result.hits.map((hit) => hit.chunk.pageId).sort()).toEqual([
+        "41",
+        "43",
+        "51",
+        "53",
+      ]);
+    });
+
+    it("lists only the matching other-version card after a not_in_version answer", () => {
+      const absentFour = syntheticPack(
+        [
+          card("41", "FIXTURE beacon hides behind the menu", "Beacon"),
+          {
+            pageId: "49",
+            title: "FIXTURE drop-off funnel chart for workflows",
+            symptom: "the funnel chart showing where users leave a workflow",
+            status: "absent",
+          },
+        ],
+        COVERAGE,
+        { schemaVersion: 3, aptyVersion: "4.x" } as never,
+      );
+      const five = pack("5.x", [
+        {
+          pageId: "59",
+          title: "FIXTURE drop-off funnel chart for workflows",
+          layers: [
+            "- FIXTURE: open the funnel chart in Analytics.",
+            "- FIXTURE funnel element.",
+            "- FIXTURE funnel.json entry.",
+            "- FIXTURE funnel support.",
+          ],
+        },
+        card("58", "FIXTURE workflow chart legend overlaps", "Legend"),
+      ]);
+      const result = createKbIndexSet([absentFour, five]).search(
+        "where is the drop-off funnel chart for workflows",
+        { topK: 3, onePerCard: true },
+      );
+      expect(result.status).toBe("not_in_version");
+      expect(result.card?.pageId).toBe("49");
+      expect(result.hits.map((hit) => hit.chunk.pageId)).toEqual(["59"]);
+    });
+  });
+
   it("K24-2: reports the context words the top card's own pack left out", () => {
     const query = "FIXTURE beacon hides behind the menu on the ServiceNow form";
     const merged = createKbIndexSet([FOUR, FIVE, COMMON], {

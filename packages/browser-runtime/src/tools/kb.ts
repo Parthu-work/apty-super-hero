@@ -12,7 +12,7 @@ import {
   sharedKbIndexSource,
   unusablePackOf,
 } from "../kb/kb-index.js";
-import { kbVersionForUrl } from "../kb/kb-version.js";
+import { kbVersionForUrl, whenKbVersionsLoaded } from "../kb/kb-version.js";
 import type { ToolRunContext } from "./tab-utils.js";
 
 /** @internal */
@@ -48,6 +48,7 @@ export const searchKbTool = tool({
       .describe("The tenant's Apty version, only when the user said it."),
   }),
   execute: async ({ query, topK, layers, aptyVersion }, context) => {
+    await whenKbVersionsLoaded();
     const version =
       aptyVersion ??
       kbVersionForUrl(

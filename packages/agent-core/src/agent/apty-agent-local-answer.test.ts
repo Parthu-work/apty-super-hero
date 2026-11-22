@@ -5,6 +5,7 @@ import { SessionStorage } from "../conversation/storage.js";
 import {
   KB_EXPLAIN_INSTRUCTION,
   KB_NO_CARD_INSTRUCTION,
+  kbUnknownSettingInstruction,
 } from "../kb/decision.js";
 import { InMemoryStorage } from "../storage/memory.js";
 import type { AgentEvent, AgentPlugin, LocalResponder } from "../types.js";
@@ -325,6 +326,30 @@ describe("an instruction for a turn with no KB card (KB-RAG K27, F2)", () => {
     expect(requests).toHaveLength(1);
     expect(requests[0]?.systemInstructions).toBe(
       "test\n\nFIXTURE: say you do not know.",
+    );
+  });
+
+  it("Ask the AI anyway after an unknown setting: the record holds the KB outcome it follows (KB-RAG K29, B6)", async () => {
+    const { agent, requests } = agentWith(vi.fn(() => ANSWER));
+    const events = await collect(
+      agent.chat("where is the FIXTURE Glow toggle", {
+        skipLocalResponder: true,
+        turnInstruction: kbUnknownSettingInstruction(["FIXTURE Glow"]),
+        followsKb: { kind: "unknown_setting", phrases: ["FIXTURE Glow"] },
+      }),
+    );
+    expect(events).toContainEqual({
+      type: "turn_decision",
+      decision: {
+        route: "model",
+        version: "unknown",
+        versionSource: "unknown",
+        packs: [],
+        follows: { kind: "unknown_setting", phrases: ["FIXTURE Glow"] },
+      },
+    });
+    expect(requests[0]?.systemInstructions).toContain(
+      "The Apty KB has no setting named 'FIXTURE Glow'.",
     );
   });
 

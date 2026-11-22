@@ -100,7 +100,9 @@ export function TurnSourceChips({
       : t(
           decision.versionSource === "user"
             ? "turnDecision.chip.versionChosen"
-            : "turnDecision.chip.versionFiles",
+            : decision.versionSource === "question"
+              ? "turnDecision.chip.versionQuestion"
+              : "turnDecision.chip.versionFiles",
           { version: decision.version },
         );
   const expiries = decision.packs

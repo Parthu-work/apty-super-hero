@@ -1432,7 +1432,9 @@
     "kbCitation": "KB card {{pageId}}, layer {{layer}}",
     "moreQuestions": "More questions ({{count}})",
     "newAnswers": "{{count}} new",
-    "scrollToBottomNew": "Scroll to the latest message ({{count}} new)"
+    "scrollToBottomNew": "Scroll to the latest message ({{count}} new)",
+    "kbLocationTitle": "The KB does not say where this is",
+    "kbLocation": "A sentence guesses where a setting might be; the KB does not say so."
   },
   "investigation": {
     "componentHealth": "Apty component health",
@@ -1797,7 +1799,7 @@
     "confirm": "Delete every stored conversation and screenshot?",
     "deleteEverything": "Delete everything",
     "deleteNow": "Delete stored data now",
-    "done": "All stored conversations and screenshots were deleted.",
+    "done": "All stored conversations, screenshots and remembered site versions were deleted.",
     "failed": "Deleting stored data failed. Try again."
   },
   "ui": {
@@ -2614,8 +2616,10 @@
       "reading": "Reading the HAR…",
       "check": "Check the HAR",
       "checking": "Checking the HAR…",
-      "noFiles": "This HAR holds no Apty content file. Save it again from the Client's service worker with Preserve log on, after reloading the page."
-    }
+      "noFiles": "This HAR holds no Apty content file. Save it again from the Client's service worker with Preserve log on, after reloading the page.",
+      "versionHint": "Apty 4.x: the Client's service worker reads the files, so save a HAR there. Apty 5.x: the page reads them, so capture this tab while it reloads."
+    },
+    "captureNoneFiveX": "The page made no Apty content call. Reload the page once Apty has loaded, then get the evidence again."
   },
   "harCheck": {
     "intro": "Run the visibility checks on a HAR file a customer recorded, when their Apty Client cannot be connected.",
@@ -2681,7 +2685,8 @@
     "versionChip": {
       "client": "{{version}}, from the Client's files",
       "evidence": "{{version}}, from a check's files",
-      "user": "{{version}}, your choice"
+      "user": "{{version}}, your choice",
+      "question": "{{version}}, from a file name in your question"
     },
     "layers": "Card layers",
     "layerButton": "L{{layer}}",
@@ -2701,7 +2706,14 @@
     "sentTo": "Also sent to the AI model at {{destination}}.",
     "askForNewPack": "Ask the KB owner for a new one.",
     "notInVersion": "This does not exist in Apty {{version}}.",
-    "otherVersions": "Cards for other Apty versions:"
+    "otherVersions": "Cards for other Apty versions:",
+    "fileVersion": "{{file}} is a {{version}} file. On Apty {{siteVersion}} the {{what}} is {{counterpart}}.",
+    "fileKinds": {
+      "workflows": "workflow list",
+      "workflowSteps": "workflow's steps file",
+      "segments": "segment list",
+      "rules": "rule list"
+    }
   },
   "orgPolicy": {
     "setByOrg": "Set by your organization",
@@ -2741,7 +2753,8 @@
       "versionChosen": "{{version}}, your choice",
       "packExpiresInOne": "Pack expires in {{count}} day",
       "packExpiresIn": "Pack expires in {{count}} days",
-      "packExpired": "Pack expired"
+      "packExpired": "Pack expired",
+      "versionQuestion": "{{version}}, from a file name in the question"
     },
     "copy": "Copy why this answer",
     "kbNotSearched": "KB not searched: a check answered ({{packs}} loaded)",
@@ -2766,7 +2779,8 @@
     "source": {
       "files": "from the Apty Client's files",
       "user": "your choice",
-      "unknown": "not known"
+      "unknown": "not known",
+      "question": "from a file name in the question"
     },
     "packsLine": "Packs searched: {{packs}}",
     "packsNone": "Packs searched: none",
@@ -2789,7 +2803,8 @@
       "untrusted": "The {{version}} pack is not signed by a key this extension trusts.",
       "revoked": "The {{version}} pack is signed by a revoked key."
     },
-    "deliveryFailed": "The last update of the {{version}} pack from your organization failed ({{reason}})."
+    "deliveryFailed": "The last update of the {{version}} pack from your organization failed ({{reason}}).",
+    "followsUnknownSetting": "KB: no setting named {{phrases}}"
   },
   "firstRun": {
     "title": "Before you start",
@@ -2886,7 +2901,8 @@
       "client": "Apty {{version}} files ({{files}}), from the Apty Client's record. No AI model was asked.",
       "cdn": "Apty {{version}} files ({{files}}), from Apty's content CDN. No AI model was asked.",
       "capture": "Apty {{version}} files ({{files}}), from the page's network capture. No AI model was asked.",
-      "none": "No AI model was asked."
+      "none": "No AI model was asked.",
+      "unknownVersion": "Files ({{files}}) of an Apty version not known yet. No AI model was asked."
     },
     "choice": {
       "active": "active",
@@ -2900,7 +2916,9 @@
       "reloaded": "The tab is reloading. Ask again once the page has loaded.",
       "none": "The capture saw no Apty content call. Reload the page with the Apty Client on, or save a HAR from the Client's service worker.",
       "failed": "The evidence could not be taken from this tab."
-    }
+    },
+    "titleNotConnected": "Lookup: the Apty Client is not connected",
+    "titleVersionUnknown": "Lookup: the Apty version is not known"
   },
   "cases": {
     "site": "Site: {{site}}",

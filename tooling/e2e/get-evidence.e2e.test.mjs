@@ -1,11 +1,12 @@
 /**
  * KB-RAG K27, E8: one Get the evidence button picks the route the Apty
  * Client's mode calls for. On the fake 4.x player in Injected mode it
- * captures the tab while it reloads; on the fake 5.x Client in Extension
- * mode it asks for a HAR from the Client's service worker and checks a
- * dropped one here. The route is remembered for the site. Both by keyboard
- * alone, with axe in light and dark. Synthetic files only; nothing is sent
- * anywhere and the model is never asked.
+ * captures the tab while it reloads, or takes a HAR from the Client's
+ * service worker on request and checks a dropped one here; the route is
+ * remembered for the site. The fake 5.x Client in Extension mode is offered
+ * a capture only: the service-worker HAR is the 4.x route (KB-RAG K29, B4).
+ * By keyboard alone, with axe in light and dark. Synthetic files only;
+ * nothing is sent anywhere and the model is never asked.
  */
 import assert from "node:assert/strict";
 import { cpSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -169,15 +170,14 @@ describe("Get the evidence (KB-RAG K27, E8)", () => {
     await app.close();
   });
 
-  it("asks for a service-worker HAR for the 5.x Client in Extension mode, checks a dropped one, and remembers the route", async () => {
+  it("takes a service-worker HAR on request for the 4.x player, checks a dropped one, and remembers the route", async () => {
     const before = model.requests.length;
-    const page = new URL(`${site.origin}/extension.html`);
-    page.hostname = "localhost";
-    const first = await askOn(page.href);
+    const first = await askOn(`${site.origin}/injected.html`);
     await first.evidence
-      .getByText(
-        /Extension mode: .*Shown by the script the Apty Client injects into the page\./,
-      )
+      .getByRole("button", { name: "Use a HAR instead" })
+      .click();
+    await first.evidence
+      .getByText(/^Route: a HAR from the Client's service worker\./)
       .waitFor({ timeout: 30_000 });
     assert.equal(await first.evidence.getAttribute("data-route"), "har");
 
@@ -205,7 +205,7 @@ describe("Get the evidence (KB-RAG K27, E8)", () => {
     await first.panel.close();
     await first.app.close();
 
-    const again = await askOn(page.href);
+    const again = await askOn(`${site.origin}/injected.html`);
     await again.evidence
       .getByText(
         "Route: a HAR from the Client's service worker. Last used on this site.",
@@ -214,5 +214,33 @@ describe("Get the evidence (KB-RAG K27, E8)", () => {
     assert.equal(model.requests.length, before, "the model was not asked");
     await again.panel.close();
     await again.app.close();
+  });
+
+  it("offers the 5.x Client in Extension mode a capture, never the 4.x service-worker HAR (KB-RAG K29, B4)", async () => {
+    const before = model.requests.length;
+    const page = new URL(`${site.origin}/extension.html`);
+    page.hostname = "localhost";
+    const { app, panel, evidence } = await askOn(page.href);
+    await evidence
+      .getByText(
+        /Extension mode: .*Shown by the script the Apty Client injects into the page\./,
+      )
+      .waitFor({ timeout: 30_000 });
+    assert.equal(await evidence.getAttribute("data-route"), "capture");
+    await evidence.getByText("Route: Capture and reload this tab.").waitFor();
+    assert.equal(
+      await evidence.getByRole("button", { name: "Use a HAR instead" }).count(),
+      0,
+    );
+    assert.equal(
+      await evidence
+        .getByText("Save a HAR from the 4.x Client's service worker")
+        .count(),
+      0,
+    );
+    await axeInBothThemes(panel);
+    assert.equal(model.requests.length, before, "the model was not asked");
+    await panel.close();
+    await app.close();
   });
 });
