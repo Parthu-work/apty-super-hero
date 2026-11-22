@@ -2612,8 +2612,10 @@
       "reading": "Reading the HAR…",
       "check": "Check the HAR",
       "checking": "Checking the HAR…",
-      "noFiles": "This HAR holds no Apty content file. Save it again from the Client's service worker with Preserve log on, after reloading the page."
-    }
+      "noFiles": "This HAR holds no Apty content file. Save it again from the Client's service worker with Preserve log on, after reloading the page.",
+      "versionHint": "Apty 4.x: the Client's service worker reads the files, so save a HAR there. Apty 5.x: the page reads them, so capture this tab while it reloads."
+    },
+    "captureNoneFiveX": "The page made no Apty content call. Reload the page once Apty has loaded, then get the evidence again."
   },
   "harCheck": {
     "intro": "Run the visibility checks on a HAR file a customer recorded, when their Apty Client cannot be connected.",

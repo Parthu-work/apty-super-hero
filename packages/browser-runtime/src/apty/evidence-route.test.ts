@@ -88,6 +88,13 @@ describe("the route Get the evidence takes (KB-RAG K27, E8)", () => {
       why: "default",
     });
   });
+
+  it("never takes the 4.x service-worker HAR route on a 5.x site, whatever was detected or remembered (KB-RAG K29, B4)", () => {
+    const extension = { mode: "extension", from: "client-calls" } as const;
+    expect(evidenceRouteOf(extension, "har", "5.x").route).toBe("capture");
+    expect(evidenceRouteOf(extension, undefined, "4.x").route).toBe("har");
+    expect(evidenceRouteOf(extension, undefined, "unknown").route).toBe("har");
+  });
 });
 
 describe("the route remembered per site (KB-RAG K27, E8)", () => {

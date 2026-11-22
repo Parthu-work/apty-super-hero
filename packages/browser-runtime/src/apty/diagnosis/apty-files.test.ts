@@ -22,8 +22,19 @@ const WORKFLOWS =
 
 const answered: ClientEvidence = {
   connection: { ok: true },
+  observedNames: ["workflow.json", "flow.json"],
+  files: {
+    "workflow.json": { name: "workflow.json", status: "ok", json: [] },
+    "flow.json": { name: "flow.json", status: "ok", json: [] },
+  },
+};
+/** A connected Client whose content script does not run on the tab's site. */
+const answeredEmpty: ClientEvidence = {
+  connection: { ok: true },
   observedNames: [],
-  files: {},
+  files: {
+    "workflow.json": { name: "workflow.json", status: "not_observed" },
+  },
 };
 const silent: ClientEvidence = {
   connection: { ok: false, failure: "no_receiver", message: "no Client" },
@@ -169,6 +180,50 @@ describe("createAptyFiles", () => {
 
     expect(read.fromCdn).toBe(true);
     expect(cdn).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads the CDN when the connected Client has no record of the named files for this tab", async () => {
+    const cdn = vi.fn(() => cdnWith([{ name: "Export" }]));
+    const apty = createAptyFiles({
+      clientFiles: async () => answeredEmpty,
+      cdn,
+    });
+
+    const read = await apty.files({ tabId: 3 }, "ext", ["workflow.json"]);
+
+    expect(cdn).toHaveBeenCalledWith(3, ["workflow.json"], {
+      storedChats: false,
+    });
+    expect(read.fromCdn).toBe(true);
+    expect(read.files["workflow.json"]?.status).toBe("ok");
+  });
+
+  it("keeps the empty Client's answer when the CDN has nothing either", async () => {
+    const apty = createAptyFiles({
+      clientFiles: async () => answeredEmpty,
+      cdn: () => ({
+        ...cdnWith([]),
+        listResources: async () => ({ ok: true, resources: [] }),
+      }),
+    });
+
+    expect(await apty.files({ tabId: 3 }, "ext", ["workflow.json"])).toBe(
+      answeredEmpty,
+    );
+  });
+
+  it("does not read the 5.x-only CDN when the Client's record shows a 4.x tenant", async () => {
+    const cdn = vi.fn(() => cdnWith([]));
+    const fourX: ClientEvidence = {
+      ...answeredEmpty,
+      observedNames: ["flow.json", "app-urls.json"],
+    };
+    const apty = createAptyFiles({ clientFiles: async () => fourX, cdn });
+
+    expect(await apty.files({ tabId: 3 }, "ext", ["workflow.json"])).toBe(
+      fourX,
+    );
+    expect(cdn).not.toHaveBeenCalled();
   });
 
   it("reads only the Client without a tab", async () => {

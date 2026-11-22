@@ -32,6 +32,7 @@ import {
 } from "../../kb/kb-version";
 import { resetRedactionModeForTests } from "../../runtime/redaction-mode";
 import { runDiagnosisTool } from "../../tools/diagnosis";
+import { createAptyFiles } from "./apty-files";
 import {
   capture,
   evidenceFrom,
@@ -240,6 +241,48 @@ describe("createDiagnosisResponder", () => {
       );
     }
     expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  it("reads the CDN and gives a verdict when the connected Client has nothing for the tab, and keeps 5.x for the site (KB-RAG K29, B4)", async () => {
+    const files = served(capture());
+    const bodies = new Map(
+      resourcesFor(files).map((r, i) => [r.requestId, files[i]?.body ?? ""]),
+    );
+    const cdn = vi.fn(() => ({
+      listResources: async () => ({
+        ok: true as const,
+        resources: resourcesFor(files),
+      }),
+      getResourceBody: async (requestId: string) => ({
+        found: true,
+        body: bodies.get(requestId),
+        base64Encoded: false,
+      }),
+      probe: async () => ({ ok: true as const }),
+      storedChat: async () => "not-requested" as const,
+    }));
+    const connectedButEmpty = createAptyFiles({
+      clientFiles: async () => ({
+        connection: { ok: true },
+        observedNames: [],
+        files: {},
+      }),
+      cdn,
+    });
+    const respond = createDiagnosisResponder({
+      filesOf: connectedButEmpty.files,
+      pageUrlOf: async () => "https://acc.tenant.example/app",
+    });
+
+    const answer = await respond("the Apty widget is not appearing", {
+      runContext: { conversationId: "s-4", tabId: 4 },
+    });
+    const result = answer?.result as DiagnosisResult;
+
+    expect(cdn).toHaveBeenCalled();
+    expect(result.filesFromCdn).toBe(true);
+    expect(result.files.some((f) => f.status === "ok")).toBe(true);
+    expect(kbVersionForHost("acc.tenant.example")).toBe("5.x");
   });
 
   it("says a check of a HAR file read the HAR's files, not the Client's (N14)", async () => {

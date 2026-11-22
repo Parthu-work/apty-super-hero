@@ -358,8 +358,8 @@ describe("createDaptySource", () => {
     it("keeps the Client's files when it answers, and keeps the Client's reason when neither answers", async () => {
       const fromClient: ClientEvidence = {
         connection: { ok: true },
-        observedNames: [],
-        files: {},
+        observedNames: ["rule.json"],
+        files: { "rule.json": { name: "rule.json", status: "ok", json: [] } },
       };
       const answering = createDaptySource({
         clientFiles: async () => fromClient,

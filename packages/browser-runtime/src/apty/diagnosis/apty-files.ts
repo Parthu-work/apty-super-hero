@@ -1,9 +1,10 @@
 /**
  * Where every check reads Apty's content files for the conversation's tab:
  * the Apty Client's record, or Apty's public content CDN when the Client
- * does not report its calls (every Client today in Extension mode). The
- * Client is asked with the saved ID, or with the ID the page shows when that
- * Client answers at all.
+ * does not report its calls (every Client today in Extension mode) or
+ * answers with no record of them for this tab (KB-RAG K29, B4: its content
+ * script does not run on the site). The Client is asked with the saved ID,
+ * or with the ID the page shows when that Client answers at all.
  */
 
 import { loadSettings } from "../../runtime/effective-settings.js";
@@ -22,6 +23,7 @@ import {
   loadEvidenceFrom,
   type ResourceSource,
 } from "./loader.js";
+import { looks4x } from "./pack-kit.js";
 import type { ClientEvidence } from "./types.js";
 
 export interface AptyFilesReaders {
@@ -97,6 +99,17 @@ const withCdnUnread = (
   message: `${connection.message} Apty's content CDN could not be read either: this page holds no Apty 5.x Client script or injected player config.`,
 });
 
+/**
+ * A connected Client that observed none of the named files has no record for
+ * this tab's site. A 4.x record is a record: the CDN is 5.x only.
+ */
+const noRecord = (evidence: ClientEvidence, names: readonly string[]) =>
+  !looks4x(evidence) &&
+  names.every(
+    (name) =>
+      (evidence.files[name]?.status ?? "not_observed") === "not_observed",
+  );
+
 /** @internal */
 export function createAptyFiles(readers: AptyFilesReaders) {
   const clientFiles = readers.clientFiles ?? loadClientEvidence;
@@ -166,7 +179,7 @@ export function createAptyFiles(readers: AptyFilesReaders) {
     return ok ? found : undefined;
   }
 
-  /** The named files from the Client, or from the CDN when the Client does not answer. */
+  /** The named files from the Client, or from the CDN when the Client does not answer or has no record of them. */
   async function files(
     runContext: unknown,
     saved: string | undefined,
@@ -184,8 +197,11 @@ export function createAptyFiles(readers: AptyFilesReaders) {
       if (trace) trace.filesMs = Date.now() - started;
       return evidence;
     };
-    if (fromClient.connection.ok) return done(fromClient);
-    if (trace) trace.filesConnection = fromClient.connection.failure;
+    const empty = fromClient.connection.ok && noRecord(fromClient, names);
+    if (fromClient.connection.ok && !empty) return done(fromClient);
+    if (trace && !fromClient.connection.ok) {
+      trace.filesConnection = fromClient.connection.failure;
+    }
     const captured = tab === undefined ? undefined : readers.capture?.(tab);
     if (captured && captured.resources.length > 0) {
       const fromCapture = await loadEvidenceFrom(
@@ -203,7 +219,9 @@ export function createAptyFiles(readers: AptyFilesReaders) {
       const probe = await cdn.probe().catch(() => undefined);
       if (probe) trace.cdnProbe = probe.ok ? "ok" : probe.reason;
     }
-    if (fromCdn?.connection.ok) return done({ ...fromCdn, fromCdn: true });
+    if (fromCdn?.connection.ok && !(empty && noRecord(fromCdn, names))) {
+      return done({ ...fromCdn, fromCdn: true });
+    }
     return done(
       fromClient.connection.ok
         ? fromClient

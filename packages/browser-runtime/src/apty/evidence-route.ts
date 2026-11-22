@@ -50,11 +50,26 @@ export function clientModeOf(
   return undefined;
 }
 
-/** The user's last route on the site, else the detected mode's, else a capture. */
+/**
+ * The routes a site's Apty version allows (KB-RAG K29, B4): the HAR from
+ * the Client's service worker is the 4.x route, so a 5.x site is offered a
+ * capture only; an unknown version keeps both.
+ */
+export function evidenceRoutesFor(
+  version: "4.x" | "5.x" | "unknown",
+): readonly EvidenceRoute[] {
+  return version === "5.x" ? ["capture"] : ["capture", "har"];
+}
+
+/** The user's last route on the site, else the detected mode's, else a capture; only a route the version allows. */
 export function evidenceRouteOf(
   detected: DetectedClientMode | undefined,
   remembered: EvidenceRoute | undefined,
+  version: "4.x" | "5.x" | "unknown" = "unknown",
 ): { route: EvidenceRoute; why: "remembered" | "detected" | "default" } {
+  if (!evidenceRoutesFor(version).includes("har")) {
+    return { route: "capture", why: "detected" };
+  }
   if (remembered) return { route: remembered, why: "remembered" };
   if (detected) {
     return {

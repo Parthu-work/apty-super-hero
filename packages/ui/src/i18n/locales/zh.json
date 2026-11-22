@@ -2612,8 +2612,10 @@
       "reading": "正在读取 HAR…",
       "check": "检查 HAR",
       "checking": "正在检查 HAR…",
-      "noFiles": "此 HAR 中没有 Apty 内容文件。请重新加载页面后，在开启“保留日志”的情况下，从 Client 的 service worker 重新保存。"
-    }
+      "noFiles": "此 HAR 中没有 Apty 内容文件。请重新加载页面后，在开启“保留日志”的情况下，从 Client 的 service worker 重新保存。",
+      "versionHint": "Apty 4.x：由客户端的 Service Worker 读取文件，请在那里保存 HAR。Apty 5.x：由页面读取文件，请在此标签页重新加载时进行捕获。"
+    },
+    "captureNoneFiveX": "页面没有发出 Apty 内容请求。请在 Apty 加载后重新加载页面，然后再次获取证据。"
   },
   "harCheck": {
     "intro": "当无法连接客户的 Apty Client 时，对客户录制的 HAR 文件运行可见性检查。",
