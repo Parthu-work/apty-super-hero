@@ -18,6 +18,6 @@ repos:
         name: npm run preflight
         language: node
         types: [file]
-        files: \.(js|ts)$
+        files: \.(m?js|tsx?)$
         pass_filenames: false
         entry: npm run preflight
