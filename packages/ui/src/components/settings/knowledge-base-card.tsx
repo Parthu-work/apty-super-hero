@@ -7,6 +7,7 @@ import {
   type KbPackUsability,
   type KbSelfCheckSummary,
   kbPackAgeDays,
+  kbPackNeedsRebuild,
 } from "@apty/agent-core";
 import { BookOpen, RefreshCw, Trash2, Upload } from "lucide-react";
 import {
@@ -343,6 +344,9 @@ function PackRow({
         <Notice tone="warning">
           {t("settings.knowledgeBase.stale", { days: age ?? 0 })}
         </Notice>
+      )}
+      {kbPackNeedsRebuild(info) && (
+        <Notice tone="warning">{t("settings.knowledgeBase.rebuild")}</Notice>
       )}
       {delivery && (
         <DeliveryDetails delivery={delivery} importedAt={info.importedAt} />

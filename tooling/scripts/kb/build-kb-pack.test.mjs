@@ -13,6 +13,7 @@ import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
   buildPack,
+  CLASSIFIER_REVISION,
   canonicalJson,
   customerNameHits,
   diffPacks,
@@ -24,6 +25,7 @@ import {
   run,
   storageToText,
 } from "./build-kb-pack.mjs";
+import { loadAgentCore } from "./eval-kb.mjs";
 
 const SITE = "fixture.atlassian.net";
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -481,6 +483,29 @@ describe("buildPack", () => {
     assert.equal(
       packSha256({ z: 1, a: { y: "é", b: [true] }, sha256: "ignored" }),
       "07fffc8e05a1ca99dcc9aee6659de41c76190270b19b59e1ea7a0bfd11a5ebe3",
+    );
+  });
+});
+
+describe("the classifier revision (KB-RAG K29, P3)", () => {
+  it("writes the classification the extension expects, read back as a current pack", async () => {
+    const core = await loadAgentCore();
+    assert.equal(CLASSIFIER_REVISION, core.KB_CLASSIFIER_REVISION);
+    const { pack } = buildPack({
+      site: SITE,
+      space: "FX",
+      label: "rag-card",
+      builtAt: "2026-03-01T00:00:00.000Z",
+      pages: [page("20")],
+    });
+    assert.equal(pack.classifierRevision, CLASSIFIER_REVISION);
+    const parsed = await core.parseKbPack(JSON.stringify(pack), {
+      sha256: async (text) => createHash("sha256").update(text).digest("hex"),
+    });
+    assert.equal(parsed.ok, true);
+    assert.equal(
+      core.kbPackNeedsRebuild(core.describeKbPack(parsed.pack, "x")),
+      false,
     );
   });
 });

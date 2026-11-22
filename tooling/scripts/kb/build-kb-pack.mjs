@@ -41,6 +41,13 @@ import { fileURLToPath } from "node:url";
 import { formatSelfCheck, loadAgentCore, selfCheck } from "./eval-kb.mjs";
 
 export const BUILDER = "build-kb-pack 1.0.0";
+/**
+ * KB-RAG K29, P3: the page classification this builder applies (2: K27's
+ * "start here" routing rule). Raise it, with agent-core's
+ * KB_CLASSIFIER_REVISION, whenever the classification changes: packs built
+ * before then say so in Options and Preflight.
+ */
+export const CLASSIFIER_REVISION = 2;
 const PACK_KIND = "apty-kb-pack";
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const MAX_CHUNK_CHARS = 1000;
@@ -659,6 +666,7 @@ export function buildPack({
     builtAt,
     expiresAt,
     builder: BUILDER,
+    classifierRevision: CLASSIFIER_REVISION,
     source: {
       site,
       space,

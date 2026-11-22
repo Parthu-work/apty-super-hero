@@ -159,6 +159,7 @@
       "calibrated": "已校准",
       "uncalibrated": "未校准：使用默认覆盖设置",
       "stale": "此包构建于 {{days}} 天前。请向知识库负责人索取更新的包并导入。",
+      "rebuild": "此包构建于最新卡片规则之前：请重新构建此包以获得最佳答案。它仍在使用中。",
       "import": "导入包…",
       "remove": "移除",
       "fileLabel": "KB 包文件",
@@ -1255,6 +1256,8 @@
         "notLoadedFix": "在 设置 → 通用 → 知识库 中导入知识库负责人共享的 KB 包。",
         "stale": "已加载：来自空间 {{space}} 的 {{count}} 张卡片，构建于 {{date}}，{{days}} 天前。",
         "staleFix": "请向知识库负责人索取更新的包，并在 设置 → 通用 → 知识库 中导入。",
+        "rebuild": "已加载：来自空间 {{space}} 的 {{count}} 张卡片，构建于 {{date}}。此包构建于最新卡片规则之前：请重新构建此包以获得最佳答案。",
+        "rebuildFix": "此包仍在使用中。请知识库负责人使用当前的 pnpm kb:pack 重新构建。",
         "expiring": "已加载：来自空间 {{space}} 的 {{count}} 张卡片，构建于 {{date}}；将在 {{days}} 天后到期。",
         "unusable": {
           "expired": "未使用：{{version}} 知识包已于 {{until}} 到期。",

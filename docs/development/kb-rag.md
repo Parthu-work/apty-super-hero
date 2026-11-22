@@ -83,6 +83,7 @@ under a policy with `allowUnsignedPacks`.
 | `retrieval.approvedTerms` | K27, E10: `[{ pageId, terms }]`, words the KB owner approved for one card (`kb:pack --approved-terms`), searched as the card's own words; at most 30 per card, each card once, every `pageId` a card in the pack |
 | `retrieval.threshold` | Schema 1 only: the BM25 score below which a question was not covered |
 | `retrieval.dense` | Optional vectors (K7, not shipped) |
+| `classifierRevision` | K29, P3: the page classification the builder applied (2: K27's "start here" routing rule; raised whenever the classification changes). A pack without it, or with an older one, is still used, and its Options row and Preflight say "Built before the latest card rules: rebuild this pack for the best answers". Whatever the pack says, a full card whose title starts with "start here" is read as routing (never an answer) |
 | `cards[].pageId`, `.title`, `.group`, `.url`, `.updatedAt` | The card; `url` is its own page in its own space |
 | `cards[].verifiedOn` | The card's "Verified on" line, verbatim, or null |
 | `cards[].symptom` | The card's "Symptom:" line (at most 300 characters), or null |
