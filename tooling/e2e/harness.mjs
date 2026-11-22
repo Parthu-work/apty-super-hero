@@ -456,6 +456,26 @@ export async function openToolPage(panel, name) {
   await panel.getByRole("region", { name, exact: true }).waitFor();
 }
 
+/** The case chip in the side panel's header (KB-RAG K29, L1). */
+export function caseChip(panel) {
+  return panel.getByTestId("case-chip").filter({ visible: true });
+}
+
+/** The full id of the case the header's chip shows, once it shows one. */
+export async function shownCaseId(panel, timeout = 30_000) {
+  const chip = caseChip(panel);
+  await chip.waitFor({ timeout });
+  return chip.getAttribute("data-case-id");
+}
+
+/** Opens the case chip's menu (Copy case id, New case, Close case…, Open in Cases). */
+export async function openCaseMenu(panel) {
+  await caseChip(panel).click();
+  const menu = panel.getByRole("menu");
+  await menu.waitFor();
+  return menu;
+}
+
 export async function sendChat(panel, text) {
   const box = panel.locator("textarea").first();
   await box.fill(text);

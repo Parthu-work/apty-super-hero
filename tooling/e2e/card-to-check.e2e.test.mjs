@@ -17,6 +17,7 @@ import {
   describeViolations,
   extensionPage,
   launchBrowser,
+  openCaseMenu,
   openSidePanel,
   ROOT,
   sendChat,
@@ -144,11 +145,8 @@ describe("from the card to the check (KB-RAG K27, E5)", () => {
     violations = await axeInBothThemes(panel);
     assert.deepEqual(violations, [], describeViolations(violations));
 
-    await panel
-      .getByRole("button", { name: "Close case" })
-      .filter({ visible: true })
-      .first()
-      .click();
+    const caseMenu = await openCaseMenu(panel);
+    await caseMenu.getByRole("menuitem", { name: "Close case…" }).click();
     assert.equal(
       await panel
         .getByTestId("close-case-form")

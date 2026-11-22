@@ -2907,7 +2907,6 @@
     "fromSite": "来自 {{site}}",
     "otherSiteNote": "这来自与当前标签页不同的站点。",
     "label": "案例",
-    "copyId": "复制案例编号 {{id}}",
     "continue": "继续 {{id}}",
     "continueText": "此站点上有一个过去 24 小时内仍未结束的案例：{{id}}。",
     "outcome": {
@@ -2939,7 +2938,13 @@
       "decisions": "回合",
       "none": "无",
       "close": "关闭详情"
-    }
+    },
+    "continueShort": "继续 {{id}}",
+    "dismissContinue": "不继续 {{id}}",
+    "copyCaseId": "复制案例编号",
+    "closeCaseMenu": "结束案例…",
+    "openInCases": "在“案例”中打开",
+    "chipName": "案例 {{id}}"
   },
   "supportBundle": {
     "nothingYet": "暂无可打包内容：请先运行检查或打开 KB 卡片",
@@ -3028,7 +3033,8 @@
       "pack": "{{version}}：构建于 {{date}}。新的回答将使用它。",
       "gotIt": "知道了",
       "open": "打开知识库"
-    }
+    },
+    "status": "知识包"
   },
   "turnActions": {
     "runCheck": "运行检查",

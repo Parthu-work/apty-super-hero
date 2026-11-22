@@ -111,7 +111,10 @@ export function BrowserChatInputArea(props: InputAreaProps) {
         }
         className="pb-1"
       />
-      <p className="px-4 pb-2 text-center text-small text-subtle-foreground">
+      <p
+        className="truncate px-4 pb-1.5 text-center text-xs text-subtle-foreground"
+        title={t("shell.composerHint")}
+      >
         {t("shell.composerHint")}
       </p>
     </div>

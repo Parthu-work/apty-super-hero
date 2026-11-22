@@ -1398,9 +1398,9 @@ export const PromptInputTextarea = ({
       <Textarea
         ref={textareaRef}
         className={cn(
-          "w-full resize-none rounded-none border-none p-3 shadow-none outline-none ring-0",
+          "w-full resize-none rounded-none border-none px-3 py-2 shadow-none outline-none ring-0",
           "field-sizing-content bg-transparent dark:bg-transparent",
-          "max-h-48 min-h-16",
+          "max-h-48 min-h-9 placeholder:truncate",
           "focus-visible:ring-0",
           className,
         )}

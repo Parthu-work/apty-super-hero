@@ -1,6 +1,10 @@
 import type { KbPackState, KbSyncRecord } from "@apty/agent-core";
 import { describe, expect, it } from "vitest";
-import { deliveredPacks, packHeaderItems } from "./pack-freshness";
+import {
+  deliveredPacks,
+  packHeaderItems,
+  packStatusTone,
+} from "./pack-freshness";
 
 function pack(
   aptyVersion: KbPackState["aptyVersion"],
@@ -69,6 +73,35 @@ describe("the packs line in the panel header (KB-RAG K27, E9)", () => {
       packHeaderItems([pack("4.x", { usable: false, reason: "expired" })]),
     ).toEqual([{ version: "4.x", state: "expired" }]);
     expect(packHeaderItems([])).toEqual([]);
+  });
+});
+
+describe("the header's pack icon (KB-RAG K29, L1)", () => {
+  it("is amber under 14 days, red when a pack cannot be used, plain otherwise", () => {
+    expect(packStatusTone([])).toBe("none");
+    expect(
+      packStatusTone([
+        { version: "4.x", state: "ok" },
+        { version: "5.x", state: "expires", days: 14 },
+      ]),
+    ).toBe("ok");
+    expect(
+      packStatusTone([
+        { version: "4.x", state: "expires", days: 56 },
+        { version: "5.x", state: "expires", days: 13 },
+      ]),
+    ).toBe("warning");
+    expect(
+      packStatusTone([
+        { version: "4.x", state: "expires", days: 3 },
+        { version: "5.x", state: "expired" },
+      ]),
+    ).toBe("danger");
+    expect(
+      packStatusTone([
+        { version: "4.x", state: "notUsed", reason: "untrusted" },
+      ]),
+    ).toBe("danger");
   });
 });
 

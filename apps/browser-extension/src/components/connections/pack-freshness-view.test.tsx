@@ -1,11 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { PacksLine, PackUpdateBanner } from "./pack-freshness-view";
+import { PackStatusIcon, PackUpdateBanner } from "./pack-freshness-view";
 
-describe("PacksLine (KB-RAG K27, E9)", () => {
+describe("the header's packs line (KB-RAG K27, E9; K29, L1)", () => {
   it("names each version's state in one line", () => {
     render(
-      <PacksLine
+      <PackStatusIcon
+        onOpen={() => {}}
         items={[
           { version: "4.x", state: "ok" },
           { version: "5.x", state: "expires", days: 59 },
@@ -20,7 +21,8 @@ describe("PacksLine (KB-RAG K27, E9)", () => {
 
   it("says when a pack expired or is not used, and when none is loaded", () => {
     const { rerender } = render(
-      <PacksLine
+      <PackStatusIcon
+        onOpen={() => {}}
         items={[
           { version: "4.x", state: "expired" },
           { version: "5.x", state: "notUsed", reason: "untrusted" },
@@ -30,15 +32,33 @@ describe("PacksLine (KB-RAG K27, E9)", () => {
     expect(screen.getByTestId("kb-packs-line")).toHaveTextContent(
       "Packs: 4.x expired, 5.x not used",
     );
-    rerender(<PacksLine items={[]} />);
+    rerender(<PackStatusIcon items={[]} onOpen={() => {}} />);
     expect(screen.getByTestId("kb-packs-line")).toHaveTextContent(
       "Packs: none loaded",
     );
   });
 
-  it("keeps its place while the packs are read", () => {
-    render(<PacksLine items={undefined} />);
-    expect(screen.getByTestId("kb-packs-line")).toHaveTextContent("");
+  it("is named KB packs while the packs are read, and opens Knowledge base", () => {
+    const onOpen = vi.fn();
+    render(<PackStatusIcon items={undefined} onOpen={onOpen} />);
+    fireEvent.click(screen.getByRole("button", { name: "KB packs" }));
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("is named by the packs line and turns amber under 14 days", () => {
+    render(
+      <PackStatusIcon
+        items={[
+          { version: "4.x", state: "expires", days: 56 },
+          { version: "5.x", state: "expires", days: 9 },
+        ]}
+        onOpen={() => {}}
+      />,
+    );
+    const icon = screen.getByRole("button", {
+      name: "Packs: 4.x expires in 56 days, 5.x expires in 9 days",
+    });
+    expect(icon).toHaveAttribute("data-tone", "warning");
   });
 });
 
