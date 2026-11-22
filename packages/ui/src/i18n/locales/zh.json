@@ -1430,7 +1430,9 @@
     "kbUngroundedTitle": "在引用的 KB 卡片中未找到",
     "kbUngrounded": "在引用的 KB 卡片中未找到：{{phrases}}",
     "kbCitation": "KB 卡片 {{pageId}}，第 {{layer}} 层",
-    "moreQuestions": "更多问题（{{count}}）"
+    "moreQuestions": "更多问题（{{count}}）",
+    "kbLocationTitle": "KB 没有说明它在哪里",
+    "kbLocation": "有一句话猜测了设置可能所在的位置；KB 并未这样说明。"
   },
   "investigation": {
     "componentHealth": "Apty 组件健康状况",
@@ -2799,7 +2801,8 @@
       "untrusted": "{{version}} 知识包未由本扩展信任的密钥签名。",
       "revoked": "{{version}} 知识包由已吊销的密钥签名。"
     },
-    "deliveryFailed": "你的组织下发的 {{version}} 知识包上次更新失败（{{reason}}）。"
+    "deliveryFailed": "你的组织下发的 {{version}} 知识包上次更新失败（{{reason}}）。",
+    "followsUnknownSetting": "KB：没有名为 {{phrases}} 的设置"
   },
   "firstRun": {
     "title": "开始之前",

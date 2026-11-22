@@ -3,7 +3,10 @@
  * the KB, with zero model requests: the missing name and the closest cards.
  * "Ask the AI anyway" sends it to the model with the fixed instruction, and
  * the model's answer is labelled "Not from the KB or a check", with a menu
- * path in it flagged. Synthetic cards only.
+ * path in it flagged. K29, B6: the request carries the KB's outcome as a
+ * fact, a sentence guessing where the setting is gets flagged, product
+ * names do not, and Why this answer names the KB outcome the turn follows.
+ * Synthetic cards only.
  */
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
@@ -29,7 +32,7 @@ let site;
 before(async () => {
   model = await startMockModel();
   model.script(() => ({
-    text: "RESULT: I do not know. Admin Portal → Applications → Settings might hold it.",
+    text: "RESULT: I do not know. Admin Portal → Applications → Settings might hold it. The switch may be in the application settings area. Ask Apty Support, or check Apty Studio.",
   }));
   site = await startPageServer({
     "/app.html": "<!doctype html><title>App</title><main>FIXTURE app</main>",
@@ -87,6 +90,32 @@ describe("a setting no KB card has (KB-RAG K27, F2)", () => {
     await panel
       .getByText(/Not found in the KB: Admin Portal → Applications → Settings/)
       .waitFor({ timeout: 10_000 });
+    assert.equal(
+      await panel
+        .getByText(/^Not found in the KB:/)
+        .last()
+        .innerText(),
+      "Not found in the KB: Admin Portal → Applications → Settings",
+      "product names are not flagged",
+    );
+    assert.ok(
+      JSON.stringify(system?.content ?? "").includes(
+        "The Apty KB has no setting named 'FIXTURE Glow Pulse Switch'.",
+      ),
+      "the KB's outcome is a fact in the system prompt",
+    );
+    await panel.getByTestId("kb-location-guess").last().waitFor();
+    const guess = panel.locator("[data-kb-ungrounded]", {
+      hasText: "The switch may be in the application settings area.",
+    });
+    assert.equal(await guess.count(), 1, "the location sentence is flagged");
+    const why = panel.getByTestId("turn-decision").last();
+    await why.getByText("Why this answer").click();
+    assert.match(
+      await why.innerText(),
+      /KB: no setting named FIXTURE Glow Pulse Switch/,
+    );
+    assert.doesNotMatch(await why.innerText(), /Packs searched: none/);
     await panel.close();
     await app.close();
   });

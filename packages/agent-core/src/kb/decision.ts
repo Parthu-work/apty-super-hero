@@ -73,6 +73,14 @@ export interface TurnDecision {
    * the conversation (K27, E6), under `KB_EXPLAIN_INSTRUCTION`.
    */
   grounding?: "conversation";
+  /** "Ask the AI anyway" (K29, B6): the KB outcome the model turn follows. */
+  follows?: KbFollowUp;
+}
+
+/** The KB outcome an "Ask the AI anyway" turn follows: the setting names no card has. */
+export interface KbFollowUp {
+  kind: "unknown_setting";
+  phrases: string[];
 }
 
 /**
@@ -81,6 +89,23 @@ export interface TurnDecision {
  */
 export const KB_NO_CARD_INSTRUCTION =
   "The Apty KB has no card for this. Do not describe Apty settings, menus, paths, prices or features. Say you do not know, and suggest the KB owner or Studio and Admin.";
+
+/**
+ * "Ask the AI anyway" after a setting no card has (KB-RAG K29, B6): the KB's
+ * outcome as a fact, and the model may not say where such a setting might
+ * be. It starts as `KB_NO_CARD_INSTRUCTION` does.
+ */
+export function kbUnknownSettingInstruction(
+  phrases: readonly string[],
+): string {
+  const names = phrases.map((phrase) => `'${phrase}'`).join(", ");
+  return [
+    "The Apty KB has no card for this. Do not describe Apty settings, menus, paths, prices or features.",
+    `The Apty KB has no setting named ${names}.`,
+    "Say that the KB has no such setting. Do not say where a setting with that name might be.",
+    "Suggest the KB owner, or Studio and Admin in general terms only.",
+  ].join(" ");
+}
 
 /**
  * Added instead of `KB_NO_CARD_INSTRUCTION` to a model turn in a

@@ -369,7 +369,7 @@ describe("a setting no KB card has (K27, F2)", () => {
     ).toBeNull();
   });
 
-  it("Ask the AI anyway sends the question past the KB with the fixed instruction", async () => {
+  it("Ask the AI anyway sends the question past the KB with the fixed instruction and the KB's outcome as a fact (K29, B6)", async () => {
     const { ChatContext } = await import("@apty/ui/components/chatbot");
     const { KB_NO_CARD_INSTRUCTION } = await import("@apty/agent-core");
     const sendMessage = vi.fn(async () => {});
@@ -383,7 +383,28 @@ describe("a setting no KB card has (K27, F2)", () => {
       "the tooltip opens twice",
       undefined,
       undefined,
-      { skipLocalResponder: true, turnInstruction: KB_NO_CARD_INSTRUCTION },
+      {
+        skipLocalResponder: true,
+        turnInstruction: expect.stringContaining(
+          KB_NO_CARD_INSTRUCTION.split(" Say you do not know")[0] ?? "",
+        ),
+        followsKb: {
+          kind: "unknown_setting",
+          phrases: ["FIXTURE Glow Pulse Switch"],
+        },
+      },
+    );
+    const [, , , options] = sendMessage.mock.calls[0] as unknown as [
+      string,
+      undefined,
+      undefined,
+      { turnInstruction: string },
+    ];
+    expect(options.turnInstruction).toContain(
+      "The Apty KB has no setting named 'FIXTURE Glow Pulse Switch'.",
+    );
+    expect(options.turnInstruction).toContain(
+      "Do not say where a setting with that name might be.",
     );
   });
 });

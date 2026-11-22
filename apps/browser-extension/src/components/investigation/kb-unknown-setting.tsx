@@ -3,9 +3,10 @@
  * by the KB, not the model: the missing name, the closest cards (they may
  * not mention it) and where to look instead. "Ask the AI anyway" sends the
  * question to the model with a fixed instruction not to describe Apty
- * settings, menus, paths, prices or features.
+ * settings, menus, paths, prices or features, the KB's outcome as a fact,
+ * and no guess at where such a setting might be (K29, B6).
  */
-import { KB_NO_CARD_INSTRUCTION, kbCardUrl } from "@apty/agent-core";
+import { kbCardUrl, kbUnknownSettingInstruction } from "@apty/agent-core";
 import type { KbClosestCard } from "@apty/browser-runtime/kb/kb-index";
 import { ChatContext } from "@apty/ui/components/chatbot";
 import { StatusBadge } from "@apty/ui/components/ui/badge";
@@ -79,7 +80,8 @@ export function UnknownSettingCard({
           onClick={() =>
             void chat.sendMessage(query, undefined, undefined, {
               skipLocalResponder: true,
-              turnInstruction: KB_NO_CARD_INSTRUCTION,
+              turnInstruction: kbUnknownSettingInstruction(missing),
+              followsKb: { kind: "unknown_setting", phrases: [...missing] },
             })
           }
         >

@@ -147,6 +147,8 @@ export {
   KB_NO_CARD_INSTRUCTION,
   type KbDecision,
   type KbDeliveryFailure,
+  type KbFollowUp,
+  kbUnknownSettingInstruction,
   packIdOf,
   type TabVersion,
   type TabVersionSource,

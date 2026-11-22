@@ -1430,7 +1430,9 @@
     "kbUngroundedTitle": "Not found in the cited KB cards",
     "kbUngrounded": "Not found in the cited KB cards: {{phrases}}",
     "kbCitation": "KB card {{pageId}}, layer {{layer}}",
-    "moreQuestions": "More questions ({{count}})"
+    "moreQuestions": "More questions ({{count}})",
+    "kbLocationTitle": "The KB does not say where this is",
+    "kbLocation": "A sentence guesses where a setting might be; the KB does not say so."
   },
   "investigation": {
     "componentHealth": "Apty component health",
@@ -2799,7 +2801,8 @@
       "untrusted": "The {{version}} pack is not signed by a key this extension trusts.",
       "revoked": "The {{version}} pack is signed by a revoked key."
     },
-    "deliveryFailed": "The last update of the {{version}} pack from your organization failed ({{reason}})."
+    "deliveryFailed": "The last update of the {{version}} pack from your organization failed ({{reason}}).",
+    "followsUnknownSetting": "KB: no setting named {{phrases}}"
   },
   "firstRun": {
     "title": "Before you start",

@@ -130,32 +130,36 @@ export function decisionDetails(
       version: decision.version,
       source: t(`turnDecision.source.${decision.versionSource}`),
     }),
-    decision.route === "check"
-      ? t("turnDecision.kbNotSearched", {
-          packs:
-            decision.packs.length > 0
-              ? [...new Set(decision.packs.map((pack) => pack.version))].join(
-                  " and ",
-                )
-              : t("turnDecision.noPacksLoaded"),
+    decision.follows
+      ? t("turnDecision.followsUnknownSetting", {
+          phrases: decision.follows.phrases.join(", "),
         })
-      : decision.packs.length > 0
-        ? t("turnDecision.packsLine", {
-            packs: decision.packs
-              .map((pack) =>
-                [
-                  `${pack.version} ${pack.sha256}`,
-                  pack.keyId ? `key ${pack.keyId}` : "",
-                  pack.expiresAt
-                    ? `expires ${pack.expiresAt.slice(0, 10)}`
-                    : "",
-                ]
-                  .filter(Boolean)
-                  .join(", "),
-              )
-              .join("; "),
+      : decision.route === "check"
+        ? t("turnDecision.kbNotSearched", {
+            packs:
+              decision.packs.length > 0
+                ? [...new Set(decision.packs.map((pack) => pack.version))].join(
+                    " and ",
+                  )
+                : t("turnDecision.noPacksLoaded"),
           })
-        : t("turnDecision.packsNone"),
+        : decision.packs.length > 0
+          ? t("turnDecision.packsLine", {
+              packs: decision.packs
+                .map((pack) =>
+                  [
+                    `${pack.version} ${pack.sha256}`,
+                    pack.keyId ? `key ${pack.keyId}` : "",
+                    pack.expiresAt
+                      ? `expires ${pack.expiresAt.slice(0, 10)}`
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(", "),
+                )
+                .join("; "),
+            })
+          : t("turnDecision.packsNone"),
   ];
   if (decision.kb) {
     lines.push(
