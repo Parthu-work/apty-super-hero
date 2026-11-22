@@ -6,7 +6,8 @@
  * answer, Prepare support bundle and Open in Confluence. What the answer
  * used to show around its cards is here, one click away.
  */
-import type { KbLayer } from "@apty/agent-core";
+import type { CaseRecord, KbLayer, TurnDecision } from "@apty/agent-core";
+import type { DiagnosisResult } from "@apty/browser-runtime/apty/diagnosis/types";
 import { ChatContext, useTurn } from "@apty/ui/components/chatbot";
 import {
   decisionText,
@@ -63,10 +64,30 @@ export function KbAnswerFooter({
   card,
   question,
   otherCards = [],
+  source: sourceLine,
+  about: aboutLines,
+  openUrl,
+  copyBody,
+  bundle: bundleSource,
+  whyRoute = "kb",
 }: {
   card?: KbFooterCard;
   question: string;
   otherCards?: Array<{ pageId: string; title: string }>;
+  /** K29, D4: a verdict's own source line and (i) lines. */
+  source?: string;
+  about?: string[];
+  /** The card Open in Confluence opens, when there is no open card. */
+  openUrl?: string;
+  /** What Copy answer copies, when there is no open card. */
+  copyBody?: string;
+  /** The check and case a verdict's support bundle is built from. */
+  bundle?: {
+    result: DiagnosisResult;
+    loadRecord: () => Promise<CaseRecord | undefined>;
+  };
+  /** The route whose decision record "Why this answer" shows. */
+  whyRoute?: TurnDecision["route"];
 }) {
   const { t } = useTranslation();
   const id = useId();
@@ -76,28 +97,33 @@ export function KbAnswerFooter({
   const [infoOpen, setInfoOpen] = useState(false);
   const [whyOpen, setWhyOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const bundle = useSupportBundle({
-    loadRecord: async () =>
-      sessionId ? caseRecorder().current(sessionId) : undefined,
-  });
+  const bundle = useSupportBundle(
+    bundleSource ?? {
+      loadRecord: async () =>
+        sessionId ? caseRecorder().current(sessionId) : undefined,
+    },
+  );
   const decision = turn?.decision;
-  const why = decision?.route === "kb" ? decision : undefined;
+  const why = decision?.route === whyRoute ? decision : undefined;
   const version = card?.aptyVersion ?? decision?.version;
   const verified = verifiedWhat(card?.verifiedOn);
-  const source = [
-    t("kbMatches.fromKb"),
-    ...(version && version !== "unknown" ? [version] : []),
-    ...(verified ? [t("kbMatches.verifiedOnShort", { what: verified })] : []),
-  ].join(" · ");
+  const source =
+    sourceLine ??
+    [
+      t("kbMatches.fromKb"),
+      ...(version && version !== "unknown" ? [version] : []),
+      ...(verified ? [t("kbMatches.verifiedOnShort", { what: verified })] : []),
+    ].join(" · ");
   const expiry = decision ? packExpiryText(decision, t) : undefined;
-  const about = [
+  const about = aboutLines ?? [
     t("kbMatches.provenance"),
     egress,
     ...(expiry ? [expiry] : []),
   ];
+  const url = card?.url ?? openUrl;
 
   const copyAnswer = async () => {
-    const body = card ? cardText(card) : question;
+    const body = card ? cardText(card) : (copyBody ?? question);
     const text = decision ? `${body}\n\n${decisionText(decision, t)}` : body;
     setCopied(await copyText(text));
   };
@@ -186,9 +212,9 @@ export function KbAnswerFooter({
                 {t("supportBundle.prepare")}
               </DropdownMenuItem>
             )}
-            {card && (
+            {url && (
               <DropdownMenuItem asChild>
-                <a href={card.url} target="_blank" rel="noopener noreferrer">
+                <a href={url} target="_blank" rel="noopener noreferrer">
                   {t("kbMatches.openInConfluence")}
                 </a>
               </DropdownMenuItem>

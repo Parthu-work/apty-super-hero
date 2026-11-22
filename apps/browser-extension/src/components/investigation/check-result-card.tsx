@@ -22,7 +22,15 @@ import type {
   DaptyRow,
   DaptySummary,
 } from "@apty/browser-runtime/apty/diagnosis/types";
-import { ChatContext, DefaultToolDisplay } from "@apty/ui/components/chatbot";
+import {
+  kbVersionForHost,
+  kbVersionFromEvidence,
+} from "@apty/browser-runtime/kb/kb-version";
+import {
+  ChatContext,
+  DefaultToolDisplay,
+  useTurn,
+} from "@apty/ui/components/chatbot";
 import { StatusBadge, type StatusTone } from "@apty/ui/components/ui/badge";
 import { Button } from "@apty/ui/components/ui/button";
 import { useTranslation } from "@apty/ui/i18n/context";
@@ -42,8 +50,10 @@ import { caseRecorder } from "../../services/cases";
 import { SupportBundleButton } from "../cases/support-bundle-button";
 import { DaptyEvidenceExport } from "./dapty-evidence-export";
 import { GetEvidence } from "./get-evidence";
+import { KbAnswerFooter } from "./kb-answer-footer";
 import { KbCardExcerpt, useKbCardUrl } from "./kb-card-excerpt";
-import { KbVersionControl, useActiveSiteHost } from "./kb-version-control";
+import { useKbVersionsTick } from "./kb-version-chip";
+import { useActiveSiteHost } from "./kb-version-control";
 import { NoCauseCardLayers } from "./no-cause-card-layers";
 
 const PACKS = new Set([
@@ -457,6 +467,11 @@ function headline(t: Translate, result: DiagnosisResult, kind: string) {
     return t("checkPack.summary.no_cause_in_data");
   }
   const failed = gates.find((g) => g.status === "fail");
+  if (verdict.status === "no_data") {
+    return failed
+      ? t("checkPack.summary.no_data", { reason: gateText(t, failed) })
+      : t("checkPack.summary.noDataBare");
+  }
   return failed ? gateText(t, failed) : t("checkPack.summary.out_of_scope");
 }
 
@@ -472,9 +487,66 @@ function causeText(t: Translate, cause: Cause, kind: string) {
     : { summary: cause.summary, fix: cause.fix };
 }
 
-/** Which version's KB cards this site's questions read: from the check's files, or the user's choice. */
-function VerdictKbVersion() {
-  return <KbVersionControl host={useActiveSiteHost()} />;
+/**
+ * K29, D4: a verdict's source line and action row, as a KB answer's: "From
+ * a check · 5.x", its (i) holding where the rules come from and the
+ * version the check's files showed, and the ⋯ menu with Prepare support
+ * bundle and the card.
+ */
+function VerdictFooter({
+  result,
+  copyBody,
+  sessionId,
+}: {
+  result: DiagnosisResult;
+  copyBody: string;
+  sessionId: string | null;
+}) {
+  const t = useCheckText();
+  const host = useActiveSiteHost();
+  useKbVersionsTick();
+  const url = useKbCardUrl(result.cardPageId ?? "", result.aptyVersion);
+  const turnVersion = useTurn()?.decision?.version;
+  const version =
+    result.aptyVersion ??
+    (turnVersion && turnVersion !== "unknown"
+      ? turnVersion
+      : kbVersionForHost(host));
+  const provenance = result.cardPageId
+    ? t(
+        result.verdict.status === "no_cause_in_data"
+          ? "checkPack.provenanceNoCause"
+          : "checkPack.provenance",
+      )
+    : t("checkPack.provenanceDapty");
+  return (
+    <KbAnswerFooter
+      question={copyBody}
+      copyBody={copyBody}
+      whyRoute="check"
+      source={[
+        t("checkPack.fromCheck"),
+        ...(version && version !== "unknown" ? [version] : []),
+      ].join(" · ")}
+      about={[
+        provenance,
+        ...(result.cardPageId
+          ? [`${t("checkPack.card")} ${result.cardPageId}`]
+          : []),
+        ...(kbVersionFromEvidence(host)
+          ? [t("kbVersion.fromCheck", { version: kbVersionForHost(host) })]
+          : []),
+      ]}
+      {...(result.cardPageId ? { openUrl: url } : {})}
+      bundle={{
+        result,
+        loadRecord: async () =>
+          sessionId
+            ? caseRecorder().current(sessionId, result.siteKey)
+            : undefined,
+      }}
+    />
+  );
 }
 
 function KbCardLink({
@@ -739,6 +811,14 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
                     })
                   : t("checkPack.titleGeneric");
   const blockedRows = scan?.rows.filter((r) => r.blockers.length > 0) ?? [];
+  const summary = headline(t, result, kind);
+  // Recording the chat is what to do when it was not observed or not answered.
+  const canRecord =
+    result.dapty !== undefined &&
+    result.dapty.source !== "har" &&
+    result.gates.some(
+      (g) => g.reason === "daptyNotObserved" || g.reason === "daptyNoAnswer",
+    );
   const several = subject.matched.length > 1;
 
   return (
@@ -753,168 +833,182 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
         </StatusBadge>
       </div>
 
-      <p className="text-sm text-foreground">{headline(t, result, kind)}</p>
+      <p className="text-sm text-foreground" data-testid="verdict-result">
+        {summary}
+      </p>
 
-      {verdict.causes.length > 0 && (
-        <div className="space-y-1.5">
-          <h4 className="text-xs font-medium text-muted-foreground">
-            {t("checkPack.causes")}
-          </h4>
-          <ul className="space-y-2">
-            {verdict.causes.map((cause, index) => (
-              <CauseItem
-                key={`${cause.ruleId}-${index}`}
-                cause={cause}
-                kind={kind}
-                aptyVersion={result.aptyVersion}
-              />
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {several && (
-        <div className="space-y-1">
-          <h4 className="text-xs font-medium text-muted-foreground">
-            {t("checkPack.matches")}
-          </h4>
-          <ul className="list-disc space-y-0.5 pl-5 text-sm text-foreground">
-            {subject.matched.map((name) => (
-              <li key={name}>{name}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {result.dapty && (
-        <DaptySection
-          dapty={result.dapty}
-          canRecord={
-            result.dapty.source !== "har" &&
-            result.gates.some(
-              (g) =>
-                g.reason === "daptyNotObserved" || g.reason === "daptyNoAnswer",
-            )
-          }
-        />
-      )}
-
-      {blockedRows.length > 0 && (
-        <ul className="divide-y divide-border rounded-md border border-border">
-          {blockedRows.map((row) => (
-            <li
-              key={row.sourceId}
-              className="flex flex-wrap justify-between gap-x-3 px-2.5 py-1.5 text-sm"
-            >
-              <span className="font-medium text-foreground">{row.name}</span>
-              <span className="text-muted-foreground">
-                {row.blockers
-                  .map((b) => t(`checkPack.blocker.${b}`))
-                  .join(", ")}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {(verdict.status === "no_cause_in_data" ||
-        verdict.status === "no_data") &&
-        result.cardPageId && <NoCauseCardLayers pageId={result.cardPageId} />}
-
-      {verdict.nextCheck && (
-        <p className="text-sm text-foreground">
-          <span className="font-medium">{t("checkPack.nextCheck")}: </span>
-          {t(`checkPack.next.${verdict.nextCheck}`)}
-        </p>
-      )}
-      {verdict.nextCheck === "sendSupport" && (
-        <div className="flex flex-wrap items-center gap-2">
-          <SupportBundleButton
-            result={result}
-            loadRecord={async () =>
-              sessionId
-                ? caseRecorder().current(sessionId, result.siteKey)
-                : undefined
-            }
-          />
-        </div>
-      )}
-
-      <div>
+      <div className="space-y-2" data-testid="verdict-what-to-do">
         <h4 className="text-xs font-medium text-muted-foreground">
-          {t("checkPack.checks")}
+          {t("checkPack.whatToDo")}
         </h4>
-        <ul>
-          {result.gates.map((gate, index) => (
-            <GateRow key={`${gate.id}-${gate.reason}-${index}`} gate={gate} />
-          ))}
-        </ul>
+        {verdict.causes.length > 0 && (
+          <ul className="space-y-1">
+            {verdict.causes.map((cause, index) => (
+              <li
+                key={`${cause.ruleId}-${index}`}
+                className="text-sm text-foreground"
+              >
+                {`${t("checkPack.fix")}: ${causeText(t, cause, kind).fix}`}
+              </li>
+            ))}
+          </ul>
+        )}
+        {several && (
+          <div className="space-y-1">
+            <h5 className="text-xs font-medium text-muted-foreground">
+              {t("checkPack.matches")}
+            </h5>
+            <ul className="list-disc space-y-0.5 pl-5 text-sm text-foreground">
+              {subject.matched.map((name) => (
+                <li key={name}>{name}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {(verdict.status === "no_cause_in_data" ||
+          verdict.status === "no_data") &&
+          result.cardPageId && <NoCauseCardLayers pageId={result.cardPageId} />}
+        {verdict.nextCheck && (
+          <p className="text-sm text-foreground">
+            <span className="font-medium">{t("checkPack.nextCheck")}: </span>
+            {t(`checkPack.next.${verdict.nextCheck}`)}
+          </p>
+        )}
+        {verdict.nextCheck === "sendSupport" && (
+          <div className="flex flex-wrap items-center gap-2">
+            <SupportBundleButton
+              result={result}
+              loadRecord={async () =>
+                sessionId
+                  ? caseRecorder().current(sessionId, result.siteKey)
+                  : undefined
+              }
+            />
+          </div>
+        )}
+        {result.dapty && canRecord && (
+          <DaptySection dapty={result.dapty} canRecord />
+        )}
+        {needsFiles(result) && (
+          <GetEvidence
+            result={result}
+            renderCheck={(again, id) => (
+              <CheckResultCard
+                tool={{
+                  type: "tool",
+                  toolName: "run_diagnosis",
+                  toolCallId: id,
+                  input: {},
+                  output: again,
+                  state: "completed",
+                }}
+              />
+            )}
+          />
+        )}
       </div>
 
-      {result.notChecked.length > 0 && (
-        <div>
-          <h4 className="text-xs font-medium text-muted-foreground">
-            {t("checkPack.notChecked.title")}
-          </h4>
-          <ul className="list-disc pl-5 text-sm text-muted-foreground">
-            {result.notChecked.map((item) => (
-              <li key={item}>{t(`checkPack.notChecked.${item}`)}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {result.dapty && <DaptyEvidenceExport result={result} />}
-
-      {result.filesFromCdn && (
-        <p className="text-xs text-muted-foreground">
-          {t("checkPack.filesFromCdn")}
-        </p>
-      )}
-      {result.filesFromCapture && (
-        <p className="text-xs text-muted-foreground">
-          {t("checkPack.filesFromCapture")}
-        </p>
-      )}
-      {needsFiles(result) && (
-        <GetEvidence
-          result={result}
-          renderCheck={(again, id) => (
-            <CheckResultCard
-              tool={{
-                type: "tool",
-                toolName: "run_diagnosis",
-                toolCallId: id,
-                input: {},
-                output: again,
-                state: "completed",
-              }}
-            />
+      <details className="group space-y-2" data-testid="verdict-details">
+        <summary className="w-fit cursor-pointer rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          {t("checkPack.details")}
+        </summary>
+        <div className="mt-2 space-y-3">
+          {verdict.causes.length > 0 && (
+            <div className="space-y-1.5">
+              <h4 className="text-xs font-medium text-muted-foreground">
+                {t("checkPack.causes")}
+              </h4>
+              <ul className="space-y-2">
+                {verdict.causes.map((cause, index) => (
+                  <CauseItem
+                    key={`${cause.ruleId}-${index}`}
+                    cause={cause}
+                    kind={kind}
+                    aptyVersion={result.aptyVersion}
+                  />
+                ))}
+              </ul>
+            </div>
           )}
-        />
-      )}
 
-      {result.cardPageId && <VerdictKbVersion />}
+          {result.dapty && !canRecord && (
+            <DaptySection dapty={result.dapty} canRecord={false} />
+          )}
 
-      <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-        {result.cardPageId ? (
-          <>
-            <span>
-              {t(
-                verdict.status === "no_cause_in_data"
-                  ? "checkPack.provenanceNoCause"
-                  : "checkPack.provenance",
-              )}
-            </span>
-            <KbCardLink
-              pageId={result.cardPageId}
-              aptyVersion={result.aptyVersion}
-            />
-          </>
-        ) : (
-          <span>{t("checkPack.provenanceDapty")}</span>
-        )}
-      </p>
+          {blockedRows.length > 0 && (
+            <ul className="divide-y divide-border rounded-md border border-border">
+              {blockedRows.map((row) => (
+                <li
+                  key={row.sourceId}
+                  className="flex flex-wrap justify-between gap-x-3 px-2.5 py-1.5 text-sm"
+                >
+                  <span className="font-medium text-foreground">
+                    {row.name}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {row.blockers
+                      .map((b) => t(`checkPack.blocker.${b}`))
+                      .join(", ")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div>
+            <h4 className="text-xs font-medium text-muted-foreground">
+              {t("checkPack.checks")}
+            </h4>
+            <ul>
+              {result.gates.map((gate, index) => (
+                <GateRow
+                  key={`${gate.id}-${gate.reason}-${index}`}
+                  gate={gate}
+                />
+              ))}
+            </ul>
+          </div>
+
+          {result.notChecked.length > 0 && (
+            <div>
+              <h4 className="text-xs font-medium text-muted-foreground">
+                {t("checkPack.notChecked.title")}
+              </h4>
+              <ul className="list-disc pl-5 text-sm text-muted-foreground">
+                {result.notChecked.map((item) => (
+                  <li key={item}>{t(`checkPack.notChecked.${item}`)}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {result.dapty && <DaptyEvidenceExport result={result} />}
+
+          {result.filesFromCdn && (
+            <p className="text-xs text-muted-foreground">
+              {t("checkPack.filesFromCdn")}
+            </p>
+          )}
+          {result.filesFromCapture && (
+            <p className="text-xs text-muted-foreground">
+              {t("checkPack.filesFromCapture")}
+            </p>
+          )}
+        </div>
+      </details>
+
+      <VerdictFooter
+        result={result}
+        sessionId={sessionId}
+        copyBody={[
+          title,
+          summary,
+          ...verdict.causes.map(
+            (cause) =>
+              `${t("checkPack.fix")}: ${causeText(t, cause, kind).fix}`,
+          ),
+        ].join("\n")}
+      />
     </section>
   );
 }

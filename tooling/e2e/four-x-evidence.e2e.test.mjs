@@ -15,6 +15,7 @@ import {
   launchBrowser,
   openSidePanel,
   openToolPage,
+  openVerdictDetails,
   ROOT,
   runAxe,
   sendChat,
@@ -86,6 +87,7 @@ describe("4.x evidence (KB-RAG K15)", () => {
       .getByRole("region", { name: "Why the widget may not be visible" })
       .first();
     await first.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(first);
     await first.getByRole("button", { name: "Get the evidence" }).click();
     await panel
       .getByText(/^Captured \d+ Apty calls\. The check ran on them:$/)
@@ -93,6 +95,8 @@ describe("4.x evidence (KB-RAG K15)", () => {
     const rerun = panel
       .getByRole("region", { name: "Why the widget may not be visible" })
       .nth(1);
+    await rerun.waitFor();
+    await openVerdictDetails(rerun);
     await rerun.getByText("Read from the page's network capture.").waitFor();
     await rerun
       .getByText(/This page belongs to FIXTURE CRM: UAT/)
@@ -151,6 +155,7 @@ describe("4.x evidence (KB-RAG K15)", () => {
       name: "Why the widget may not be visible",
     });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     await card
       .getByText(/This page belongs to FIXTURE CRM: UAT/)
       .first()

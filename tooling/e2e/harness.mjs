@@ -808,3 +808,17 @@ export function describeViolations(violations) {
     )
     .join("\n");
 }
+
+/**
+ * Opens the Details of every verdict in `region` by clicking its summary,
+ * as an SE does (KB-RAG K29, D4: the checks, the causes' evidence and the
+ * files read fold under Details). A region with no verdict is left as is.
+ */
+export async function openVerdictDetails(region) {
+  const details = region.getByTestId("verdict-details");
+  for (const one of await details.all()) {
+    if (!(await one.evaluate((el) => el.open))) {
+      await one.locator(":scope > summary").click();
+    }
+  }
+}

@@ -242,12 +242,13 @@ export function DefaultMessageItem({
     !explains &&
     kbCards.texts.length === 0;
 
-  // K29, D2: a KB answer's card carries its own source line and "Why this answer".
-  const cardCarriesSource =
-    decision?.route === "kb" &&
-    message.parts.some(
-      (part) => part.type === "tool" && part.toolName === "search_kb",
-    );
+  // K29, D2, D4: a KB answer's card and a verdict carry their own source line and "Why this answer".
+  const cardCarriesSource = message.parts.some(
+    (part) =>
+      part.type === "tool" &&
+      ((decision?.route === "kb" && part.toolName === "search_kb") ||
+        (decision?.route === "check" && part.toolName === "run_diagnosis")),
+  );
   const turn = { decision, message };
 
   // The user's chips and attachments sit under their words.

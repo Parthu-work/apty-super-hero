@@ -2022,8 +2022,10 @@
     },
     "summary": {
       "candidates": "文件中没有发现阻碍。剩下的需要由浏览器判断。",
-      "no_cause_in_data": "文件中未发现原因。",
-      "out_of_scope": "未得出结论。"
+      "no_cause_in_data": "在文件中未发现原因。",
+      "out_of_scope": "未得出结论。",
+      "no_data": "暂无数据：{{reason}}",
+      "noDataBare": "暂无数据。"
     },
     "gate": {
       "data": "已读取的文件",
@@ -2619,7 +2621,10 @@
       "noFiles": "此 HAR 中没有 Apty 内容文件。请重新加载页面后，在开启“保留日志”的情况下，从 Client 的 service worker 重新保存。",
       "versionHint": "Apty 4.x：由客户端的 Service Worker 读取文件，请在那里保存 HAR。Apty 5.x：由页面读取文件，请在此标签页重新加载时进行捕获。"
     },
-    "captureNoneFiveX": "页面没有发出 Apty 内容请求。请在 Apty 加载后重新加载页面，然后再次获取证据。"
+    "captureNoneFiveX": "页面没有发出 Apty 内容请求。请在 Apty 加载后重新加载页面，然后再次获取证据。",
+    "whatToDo": "怎么做",
+    "details": "详细信息",
+    "fromCheck": "来自检查"
   },
   "harCheck": {
     "intro": "当无法连接客户的 Apty Client 时，对客户录制的 HAR 文件运行可见性检查。",

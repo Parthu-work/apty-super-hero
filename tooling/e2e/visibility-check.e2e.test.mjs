@@ -17,6 +17,7 @@ import {
   extensionPage,
   launchBrowser,
   openSidePanel,
+  openVerdictDetails,
   ROOT,
   runAxe,
   savedPeerId,
@@ -139,6 +140,7 @@ describe("visibility check, end to end", () => {
       name: "Why “Take a tour” may not be visible",
     });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     await card.getByText("No data to check").waitFor();
     await card
       .getByText(
@@ -165,12 +167,17 @@ describe("visibility check, end to end", () => {
       name: "Why “Take a tour” may not be visible",
     });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     await card.getByText("Cause found").waitFor();
-    await card
-      .getByText(
-        "In Studio, clear “Hide from widget” in its settings and publish.",
-      )
-      .waitFor();
+    for (const where of ["verdict-what-to-do", "verdict-details"]) {
+      await card
+        .getByTestId(where)
+        .getByText(
+          "In Studio, clear “Hide from widget” in its settings and publish.",
+        )
+        .first()
+        .waitFor();
+    }
     await card.getByText("workflow.json: hideFromWidget = true").waitFor();
     await card
       .getByText("The Apty Client loaded UAT (order 2)", { exact: false })
@@ -211,6 +218,7 @@ describe("visibility check, end to end", () => {
       name: "Visibility check: every workflow",
     });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     await card.getByText("2 of 9 have a blocker in the files").waitFor();
     await card.getByText("Only in turned-off segments").waitFor();
     assert.equal(model.requests.length, before);
@@ -239,6 +247,7 @@ describe("visibility check, end to end", () => {
       name: "Why “Export a report” may not be visible",
     });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     await card
       .getByText(
         "Every segment that lists it (Retired team) is turned off, so it is hidden from everyone.",
@@ -261,6 +270,7 @@ describe("visibility check, end to end", () => {
       name: "Why the widget may not be visible",
     });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     await card.getByText("Cause found").waitFor();
     await card
       .getByText(
@@ -294,6 +304,7 @@ describe("visibility check, end to end", () => {
       name: "Why the widget may not be visible",
     });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     await card.getByText("Needs a check in the browser").waitFor();
     await card
       .getByText("This page belongs to UAT (order 2)", { exact: false })
@@ -316,6 +327,7 @@ describe("visibility check, end to end", () => {
 
     const card = panel.getByRole("region", { name: "Errors and logs" });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     await card.getByText("Cause found").waitFor();
     await card
       .getByText('Apty Client logs: "Error registering IoC" (1×)')
@@ -356,6 +368,7 @@ describe("selector and page checks, end to end", () => {
       name: "Why Apty may not find the element of “Start: Create a lead”",
     });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     await card.getByText("Cause found").waitFor();
     await card
       .getByText(
@@ -386,6 +399,7 @@ describe("selector and page checks, end to end", () => {
       name: "Why Apty may not find the element of “Lead source help”",
     });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     await card
       .getByText(
         "Its element: the selector matches nothing in the page itself but 1 element(s) inside a frame, and its frame path is empty, as a hand-written selector's is.",
@@ -410,6 +424,7 @@ describe("selector and page checks, end to end", () => {
       name: "Why Apty may not find the element of “Email format”",
     });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     await card
       .getByText("Its element: matches exactly one rendered element in view", {
         exact: false,
@@ -434,6 +449,7 @@ describe("selector and page checks, end to end", () => {
       name: "Why Apty may not find the element of “Take a tour”",
     });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     await card
       .getByText(
         "Step 3: the selector holds 1 generated-looking value(s), which often change after a reload.",
@@ -458,6 +474,7 @@ describe("selector and page checks, end to end", () => {
       name: "Element selection on this page",
     });
     await card.waitFor({ timeout: 60_000 });
+    await openVerdictDetails(card);
     await card
       .getByText(
         "2 element(s) share their id with another in the same document or shadow root, so a selector on that id matches more than one.",
@@ -518,6 +535,7 @@ describe("with a KB pack loaded (KB-RAG K5)", () => {
         name: "Why “Take a tour” may not be visible",
       });
       await card.waitFor({ timeout: 30_000 });
+      await openVerdictDetails(card);
       const expander = card.getByRole("button", { name: "From the KB card" });
       await expander.waitFor();
       await expander.focus();
@@ -611,6 +629,7 @@ describe("a 4.x tenant (KB-RAG K14)", () => {
       name: "Why the widget may not be visible",
     });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     await card
       .getByText(
         "No environment's URL pattern matches this page, so the 4.x player loads nothing here.",
@@ -624,6 +643,8 @@ describe("a 4.x tenant (KB-RAG K14)", () => {
     for (const href of links) {
       assert.match(href, /\/wiki\/spaces\/A4PKH\/pages\/\d+$/);
     }
+    // K29, D4: the version the check's files showed is in the source line's (i).
+    await card.getByRole("button", { name: "About this source" }).click();
     await card
       .getByText(/Apty version: 4\.x, from the check's files/)
       .waitFor();
@@ -650,6 +671,7 @@ describe("a 4.x tenant (KB-RAG K14)", () => {
       .first()
       .waitFor({ timeout: 30_000 });
     // F3: the cause cites its own 4.x card, so the loaded pack's text shows.
+    await openVerdictDetails(card);
     await card.getByRole("button", { name: "From the KB card" }).click();
     await card.getByText(HIDDEN_4X_LAYER_1).waitFor();
     assert.ok(

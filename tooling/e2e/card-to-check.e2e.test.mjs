@@ -3,7 +3,8 @@
  * (a fake Apty Client serving the content-5x fixtures). A KB card for a
  * symptom a check pack reads offers Run the check, which runs that check
  * on the SE's own words; a check with no cause shows the card's layers 1
- * and 2; a confirmed cause offers Prepare support bundle and the
+ * and 2; a confirmed cause offers Prepare support bundle (in the
+ * verdict's ⋯ menu, K29 D4) and the
  * right-or-wrong mark. Every step by keyboard, axe clean in light and dark,
  * and no model request. Synthetic cards only.
  */
@@ -135,8 +136,20 @@ describe("from the card to the check (KB-RAG K27, E5)", () => {
     await card.waitFor({ timeout: 30_000 });
     await card.getByText("Cause found").waitFor();
 
+    // K29, D4: the verdict leads with its result and What to do, and
+    // Prepare support bundle is in its ⋯ menu.
+    await card.getByTestId("verdict-result").waitFor();
+    await card.getByTestId("verdict-what-to-do").waitFor();
+    const more = card.getByRole("button", {
+      name: "More actions for this answer",
+    });
+    await more.click();
+    await panel
+      .getByRole("menuitem", { name: "Prepare support bundle" })
+      .waitFor();
+    await panel.keyboard.press("Escape");
+    await panel.getByRole("menu").waitFor({ state: "hidden" });
     const row = panel.getByTestId("turn-actions").last();
-    await row.getByRole("button", { name: "Prepare support bundle" }).waitFor();
     const mark = row.getByRole("group", { name: "Was this cause right?" });
     const wrong = mark.getByRole("button", { name: "Wrong" });
     await pressOn(panel, wrong);

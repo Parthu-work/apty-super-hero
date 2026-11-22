@@ -18,6 +18,7 @@ import { after, before, describe, it } from "node:test";
 import {
   launchBrowser,
   openSidePanel,
+  openVerdictDetails,
   ROOT,
   sendChat,
   startMockModel,
@@ -219,6 +220,7 @@ describe("checks with an unpatched Apty Client", () => {
 
     const card = panel.getByRole("region", { name: "Ask Dapty chat check" });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     const tookMs = Date.now() - asked;
     await card
       .getByText("From the stored chat on Apty's content CDN: 2 turn(s).")
@@ -268,6 +270,7 @@ describe("checks with an unpatched Apty Client", () => {
     await sendChat(panel, "Dapty suggested a workflow but nothing opens");
     const card = panel.getByRole("region", { name: "Ask Dapty chat check" });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     await card.getByRole("button", { name: "Export evidence" }).click();
     const review = panel.getByRole("region", {
       name: "Ask Dapty evidence bundle",
@@ -325,6 +328,7 @@ describe("checks with an unpatched Apty Client", () => {
       name: "Why the widget may not be visible",
     });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     const tookMs = Date.now() - asked;
     await card
       .getByText(
@@ -366,6 +370,7 @@ describe("checks with an unpatched Apty Client", () => {
       name: "Why the widget may not be visible",
     });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     await card
       .getByText("No Apty Client extension ID is saved", { exact: false })
       .first()
@@ -407,6 +412,7 @@ describe("a connected Apty Client with nothing for the tab (KB-RAG K29, B4)", ()
       name: "Why the widget may not be visible",
     });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     await card
       .getByText(
         "Content files read from Apty's content CDN, as the Apty Client does not report its calls.",

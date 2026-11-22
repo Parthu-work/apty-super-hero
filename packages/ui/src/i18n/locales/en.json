@@ -2022,8 +2022,10 @@
     },
     "summary": {
       "candidates": "The files show no blocker. What is left is decided in the browser.",
-      "no_cause_in_data": "The files show no cause.",
-      "out_of_scope": "Nothing was concluded."
+      "no_cause_in_data": "No cause found in the files.",
+      "out_of_scope": "Nothing was concluded.",
+      "no_data": "No data yet: {{reason}}",
+      "noDataBare": "No data yet."
     },
     "gate": {
       "data": "Files read",
@@ -2619,7 +2621,10 @@
       "noFiles": "This HAR holds no Apty content file. Save it again from the Client's service worker with Preserve log on, after reloading the page.",
       "versionHint": "Apty 4.x: the Client's service worker reads the files, so save a HAR there. Apty 5.x: the page reads them, so capture this tab while it reloads."
     },
-    "captureNoneFiveX": "The page made no Apty content call. Reload the page once Apty has loaded, then get the evidence again."
+    "captureNoneFiveX": "The page made no Apty content call. Reload the page once Apty has loaded, then get the evidence again.",
+    "whatToDo": "What to do",
+    "details": "Details",
+    "fromCheck": "From a check"
   },
   "harCheck": {
     "intro": "Run the visibility checks on a HAR file a customer recorded, when their Apty Client cannot be connected.",

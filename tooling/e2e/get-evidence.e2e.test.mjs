@@ -16,6 +16,7 @@ import {
   describeViolations,
   launchBrowser,
   openSidePanel,
+  openVerdictDetails,
   ROOT,
   runAxe,
   sendChat,
@@ -119,8 +120,10 @@ async function askOn(url) {
   await sendChat(panel, QUESTION);
   const card = panel.getByRole("region", { name: CARD }).first();
   await card.waitFor({ timeout: 30_000 });
+  await openVerdictDetails(card);
   const evidence = card.getByTestId("get-evidence");
   await evidence.waitFor({ timeout: 30_000 });
+  await openVerdictDetails(evidence);
   return { app, panel, evidence };
 }
 
@@ -160,11 +163,10 @@ describe("Get the evidence (KB-RAG K27, E8)", () => {
     await panel
       .getByText(/^Captured \d+ Apty calls\. The check ran on them:$/)
       .waitFor({ timeout: 60_000 });
-    await panel
-      .getByRole("region", { name: CARD })
-      .nth(1)
-      .getByText("Read from the page's network capture.")
-      .waitFor();
+    const recheck = panel.getByRole("region", { name: CARD }).nth(1);
+    await recheck.waitFor();
+    await openVerdictDetails(recheck);
+    await recheck.getByText("Read from the page's network capture.").waitFor();
     assert.equal(model.requests.length, before, "the model was not asked");
     await panel.close();
     await app.close();
