@@ -4,14 +4,29 @@
 
 ## Status
 
-**IN PROGRESS.** Part P (P1 to P4) **done** on `claude/kb-rag-k29-pipeline`,
-with partial steps: the leak check against the two real packs is the KB
-owner's (`pnpm kb:check-leaks --pack <4.x pack> --pack <5.x pack>`, see How
-to test); the GitHub runs by hand (KB packs without the switch names the
-missing inputs; the next scheduled run succeeds quietly) are checked after
-merge. Part L on `claude/kb-rag-k29-layout`; Part B on
-`claude/kb-rag-k29-behaviour`; Part D on `claude/kb-rag-k29-delivery` (on
-top of L).
+**DONE, with partial steps.** Four PRs: Part P (P1 to P4) on
+`claude/kb-rag-k29-pipeline` (#130, fixes #129); Part B (B4, B1, B3, B2,
+B5, B6, B7, B8) on `claude/kb-rag-k29-behaviour` (#131); Part L (L1 to L5)
+on `claude/kb-rag-k29-layout` (#132); Part D (D1, D2 and D3 in one commit,
+D4, D5) on `claude/kb-rag-k29-delivery` (#134, on top of L, merging B for
+B1's store). Merge order: P, L, B, D.
+
+Partial, with what finishes each:
+
+- The leak check against the two real packs (KB owner):
+  `pnpm kb:check-leaks --pack <4.x pack> --pack <5.x pack>` (see How to
+  test).
+- After merge, in GitHub: run KB packs by hand without the switch (it names
+  the missing inputs), and check that the next scheduled run succeeds
+  quietly.
+- The full `npm run test:e2e` and `npm run release:dry-run` on the merged
+  tree; each PR ran its affected E2E files (P 2, B 13, L 24, D 30).
+- The 22 Nov hand session in Chrome and its screen recording (needs a real
+  browser, both packs and an Anthropic key).
+- Not checked: whether Confluence redirects old JA links by page id, so 5.x
+  links in JA packs are always rewritten to A5PKH at load.
+- D2: a KB answer whose card a check pack reads also shows Run the check,
+  9 controls; the fixture answers have at most 8.
 
 ## How to run this prompt
 
