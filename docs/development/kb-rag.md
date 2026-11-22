@@ -17,7 +17,7 @@ To try it in ten minutes with synthetic cards, follow the root
 ```
 Confluence                                      pnpm kb:pack, KB owner's machine
   A4PKH (root 1509720081)      --version 4.x  ─┐  (CONFLUENCE_EMAIL / TOKEN)
-  JA    (root 1496711169)      --version 5.x  ─┤
+  A5PKH (root 1496711169)      --version 5.x  ─┤
   Apty KB - Common             --version common┘
          │
          ▼
@@ -261,7 +261,9 @@ card takes part in ranking and is never returned.
   merging two versions' statements into one instruction.
 - **Links.** Every link is the card's own page (`card.url`); a check pack's
   card with no pack loaded falls back to its version's space (A4PKH for 4.x,
-  JA for 5.x).
+  A5PKH for 5.x). The 5.x cards moved from JA to A5PKH with their page ids
+  (K29, P2); a 5.x pack built from JA before the move links its cards to
+  A5PKH when it is loaded.
 
 ## Where it shows
 
@@ -376,7 +378,7 @@ pnpm kb:pack --space A4PKH --root 1509720081 --version 4.x --sign-key ~/apty-kb-
 ```
 
 ```bash
-pnpm kb:pack --space JA --root 1496711169 --version 5.x --sign-key ~/apty-kb-signing-key/kb-signing-key-<keyId>.pem
+pnpm kb:pack --space A5PKH --root 1496711169 --sign-key ~/apty-kb-signing-key/kb-signing-key-<keyId>.pem
 ```
 
 ```bash
@@ -392,7 +394,9 @@ VERIFIED statements, no "Verified on" line or no "Symptom:" line, and with
 adds the owner's groups (one per line, comma-separated). The pack is written
 to `~/apty-kb/apty-kb-<space>-<version>-<yyyymmdd>.kbpack.json`, mode 600;
 the builder refuses to write inside this repository. `--version` is required
-for JA and any space other than A4PKH.
+for any space other than A4PKH (4.x) and A5PKH (5.x). Given the 5.x root in
+its old space (`--space JA --root 1496711169`), the builder stops with "The
+5.x cards moved to A5PKH; use --space A5PKH".
 
 **Calibrate, then rebuild** with the printed flags:
 
@@ -681,7 +685,7 @@ pnpm kb:eval --pack <5.x pack> --questions ~/apty-feedback/merged/questions-5.x.
 | Cards of the wrong version | The tab's version is unknown or was chosen wrongly | Pick the version on the KB matches or verdict card; a check's files decide it when one runs |
 | No KB card with no AI key | The message reads as a bare how-to, or nothing covers it | Name the symptom ("…does not show", "…flickers"). The KB answers symptoms, not how-to questions (D-KB1); for how to configure something, use the Apty product documentation or ask the KB owner. |
 | The model does not call `search_kb` | The message is casual, a bare how-to or a file request | Name the symptom or the Apty item; `tool-relevance.ts` lists the words |
-| Links open the wrong space | A schema 1 pack (always JA) | Rebuild the pack with this builder |
+| Links open the wrong space | A schema 1 pack (always the 5.x space) | Rebuild the pack with this builder |
 | "Older than 30 days" | Stale pack | Ask the KB owner for a newer one |
 | "The KB cards are in English" | The question is mostly in another script and no model is configured | Ask in English, or configure a model |
 | `kb:pack`: "… did not answer within 30 seconds after 3 retries" or "… could not be reached" | Confluence did not answer, or the network or credentials block it | Check access with `curl -s -o /dev/null -w "%{http_code}\n" -u "$CONFLUENCE_EMAIL:$CONFLUENCE_TOKEN" "https://<site>/wiki/rest/api/search?cql=type=page&limit=1"`: 200 means access works (raise `--timeout`), 401 a wrong email or token, 403 a scoped token (use a classic one) |

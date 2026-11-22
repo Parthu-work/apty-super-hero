@@ -261,7 +261,13 @@ export function decodeVectors(pack: KbPack): Float32Array[] {
   );
 }
 
-/** Every card with a status and a symptom: a schema 1 card is a full card with no symptom line. */
+/** KB-RAG K29, P2: the 5.x cards left space JA for A5PKH, keeping their page ids. */
+const MOVED_5X_CARD = /^(https:\/\/[^/\s]+\/wiki\/spaces\/)JA(\/pages\/\d+)$/;
+
+/**
+ * Every card with a status and a symptom (a schema 1 card is a full card
+ * with no symptom line), and a 5.x pack built from JA linking to A5PKH.
+ */
 function normalized(pack: KbPack): KbPack {
   return {
     ...pack,
@@ -269,6 +275,10 @@ function normalized(pack: KbPack): KbPack {
       ...card,
       symptom: card.symptom ?? null,
       status: card.status ?? "full",
+      url:
+        pack.aptyVersion === "5.x"
+          ? card.url.replace(MOVED_5X_CARD, "$1A5PKH$2")
+          : card.url,
     })),
   };
 }
@@ -417,14 +427,14 @@ export function kbPackAgeDays(info: Pick<KbPackInfo, "builtAt">, now: Date) {
 /** Where a version's cards live when a link has no card to read its URL from. */
 const KB_CARD_SPACE: Record<KbAptyVersion, string> = {
   "4.x": "https://apty.atlassian.net/wiki/spaces/A4PKH/pages/",
-  "5.x": "https://apty.atlassian.net/wiki/spaces/JA/pages/",
+  "5.x": "https://apty.atlassian.net/wiki/spaces/A5PKH/pages/",
   common: "https://apty.atlassian.net/wiki/spaces/JA/pages/",
 };
 
 /**
  * The Confluence page of a KB card: the card's own `url` when the pack
  * holds it (page ids are unique across spaces), else the space its
- * version's cards live in (JA for 5.x and a schema 1 pack).
+ * version's cards live in (A5PKH for 5.x and a schema 1 pack).
  */
 export function kbCardUrl(
   pageId: string,

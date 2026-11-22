@@ -8,8 +8,8 @@
   },
   "5.x": {
     "site": "apty.atlassian.net",
-    "space": "JA",
+    "space": "A5PKH",
     "root": "1496711169",
-    "args": ["--version", "5.x"]
+    "args": []
   }
 }

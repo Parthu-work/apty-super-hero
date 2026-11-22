@@ -254,7 +254,7 @@ describe("kbCardUrl", () => {
       "https://apty.atlassian.net/wiki/spaces/A4PKH/pages/1509786000",
     );
     expect(kbCardUrl("1496645690")).toBe(
-      "https://apty.atlassian.net/wiki/spaces/JA/pages/1496645690",
+      "https://apty.atlassian.net/wiki/spaces/A5PKH/pages/1496645690",
     );
     expect(
       kbCardUrl("7", { site: "fixture.atlassian.net", space: "A4X" }),
@@ -271,6 +271,51 @@ describe("kbCardUrl", () => {
         url: "https://fixture.atlassian.net/wiki/spaces/A4X/pages/7",
       }),
     ).toEqual({ site: "fixture.atlassian.net", space: "A4X" });
+  });
+});
+
+describe("5.x card links after the move to A5PKH (KB-RAG K29, P2)", () => {
+  const inSpace = (aptyVersion: KbPack["aptyVersion"], space: string) => {
+    const pack = syntheticPack(
+      [{ pageId: "7", title: "FIXTURE card", layers: ["a", "b", "c", "d"] }],
+      {},
+      { aptyVersion },
+    );
+    return reseal({
+      ...pack,
+      source: { ...pack.source, site: "apty.atlassian.net", space },
+      cards: pack.cards.map((card) => ({
+        ...card,
+        url: `https://apty.atlassian.net/wiki/spaces/${space}/pages/7`,
+      })),
+    });
+  };
+
+  it("a 5.x pack built from JA links its cards to A5PKH", async () => {
+    const parsed = await parse(await inSpace("5.x", "JA"));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.pack.cards[0]?.url).toBe(
+      "https://apty.atlassian.net/wiki/spaces/A5PKH/pages/7",
+    );
+    expect(kbCardLocation(parsed.pack.cards[0] as KbPack["cards"][0])).toEqual({
+      site: "apty.atlassian.net",
+      space: "A5PKH",
+    });
+  });
+
+  it("leaves other versions' and other spaces' links as they are", async () => {
+    for (const [version, space] of [
+      ["4.x", "JA"],
+      ["common", "JA"],
+      ["5.x", "A5PKH"],
+      ["4.x", "A4PKH"],
+    ] as const) {
+      const parsed = await parse(await inSpace(version, space));
+      expect(parsed.ok && parsed.pack.cards[0]?.url).toBe(
+        `https://apty.atlassian.net/wiki/spaces/${space}/pages/7`,
+      );
+    }
   });
 });
 
