@@ -6,6 +6,10 @@
 #
 # GitHub disables a public repository's schedules after 60 days without
 # activity; the same document says where to run this instead.
+#
+# KB-RAG K29 (P1): the schedule waits for the repository variable
+# KB_PACKS_ENABLED; until then a scheduled run ends at its first step with a
+# notice and succeeds. A manual run always checks its inputs.
 name: KB pack health
 
 on:
@@ -22,7 +26,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: tooling/scripts/kb/pipeline-inputs.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: Is the pipeline set up
+        id: gate
+        env:
+          KB_PACKS_ENABLED: ${{ vars.KB_PACKS_ENABLED }}
+        run: node tooling/scripts/kb/pipeline-inputs.mjs gate
+
   age:
+    needs: plan
+    if: needs.plan.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -43,24 +66,23 @@ jobs:
       - name: Build @apty/agent-core
         run: pnpm --filter @apty/agent-core build
 
+      - name: Check the secrets and variables
+        env:
+          KB_PUBLISH_TOKEN: ${{ secrets.KB_PUBLISH_TOKEN }}
+          KB_PUBLISH_URL_4X: ${{ vars.KB_PUBLISH_URL_4X }}
+          KB_PUBLISH_URL_5X: ${{ vars.KB_PUBLISH_URL_5X }}
+        run: node tooling/scripts/kb/pipeline-inputs.mjs health
+
       - name: Check the age of each published pack
         env:
           KB_PUBLISH_TOKEN: ${{ secrets.KB_PUBLISH_TOKEN }}
           KB_PUBLISH_URL_4X: ${{ vars.KB_PUBLISH_URL_4X }}
           KB_PUBLISH_URL_5X: ${{ vars.KB_PUBLISH_URL_5X }}
         run: |
-          args=()
-          [ -n "$KB_PUBLISH_URL_4X" ] && args+=(--version 4.x --url "$KB_PUBLISH_URL_4X")
-          [ -n "$KB_PUBLISH_URL_5X" ] && args+=(--version 5.x --url "$KB_PUBLISH_URL_5X")
-          if [ "${#args[@]}" -eq 0 ]; then
-            echo "::notice title=KB pack health::Pack age not checked: no KB_PUBLISH_URL_4X or KB_PUBLISH_URL_5X is set"
-            echo "- Pack age not checked: no KB_PUBLISH_URL_4X or KB_PUBLISH_URL_5X is set." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          node tooling/scripts/kb/pack-age.mjs "${args[@]}" >> "$GITHUB_STEP_SUMMARY"
+          node tooling/scripts/kb/pack-age.mjs --version 4.x --url "$KB_PUBLISH_URL_4X" --version 5.x --url "$KB_PUBLISH_URL_5X" >> "$GITHUB_STEP_SUMMARY"
 
   alert:
-    needs: age
+    needs: [plan, age]
     if: failure()
     runs-on: ubuntu-latest
     permissions:
@@ -82,3 +104,30 @@ jobs:
             const result = await alertForRun({ github, context, workflow: "KB pack health" });
             core.summary.addRaw(`- Failure alert: issue #${result.number} ${result.action}.\n`);
             await core.summary.write();
+
+  # KB-RAG K29 (P1): the first green run after a failure comments "Green
+  # again" on the open kb-pipeline issue and closes it.
+  recover:
+    needs: [plan, age]
+    if: success() && needs.plan.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: tooling/scripts/kb/pipeline-alert.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: Close the kb-pipeline issue
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const { recoverForRun } = await import(`${process.env.GITHUB_WORKSPACE}/tooling/scripts/kb/pipeline-alert.mjs`);
+            const result = await recoverForRun({ github, context, workflow: "KB pack health" });
+            if (result.numbers.length > 0) {
+              core.summary.addRaw(`- Green again: closed issue #${result.numbers.join(", #")}.\n`);
+              await core.summary.write();
+            }
