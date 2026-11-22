@@ -45,17 +45,23 @@ function nothingToBundle(
   );
 }
 
-export function SupportBundleButton({
-  record,
-  loadRecord,
-  result,
-}: {
-  /** The case, or a way to read it when the button is pressed. */
+interface SupportBundleSource {
+  /** The case, or a way to read it when the bundle is prepared. */
   record?: CaseRecord;
   loadRecord?: () => Promise<CaseRecord | undefined>;
   /** The check the verdict card shows: its file entries and status codes. */
   result?: DiagnosisResult;
-}) {
+}
+
+/**
+ * Prepare support bundle's state and review dialog, for the button and for
+ * the ⋯ menu of a KB answer or a verdict (K29, D2).
+ */
+export function useSupportBundle({
+  record,
+  loadRecord,
+  result,
+}: SupportBundleSource) {
   const { t } = useTranslation();
   const [prepared, setPrepared] = useState<Prepared | null>(null);
   const [noCase, setNoCase] = useState(false);
@@ -110,18 +116,8 @@ export function SupportBundleButton({
     }
   };
 
-  return (
+  const view = (
     <>
-      <Button
-        size="sm"
-        variant="secondary"
-        onClick={() => void prepare()}
-        disabled={emptyNow}
-        aria-describedby={emptyNow ? "support-bundle-empty" : undefined}
-        data-testid="prepare-support-bundle"
-      >
-        {t("supportBundle.prepare")}
-      </Button>
       {emptyNow && (
         <p
           id="support-bundle-empty"
@@ -169,6 +165,27 @@ export function SupportBundleButton({
           </p>
         )}
       </BundleReviewDialog>
+    </>
+  );
+  return { prepare, emptyNow, view };
+}
+
+export function SupportBundleButton(source: SupportBundleSource) {
+  const { t } = useTranslation();
+  const { prepare, emptyNow, view } = useSupportBundle(source);
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="secondary"
+        onClick={() => void prepare()}
+        disabled={emptyNow}
+        aria-describedby={emptyNow ? "support-bundle-empty" : undefined}
+        data-testid="prepare-support-bundle"
+      >
+        {t("supportBundle.prepare")}
+      </Button>
+      {view}
     </>
   );
 }

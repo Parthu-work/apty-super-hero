@@ -2,8 +2,8 @@
  * Under a reply, the actions that apply to that turn (KB-RAG K27, E1, E5).
  * Only actions that can run are offered, and none the turn's own card
  * already shows: Run the check under a KB card whose symptom a check pack
- * reads; Prepare support bundle for a turn with KB cards, or with a verdict
- * whose card does not offer it; and, after a confirmed cause, the SE's
+ * reads; Prepare support bundle for a verdict whose card does not offer it
+ * (a KB answer keeps it in its ⋯ menu, K29 D2); and, after a confirmed cause, the SE's
  * right-or-wrong mark on it. Wrong card stays on each KB card and Get the
  * evidence on the verdict that needs files, so the row does not repeat them.
  */
@@ -50,7 +50,7 @@ export function turnActions(parts: UIMessage["parts"]): {
   const verdictWithoutBundle =
     result !== undefined && result.verdict.nextCheck !== "sendSupport";
   return {
-    supportBundle: kbCards || verdictWithoutBundle,
+    supportBundle: verdictWithoutBundle,
     ...(kbCards && kb?.runCheck ? { runCheck: kb.runCheck } : {}),
     markFinding:
       result?.verdict.status === "cause_found" &&

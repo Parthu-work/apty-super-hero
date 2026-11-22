@@ -784,7 +784,7 @@ describe("DefaultMessageItem — where an answer came from (KB-RAG K27, E1)", ()
     ["check", "Check"],
     ["kb", "KB card"],
     ["model", "Model"],
-  ] as const)("%s: names its source, the version and how it was decided, and the pack's expiry", (route, source) => {
+  ] as const)("%s: names its source and the version and how it was decided; the pack's expiry is in the header (K29, D2)", (route, source) => {
     render(
       <DefaultMessageItem
         message={{
@@ -794,11 +794,8 @@ describe("DefaultMessageItem — where an answer came from (KB-RAG K27, E1)", ()
         isLast
       />,
     );
-    expect(chips()).toEqual([
-      source,
-      "4.x, from the files",
-      "Pack expires in 60 days",
-    ]);
+    expect(chips()).toEqual([source, "4.x, from the files"]);
+    expect(screen.queryByText(/Pack expires/)).toBeNull();
   });
 
   it("says the version is the SE's choice, or unknown, and shows no pack chip without a pack", () => {
@@ -926,5 +923,107 @@ describe("DefaultMessageItem — one question per turn (KB-RAG K28, F5)", () => 
       />,
     );
     expect(screen.queryByTestId("more-questions")).toBeNull();
+  });
+});
+
+describe("DefaultMessageItem — a KB answer carries its own source line and actions (KB-RAG K29, D2)", () => {
+  const decision = {
+    route: "kb" as const,
+    version: "5.x" as const,
+    versionSource: "user" as const,
+    packs: [{ version: "5.x" as const, sha256: "0123456789ab" }],
+    kb: { kind: "answer" as const, status: "ok", pageIds: ["101"] },
+  };
+  const kbTurn: UIMessage = {
+    id: "a-kb",
+    role: "assistant",
+    parts: [
+      {
+        type: "tool",
+        toolName: "search_kb",
+        toolCallId: "call-kb",
+        input: { query: "FIXTURE question" },
+        output: { status: "ok", results: [] },
+        state: "completed",
+      },
+    ],
+    metadata: { decision: decision as never },
+  };
+
+  it("shows no chips and no Why this answer of its own, and gives the card its turn's decision", async () => {
+    const { TurnContext } = await import("../turn-context");
+    const { useContext } = await import("react");
+    const seen: unknown[] = [];
+    function Slot() {
+      seen.push(useContext(TurnContext)?.decision);
+      return <p>FIXTURE card</p>;
+    }
+    render(
+      <ComponentsContext.Provider
+        value={{ components: {}, slots: { toolDisplay: () => <Slot /> } }}
+      >
+        <DefaultMessageItem message={kbTurn} isLast />
+      </ComponentsContext.Provider>,
+    );
+    expect(screen.getByText("FIXTURE card")).toBeInTheDocument();
+    expect(screen.queryByTestId("turn-source-chips")).toBeNull();
+    expect(screen.queryByTestId("turn-decision")).toBeNull();
+    expect(seen.at(-1)).toEqual(decision);
+  });
+
+  it("keeps the chips and Why this answer for a model turn that searched the KB", () => {
+    render(
+      <ComponentsContext.Provider
+        value={{ components: {}, slots: { toolDisplay: () => <p>card</p> } }}
+      >
+        <DefaultMessageItem
+          message={{
+            ...kbTurn,
+            parts: [...kbTurn.parts, { type: "text", text: "FIXTURE model" }],
+            metadata: {
+              decision: { ...decision, route: "model" } as never,
+            },
+          }}
+          isLast
+        />
+      </ComponentsContext.Provider>,
+    );
+    expect(screen.getByTestId("turn-source-chips")).toBeInTheDocument();
+    expect(screen.getByTestId("turn-decision")).toBeInTheDocument();
+  });
+});
+
+describe("WhyThisAnswerPanel (KB-RAG K29, D2)", () => {
+  it("lists the record, copies it and closes", async () => {
+    const { WhyThisAnswerPanel } = await import("./turn-decision-note");
+    const writeText = vi.fn(async () => {});
+    Object.assign(navigator, { clipboard: { writeText } });
+    const onClose = vi.fn();
+    render(
+      <WhyThisAnswerPanel
+        decision={{
+          route: "kb",
+          version: "5.x",
+          versionSource: "user",
+          packs: [{ version: "5.x", sha256: "0123456789ab" }],
+          kb: { kind: "answer", status: "ok", pageIds: ["101"] },
+        }}
+        onClose={onClose}
+      />,
+    );
+    const panel = screen.getByRole("region", { name: "Why this answer" });
+    expect(panel).toHaveTextContent("Answered by: the KB cards");
+    expect(
+      screen.getByRole("heading", { name: "Why this answer" }),
+    ).toHaveFocus();
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Copy why this answer" }),
+    );
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    expect(String((writeText.mock.calls as unknown[][])[0]?.[0])).toMatch(
+      /^Why this answer\n- /,
+    );
+    fireEvent.click(within(panel).getByRole("button", { name: "Close" }));
+    expect(onClose).toHaveBeenCalled();
   });
 });

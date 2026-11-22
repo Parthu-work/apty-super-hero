@@ -35,12 +35,12 @@ const verdict = (nextCheck?: string) => {
 };
 
 describe("the turn's action row (KB-RAG K27, E1)", () => {
-  it("offers Prepare support bundle for KB cards and for a verdict whose card does not", () => {
+  it("offers Prepare support bundle for a verdict whose card does not; a KB answer keeps it in its ⋯ menu (K29, D2)", () => {
     expect(
       turnActions([
         tool("search_kb", { status: "ok", cards: [{ pageId: "101" }] }),
       ]).supportBundle,
-    ).toBe(true);
+    ).toBe(false);
     expect(turnActions([tool("run_diagnosis", verdict())]).supportBundle).toBe(
       true,
     );
@@ -94,7 +94,7 @@ describe("from the card to the check (KB-RAG K27, E5)", () => {
 
   it("offers Run the check under a KB card a check pack covers, and runs that check on the SE's question", () => {
     expect(turnActions([kbTool(KB_FOR_CHECK)])).toEqual({
-      supportBundle: true,
+      supportBundle: false,
       runCheck: { packId: "content-not-visible", kind: "workflow" },
       markFinding: false,
     });

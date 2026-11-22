@@ -2668,7 +2668,11 @@
   "kbVersion": {
     "label": "Apty 版本",
     "notSure": "不确定",
-    "fromCheck": "Apty 版本：{{version}}，来自检查读取的文件。"
+    "fromCheck": "Apty 版本：{{version}}，来自检查读取的文件。",
+    "question": "{{host}} 运行的是哪个 Apty 版本？",
+    "chipName": "{{host}} 的 Apty 版本：{{state}}",
+    "notKnown": "未知",
+    "menuLabel": "{{host}} 的 Apty 版本"
   },
   "kbMatches": {
     "whichOne": "是以下哪一种？",
@@ -2684,7 +2688,8 @@
       "client": "{{version}}，来自 Client 的文件",
       "evidence": "{{version}}，来自检查的文件",
       "user": "{{version}}，你的选择",
-      "question": "{{version}}，来自你问题中的文件名"
+      "question": "{{version}}，来自你问题中的文件名",
+      "unknown": "Apty 版本？"
     },
     "layers": "卡片层",
     "layerMissing": "已加载的包中没有这一层。",
@@ -2696,9 +2701,8 @@
     "layer": "卡片的第 {{layer}} 层",
     "stub": "KB 中有这张卡片，但其 {{version}} 版本的内容尚未编写。",
     "nonEnglish": "KB 卡片是英文的。请用英文提问，或把问题发送给模型。",
-    "mixedVersions": "这些卡片属于不同的 Apty 版本；此租户运行的是哪个版本？",
     "noneForVersion": "KB 中没有覆盖 Apty {{version}} 此问题的卡片。",
-    "provenance": "来自选项中加载的 KB 包。每个标题都会打开其 Confluence 卡片。",
+    "provenance": "每个标题都会在 Confluence 中打开对应的卡片。",
     "notSent": "仅在此处显示；不会发送给 AI 模型。",
     "sentTo": "也会发送给位于 {{destination}} 的 AI 模型。",
     "askForNewPack": "请向 KB 负责人索取新的知识包。",
@@ -2720,7 +2724,13 @@
     "layerDescription": "L{{layer}}，{{name}}",
     "otherCards": "其他 {{count}} 张可能的卡片",
     "otherCardsOne": "其他 1 张可能的卡片",
-    "notVerifiedStatement": "未验证的说法"
+    "notVerifiedStatement": "未验证的说法",
+    "fromKb": "来自 KB",
+    "verifiedOnShort": "已在 {{what}} 上验证",
+    "aboutSource": "关于此来源",
+    "moreActions": "此回答的更多操作",
+    "copyAnswer": "复制回答",
+    "openInConfluence": "在 Confluence 中打开"
   },
   "orgPolicy": {
     "setByOrg": "由您的组织设置",

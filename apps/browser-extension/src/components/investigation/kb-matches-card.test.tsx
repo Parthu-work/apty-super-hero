@@ -9,18 +9,28 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const localKbMatches = vi.hoisted(() => vi.fn());
+const site = vi.hoisted(() => ({ host: undefined as string | undefined }));
+vi.mock("./kb-version-control", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useActiveSiteHost: () => site.host,
+}));
 vi.mock("@apty/browser-runtime/kb/kb-matches", () => ({
   localKbMatches,
   kbAnswerOf: (outcome: { kind: string; result?: unknown }) =>
     outcome.kind === "answer" ? outcome.result : undefined,
 }));
 
-import { forgetKbVersions } from "@apty/browser-runtime/kb/kb-version";
+import {
+  forgetKbVersions,
+  kbVersionForHost,
+} from "@apty/browser-runtime/kb/kb-version";
 import { AptyToolDisplay } from "./apty-tool-display";
+import { KbVersionChip } from "./kb-version-chip";
 
 beforeEach(() => {
   localKbMatches.mockReset();
   forgetKbVersions();
+  site.host = undefined;
 });
 
 function tool(output: unknown): UIToolPart {
@@ -212,7 +222,8 @@ describe("KbMatchesCard", () => {
     ).toBeInTheDocument();
   });
 
-  it("searches again for the version the user picks", async () => {
+  it("searches again when the version the SE picks has no card in this answer", async () => {
+    site.host = "acc.tenant.example";
     localKbMatches.mockResolvedValue({
       kind: "answer",
       packs: [],
@@ -223,19 +234,19 @@ describe("KbMatchesCard", () => {
       },
     });
     render(
-      <AptyToolDisplay
-        tool={tool({
-          status: "ok",
-          mixedVersions: true,
-          results: [
-            hit("401", 1, "- FIXTURE 4.x setting.", false, "4.x"),
-            hit("501", 1, "- FIXTURE 5.x setting.", false, "5.x"),
-          ],
-        })}
-      />,
+      <>
+        <KbVersionChip host="acc.tenant.example" />
+        <AptyToolDisplay
+          tool={tool({
+            status: "ok",
+            results: [hit("501", 1, "- FIXTURE 5.x setting.", false, "5.x")],
+          })}
+        />
+      </>,
     );
-    const versions = screen.getByRole("radiogroup", { name: "Apty version" });
-    fireEvent.click(within(versions).getByRole("radio", { name: "4.x" }));
+    // K29, D3: the header's version chip changes the version at any time.
+    fireEvent.keyDown(screen.getByTestId("kb-version-chip"), { key: "Enter" });
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "4.x" }));
     await waitFor(() =>
       expect(
         screen.queryByRole("link", { name: /FIXTURE card 501/ }),
@@ -499,5 +510,359 @@ describe("a setting no KB card has (K27, F2)", () => {
     expect(options.turnInstruction).toContain(
       "Do not say where a setting with that name might be.",
     );
+  });
+});
+
+describe("one source line, one action row (KB-RAG K29, D2)", () => {
+  const decision = {
+    route: "kb" as const,
+    version: "5.x" as const,
+    versionSource: "user" as const,
+    packs: [
+      {
+        version: "5.x" as const,
+        sha256: "0123456789ab",
+        expiresAt: new Date(Date.now() + 55.5 * 86_400_000).toISOString(),
+      },
+    ],
+    kb: { kind: "answer" as const, status: "ok", pageIds: ["601"] },
+  };
+
+  async function renderAnswer() {
+    const { ChatContext, TurnContext } = await import(
+      "@apty/ui/components/chatbot"
+    );
+    render(
+      <ChatContext.Provider
+        value={
+          { status: "idle", sessionId: "s-1", sendMessage: vi.fn() } as never
+        }
+      >
+        <TurnContext.Provider value={{ decision, message: {} as never }}>
+          <AptyToolDisplay tool={threeCards()} />
+        </TurnContext.Provider>
+      </ChatContext.Provider>,
+    );
+    return screen.getByRole("region", { name: "KB cards that match" });
+  }
+
+  const openMenu = (card: HTMLElement) => {
+    fireEvent.keyDown(
+      within(card).getByRole("button", {
+        name: "More actions for this answer",
+      }),
+      { key: "Enter" },
+    );
+    return screen.getByRole("menu");
+  };
+
+  it("replaces the chips and boilerplate with one source line whose (i) holds the rest and the pack's expiry", async () => {
+    const card = await renderAnswer();
+    expect(within(card).getByTestId("kb-source-line")).toHaveTextContent(
+      "From the KB · 5.x · verified on FIXTURE code, 2026-01-01",
+    );
+    expect(within(card).queryByTestId("kb-egress-note")).toBeNull();
+    expect(
+      within(card).queryByText(/From the KB pack loaded in Options/),
+    ).toBeNull();
+    const info = within(card).getByRole("button", {
+      name: "About this source",
+    });
+    expect(info).toHaveAccessibleDescription(
+      "Each title opens its card in Confluence. Shown here only; not sent to the AI model. Pack expires in 56 days",
+    );
+    fireEvent.click(info);
+    expect(info).toHaveAttribute("aria-expanded", "true");
+    expect(
+      within(card).getByText("Each title opens its card in Confluence."),
+    ).toBeVisible();
+  });
+
+  it("shows at most 8 controls before anything is opened: Helpful, Wrong card and ⋯ in one row", async () => {
+    const card = await renderAnswer();
+    expect(tabStops(card).length).toBeLessThanOrEqual(8);
+    const row = within(card).getByTestId("kb-action-row");
+    expect(
+      within(row)
+        .getAllByRole("button")
+        .map(
+          (button) => button.textContent || button.getAttribute("aria-label"),
+        ),
+    ).toEqual(["Helpful", "Wrong card", "More actions for this answer"]);
+  });
+
+  it("keeps every action it moved out of view one click away, in the ⋯ menu", async () => {
+    const card = await renderAnswer();
+    const menu = openMenu(card);
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual([
+      "Copy answer",
+      "Why this answer",
+      "Prepare support bundle",
+      "Open in Confluence",
+    ]);
+    expect(
+      within(menu).getByRole("menuitem", { name: "Open in Confluence" }),
+    ).toHaveAttribute(
+      "href",
+      "https://fixture.atlassian.net/wiki/spaces/JX/pages/601",
+    );
+  });
+
+  it("opens Why this answer as a small panel with its own Copy", async () => {
+    const card = await renderAnswer();
+    fireEvent.click(
+      within(openMenu(card)).getByRole("menuitem", {
+        name: "Why this answer",
+      }),
+    );
+    const panel = await screen.findByRole("region", {
+      name: "Why this answer",
+    });
+    expect(panel).toHaveTextContent("Answered by: the KB cards");
+    expect(
+      within(panel).getByRole("button", { name: "Copy why this answer" }),
+    ).toBeInTheDocument();
+  });
+
+  it("copies the open card's steps, link and record with Copy answer", async () => {
+    const writeText = vi.fn(async () => {});
+    Object.assign(navigator, { clipboard: { writeText } });
+    const card = await renderAnswer();
+    fireEvent.click(
+      within(openMenu(card)).getByRole("menuitem", { name: "Copy answer" }),
+    );
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    const text = String((writeText.mock.calls as unknown[][])[0]?.[0]);
+    expect(text).toContain("FIXTURE card 601 (5.x)");
+    expect(text).toContain("1. FIXTURE first step.\n2. FIXTURE second step.");
+    expect(text).toContain(
+      "https://fixture.atlassian.net/wiki/spaces/JX/pages/601",
+    );
+    expect(text).toContain("Why this answer\n- ");
+  });
+});
+
+describe("nothing the SE could need is removed, only moved (KB-RAG K29, hard rule 3)", () => {
+  beforeEach(() => {
+    site.host = "acc.tenant.example";
+  });
+
+  it("finds every line, badge and action the answer showed before in the open card, its source line, its (i) or its ⋯ menu", async () => {
+    const { ChatContext, TurnContext } = await import(
+      "@apty/ui/components/chatbot"
+    );
+    render(
+      <ChatContext.Provider
+        value={
+          { status: "idle", sessionId: "s-1", sendMessage: vi.fn() } as never
+        }
+      >
+        <TurnContext.Provider
+          value={{
+            decision: {
+              route: "kb",
+              version: "5.x",
+              versionSource: "user",
+              packs: [
+                {
+                  version: "5.x",
+                  sha256: "0123456789ab",
+                  expiresAt: new Date(
+                    Date.now() + 9.5 * 86_400_000,
+                  ).toISOString(),
+                },
+              ],
+              kb: { kind: "answer", status: "ok", pageIds: ["601"] },
+            },
+            message: {} as never,
+          }}
+        >
+          <KbVersionChip host="acc.tenant.example" />
+          <AptyToolDisplay tool={threeCards()} />
+        </TurnContext.Provider>
+      </ChatContext.Provider>,
+    );
+    const card = screen.getByRole("region", { name: "KB cards that match" });
+    const moved: Array<[string, () => HTMLElement]> = [
+      [
+        "the card's title link",
+        () => within(card).getByRole("link", { name: /FIXTURE card 601/ }),
+      ],
+      ["its version badge", () => within(card).getByText("5.x")],
+      [
+        "the layer label (L1)",
+        () => within(card).getByRole("tab", { name: "Settings" }),
+      ],
+      ["Next", () => within(card).getByRole("button", { name: /^Next:/ })],
+      ["the KB card chip", () => within(card).getByText(/^From the KB/)],
+      [
+        "the Verified on line",
+        () => within(card).getByText(/verified on FIXTURE code/),
+      ],
+      [
+        "This helped",
+        () => within(card).getByRole("button", { name: /^Helpful/ }),
+      ],
+      [
+        "Wrong card",
+        () => within(card).getByRole("button", { name: /^Wrong card/ }),
+      ],
+    ];
+    for (const [what, find] of moved) {
+      expect(find, what).not.toThrow();
+    }
+    fireEvent.click(
+      within(card).getByRole("button", { name: "About this source" }),
+    );
+    for (const line of [
+      "Each title opens its card in Confluence.",
+      "Shown here only; not sent to the AI model.",
+      "Pack expires in 10 days",
+    ]) {
+      expect(within(card).getByText(line)).toBeVisible();
+    }
+    fireEvent.keyDown(
+      within(card).getByRole("button", {
+        name: "More actions for this answer",
+      }),
+      { key: "Enter" },
+    );
+    const menu = screen.getByRole("menu");
+    for (const action of [
+      "Copy answer",
+      "Why this answer",
+      "Prepare support bundle",
+      "Open in Confluence",
+    ]) {
+      expect(
+        within(menu).getByRole("menuitem", { name: action }),
+      ).toBeInTheDocument();
+    }
+    fireEvent.keyDown(menu, { key: "Escape" });
+    // K29, D3: the version picker moved to the header's version chip.
+    fireEvent.keyDown(screen.getByTestId("kb-version-chip"), { key: "Enter" });
+    for (const version of ["4.x", "5.x", "Not sure"]) {
+      expect(
+        screen.getByRole("menuitemradio", { name: version }),
+      ).toBeInTheDocument();
+    }
+  });
+});
+
+describe("ask the version once per site (KB-RAG K29, D3)", () => {
+  const mixed = () =>
+    tool({
+      status: "ok",
+      mixedVersions: true,
+      results: [
+        hit("401", 1, "- FIXTURE 4.x setting.", false, "4.x"),
+        hit("501", 1, "- FIXTURE 5.x setting.", false, "5.x"),
+        hit("402", 2, "- FIXTURE 4.x console.", false, "4.x"),
+        hit("502", 2, "- FIXTURE 5.x console.", false, "5.x"),
+      ],
+    });
+  const question = () =>
+    screen.queryByRole("group", {
+      name: "Which Apty version does acc.tenant.example run?",
+    });
+
+  beforeEach(() => {
+    site.host = "acc.tenant.example";
+  });
+
+  it("asks above an answer with cards of both versions; 5.x hides the 4.x cards in it and in the next answer", () => {
+    const first = render(<AptyToolDisplay tool={mixed()} />);
+    const ask = question();
+    expect(ask).not.toBeNull();
+    expect(
+      within(ask as HTMLElement)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["4.x", "5.x", "Not sure"]);
+    expect(screen.queryByText(/different Apty versions/)).toBeNull();
+    fireEvent.click(
+      within(ask as HTMLElement).getByRole("button", { name: "5.x" }),
+    );
+    expect(kbVersionForHost("acc.tenant.example")).toBe("5.x");
+    expect(question()).toBeNull();
+    const card = screen.getByRole("region", { name: "KB cards that match" });
+    expect(
+      within(within(card).getByRole("article")).getByRole("link", {
+        name: /FIXTURE card 501/,
+      }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(card).getByRole("button", { name: "1 other possible card" }),
+    );
+    expect(within(card).queryByText(/FIXTURE card 40[12]/)).toBeNull();
+    first.unmount();
+
+    render(<AptyToolDisplay tool={mixed()} />);
+    expect(question()).toBeNull();
+    expect(screen.queryByRole("link", { name: /FIXTURE card 401/ })).toBeNull();
+  });
+
+  it("keeps both versions for Not sure, grouped under 4.x and 5.x headings in the fold, and does not ask again", () => {
+    const first = render(<AptyToolDisplay tool={mixed()} />);
+    fireEvent.click(
+      within(question() as HTMLElement).getByRole("button", {
+        name: "Not sure",
+      }),
+    );
+    expect(question()).toBeNull();
+    const card = screen.getByRole("region", { name: "KB cards that match" });
+    fireEvent.click(
+      within(card).getByRole("button", { name: "3 other possible cards" }),
+    );
+    const four = within(card).getByRole("list", { name: "4.x" });
+    const five = within(card).getByRole("list", { name: "5.x" });
+    expect(
+      within(four)
+        .getAllByRole("button")
+        .map((b) => b.getAttribute("aria-label")),
+    ).toEqual(["FIXTURE card 402, 4.x"]);
+    expect(
+      within(five)
+        .getAllByRole("button")
+        .map((b) => b.getAttribute("aria-label")),
+    ).toEqual(["FIXTURE card 501, 5.x", "FIXTURE card 502, 5.x"]);
+    expect(within(card).getByRole("heading", { name: "4.x" })).toBeVisible();
+    first.unmount();
+    render(<AptyToolDisplay tool={mixed()} />);
+    expect(question()).toBeNull();
+  });
+
+  it("asks nothing for an answer of one version, and has no version picker of its own", () => {
+    render(<AptyToolDisplay tool={threeCards()} />);
+    expect(question()).toBeNull();
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: "More actions for this answer" }),
+      { key: "Enter" },
+    );
+    expect(screen.queryByRole("menuitemradio")).toBeNull();
+    expect(screen.queryByRole("radiogroup")).toBeNull();
+  });
+
+  it("lets the header chip change it back", () => {
+    render(
+      <>
+        <KbVersionChip host="acc.tenant.example" />
+        <AptyToolDisplay tool={mixed()} />
+      </>,
+    );
+    fireEvent.click(
+      within(question() as HTMLElement).getByRole("button", { name: "5.x" }),
+    );
+    expect(screen.queryByRole("link", { name: /FIXTURE card 401/ })).toBeNull();
+    fireEvent.keyDown(screen.getByTestId("kb-version-chip"), { key: "Enter" });
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "4.x" }));
+    expect(
+      screen.getByRole("link", { name: /FIXTURE card 401/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /FIXTURE card 501/ })).toBeNull();
   });
 });

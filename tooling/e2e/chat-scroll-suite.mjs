@@ -202,8 +202,14 @@ export function longChatSuite(width) {
         const bottom = await samples(panel, 1500);
         assert.ok(Math.max(...bottom) - Math.min(...bottom) <= 1);
 
-        // U2: the layer switcher, Copy beside "Why this answer" and Show
-        // earlier messages are named, reachable and pass axe in this theme.
+        // U2: the layer switcher, Copy beside "Why this answer" (in the
+        // answer's ⋯ menu, K29 D2) and Show earlier messages are named,
+        // reachable and pass axe in this theme.
+        await panel
+          .getByRole("button", { name: "More actions for this answer" })
+          .last()
+          .click();
+        await panel.getByRole("menuitem", { name: "Why this answer" }).click();
         await panel
           .getByRole("button", { name: "Copy why this answer" })
           .last()

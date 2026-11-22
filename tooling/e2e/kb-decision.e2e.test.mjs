@@ -76,10 +76,12 @@ describe("visible KB decisions (KB-RAG K25, A2)", () => {
     await sendChat(panel, "the tooltip opens twice when I hover the help icon");
     const card = panel.getByRole("region", { name: "KB cards that match" });
     await card.waitFor({ timeout: 30_000 });
-    await card
-      .getByRole("radiogroup", { name: "Apty version" })
-      .getByRole("radio", { name: "4.x" })
+    // K29, D3: the header's version chip changes the version at any time.
+    await panel
+      .getByTestId("kb-version-chip")
+      .filter({ visible: true })
       .click();
+    await panel.getByRole("menuitemradio", { name: "4.x" }).click();
     await sendChat(panel, "the tooltip opens twice when I hover the help icon");
     const line = panel.getByTestId("kb-decision-line");
     await line.waitFor({ timeout: 30_000 });

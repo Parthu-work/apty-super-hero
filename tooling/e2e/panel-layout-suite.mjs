@@ -289,6 +289,68 @@ export function panelLayoutSuite(names) {
     });
   }
 
+  if (names.includes("delivery")) {
+    describe("one clear answer at a glance (KB-RAG K29, D1, D2)", () => {
+      for (const width of WIDTHS) {
+        it(`each three-card answer shows one open card, one fold line, one source line and at most 8 controls at ${width} px`, async () => {
+          await atSize(width, 900);
+          const answers = panel.getByRole("region", {
+            name: "KB cards that match",
+          });
+          assert.equal(await answers.count(), 3);
+          for (const answer of await answers.all()) {
+            assert.equal(await answer.getByRole("article").count(), 1);
+            assert.equal(
+              await answer
+                .getByRole("button", { name: /other possible cards?$/ })
+                .count(),
+              1,
+            );
+            assert.equal(await answer.getByTestId("kb-source-line").count(), 1);
+            const stops = await answer.evaluate(
+              (root) =>
+                [
+                  ...root.querySelectorAll("a[href], button, input, select"),
+                ].filter((el) => el.tabIndex >= 0 && !el.disabled).length,
+            );
+            assert.ok(stops <= 8, `${stops} controls`);
+          }
+        });
+      }
+
+      it("the folded answer and its ⋯ menu pass axe in light and dark, by keyboard", async () => {
+        await atSize(400, 900);
+        const answer = panel
+          .getByRole("region", { name: "KB cards that match" })
+          .first();
+        let violations = await axeInBothThemes(panel);
+        assert.deepEqual(violations, [], describeViolations(violations));
+        await answer
+          .getByRole("button", { name: "More actions for this answer" })
+          .focus();
+        await panel.keyboard.press("Enter");
+        const menu = panel.getByRole("menu");
+        await menu.waitFor();
+        assert.deepEqual(
+          (await menu.getByRole("menuitem").allInnerTexts()).map((t) =>
+            t.trim(),
+          ),
+          [
+            "Copy answer",
+            "Why this answer",
+            "Prepare support bundle",
+            "Open in Confluence",
+          ],
+        );
+        violations = await axeInBothThemes(panel);
+        assert.deepEqual(violations, [], describeViolations(violations));
+        await panel.keyboard.press("Escape");
+        await menu.waitFor({ state: "hidden" });
+        assert.equal(model.requests.length, 0);
+      });
+    });
+  }
+
   if (names.includes("dialog")) {
     describe("Close case as a dialog (KB-RAG K29, L2)", () => {
       for (const width of WIDTHS) {
@@ -398,21 +460,28 @@ export function panelLayoutSuite(names) {
 
       it('opening "Why this answer" on a middle turn does not scroll', async () => {
         await atSize(400, 900);
-        const why = panel.getByTestId("turn-decision").nth(1);
-        const summary = why.locator("summary");
-        await bringNearBottom(summary, 8);
+        // K29, D2: "Why this answer" opens from the answer's ⋯ menu.
+        const answer = panel
+          .getByRole("region", { name: "KB cards that match" })
+          .nth(1);
+        const more = answer.getByRole("button", {
+          name: "More actions for this answer",
+        });
+        await bringNearBottom(more, 8);
         const top = await scrollerTop();
-        const before = await summary.boundingBox();
-        await summary.click();
+        const before = await more.boundingBox();
+        await more.click();
+        await panel.getByRole("menuitem", { name: "Why this answer" }).click();
+        const why = answer.getByRole("region", { name: "Why this answer" });
+        await why.waitFor();
         await settled();
-        assert.equal(await why.evaluate((el) => el.open), true);
         assert.equal(await scrollerTop(), top);
-        const after = await summary.boundingBox();
+        const after = await more.boundingBox();
         assert.ok(
           Math.abs(after.y - before.y) <= 2,
           `${before.y} → ${after.y}`,
         );
-        await summary.click();
+        await why.getByRole("button", { name: "Close" }).click();
         await settled();
       });
 

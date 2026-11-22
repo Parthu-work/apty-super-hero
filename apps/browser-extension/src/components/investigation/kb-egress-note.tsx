@@ -1,5 +1,5 @@
 /**
- * The line under KB card text in the panel (KB-RAG K22, S4): whether the
+ * Whether KB card text shown in the panel (KB-RAG K22, S4): whether the
  * text also goes to the AI model, and where. Card text stays in the panel
  * unless the organization policy approves the destination, or only demo
  * packs are loaded (D-SEC1).
@@ -36,15 +36,14 @@ export function KbShownHereOnly() {
   );
 }
 
-/** For KB matches, which the session holds and the next request may carry. */
-export function KbEgressNote() {
+/**
+ * For KB matches, which the session holds and the next request may carry:
+ * the line in a KB answer's source (i) (K29, D2).
+ */
+export function useKbEgressLine(): string {
   const { t } = useTranslation();
   const destination = useKbDestination();
-  return (
-    <p className="text-xs text-muted-foreground" data-testid="kb-egress-note">
-      {destination
-        ? t("kbMatches.sentTo", { destination })
-        : t("kbMatches.notSent")}
-    </p>
-  );
+  return destination
+    ? t("kbMatches.sentTo", { destination })
+    : t("kbMatches.notSent");
 }

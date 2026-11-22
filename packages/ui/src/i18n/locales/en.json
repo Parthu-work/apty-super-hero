@@ -2668,7 +2668,11 @@
   "kbVersion": {
     "label": "Apty version",
     "notSure": "Not sure",
-    "fromCheck": "Apty version: {{version}}, from the check's files."
+    "fromCheck": "Apty version: {{version}}, from the check's files.",
+    "question": "Which Apty version does {{host}} run?",
+    "chipName": "Apty version for {{host}}: {{state}}",
+    "notKnown": "not known",
+    "menuLabel": "Apty version for {{host}}"
   },
   "kbMatches": {
     "whichOne": "Which of these is it?",
@@ -2684,7 +2688,8 @@
       "client": "{{version}}, from the Client's files",
       "evidence": "{{version}}, from a check's files",
       "user": "{{version}}, your choice",
-      "question": "{{version}}, from a file name in your question"
+      "question": "{{version}}, from a file name in your question",
+      "unknown": "Apty version?"
     },
     "layers": "Card layers",
     "layerMissing": "This layer is not in the loaded pack.",
@@ -2696,9 +2701,8 @@
     "layer": "Layer {{layer}} of the card",
     "stub": "The KB has a card for this, but its {{version}} text is not written yet.",
     "nonEnglish": "The KB cards are in English. Ask in English, or send the question to the model.",
-    "mixedVersions": "These cards are for different Apty versions; which does this tenant run?",
     "noneForVersion": "The KB has no card that covers this for Apty {{version}}.",
-    "provenance": "From the KB pack loaded in Options. Each title opens its Confluence card.",
+    "provenance": "Each title opens its card in Confluence.",
     "notSent": "Shown here only; not sent to the AI model.",
     "sentTo": "Also sent to the AI model at {{destination}}.",
     "askForNewPack": "Ask the KB owner for a new one.",
@@ -2720,7 +2724,13 @@
     "layerDescription": "L{{layer}}, {{name}}",
     "otherCards": "{{count}} other possible cards",
     "otherCardsOne": "1 other possible card",
-    "notVerifiedStatement": "Not verified statement"
+    "notVerifiedStatement": "Not verified statement",
+    "fromKb": "From the KB",
+    "verifiedOnShort": "verified on {{what}}",
+    "aboutSource": "About this source",
+    "moreActions": "More actions for this answer",
+    "copyAnswer": "Copy answer",
+    "openInConfluence": "Open in Confluence"
   },
   "orgPolicy": {
     "setByOrg": "Set by your organization",
