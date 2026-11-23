@@ -3,10 +3,11 @@
 # check, checks and tests, build, real-browser tests, audits (including
 # pnpm audit --prod), the pinned
 # extension ID, packaging, checksums and their verification. One line per
-# step; each step's full output is in /tmp/release-dry-run/<step>.log.
+# step; each step's full output is in $OUT/<step>.log.
 #
 # Usage: tooling/scripts/release-dry-run.sh [--skip-e2e] [--allow-dirty]
-# Packages land in /tmp/release-dry-run/release/. It stops first on an
+# Packages land in $OUT/release/. OUT is $RELEASE_DRY_RUN_OUT, or
+# /tmp/release-dry-run by default, and is emptied first. It stops first on an
 # uncommitted or untracked file, because the format check reads the whole
 # tree; --allow-dirty runs it anyway.
 
@@ -34,7 +35,7 @@ if [ "$allow_dirty" = 0 ]; then
   fi
 fi
 
-OUT="/tmp/release-dry-run"
+OUT="${RELEASE_DRY_RUN_OUT:-/tmp/release-dry-run}"
 rm -rf "$OUT"
 mkdir -p "$OUT/release"
 

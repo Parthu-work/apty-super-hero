@@ -5,21 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
+import { scratchGitEnv } from "./scratch-git-env.mjs";
 
 const script = fileURLToPath(
   new URL("./check-tag-on-main.mjs", import.meta.url),
 );
 
-// Inside a git hook, GIT_DIR and its siblings point at the repository being
-// pushed; dropped here, so every git command uses the scratch repository.
-const localVars = execFileSync("git", ["rev-parse", "--local-env-vars"], {
-  encoding: "utf8",
-})
-  .split("\n")
-  .filter(Boolean);
-const env = Object.fromEntries(
-  Object.entries(process.env).filter(([name]) => !localVars.includes(name)),
-);
+const env = scratchGitEnv();
 
 let repo;
 const git = (...args) =>

@@ -6,6 +6,13 @@ export const KB_PACK_KIND = "apty-kb-pack";
 /** The schema the builder writes (K23: signed, with `expiresAt`); `parseKbPack` also reads schema 1 and 2. */
 export const KB_PACK_SCHEMA_VERSION = 3;
 const KB_PACK_SCHEMA_VERSIONS: readonly unknown[] = [1, 2, 3];
+/**
+ * KB-RAG K29, P3: the page classification this extension expects; the
+ * builder writes it as `classifierRevision`. 2 is K27's routing rule for
+ * "start here" pages. Raise it with the builder's whenever the
+ * classification changes.
+ */
+export const KB_CLASSIFIER_REVISION = 2;
 export const KB_PACK_LIMITS = {
   maxChunks: 5000,
   maxBytes: 25 * 1024 * 1024,
@@ -74,6 +81,8 @@ const packSchema = z.object({
     })
     .optional(),
   builder: z.string(),
+  /** K29, P3: the page classification the builder applied; absent before it. */
+  classifierRevision: z.number().int().positive().optional(),
   source: z.object({
     site: z.string(),
     space: z.string(),
@@ -261,7 +270,13 @@ export function decodeVectors(pack: KbPack): Float32Array[] {
   );
 }
 
-/** Every card with a status and a symptom: a schema 1 card is a full card with no symptom line. */
+/** KB-RAG K29, P2: the 5.x cards left space JA for A5PKH, keeping their page ids. */
+const MOVED_5X_CARD = /^(https:\/\/[^/\s]+\/wiki\/spaces\/)JA(\/pages\/\d+)$/;
+
+/**
+ * Every card with a status and a symptom (a schema 1 card is a full card
+ * with no symptom line), and a 5.x pack built from JA linking to A5PKH.
+ */
 function normalized(pack: KbPack): KbPack {
   return {
     ...pack,
@@ -269,7 +284,59 @@ function normalized(pack: KbPack): KbPack {
       ...card,
       symptom: card.symptom ?? null,
       status: card.status ?? "full",
+      url:
+        pack.aptyVersion === "5.x"
+          ? card.url.replace(MOVED_5X_CARD, "$1A5PKH$2")
+          : card.url,
     })),
+  };
+}
+
+const ROUTING_TITLE = /^(?:RAG Card:\s*)?start here\b/i;
+
+function encodeVectors(vectors: Float32Array[], dims: number): string {
+  const all = new Float32Array(vectors.length * dims);
+  vectors.forEach((vector, i) => {
+    all.set(vector, i * dims);
+  });
+  let binary = "";
+  for (const byte of new Uint8Array(all.buffer)) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary);
+}
+
+/**
+ * K29, P3: the K27 routing rule applied to a pack built before it. A full
+ * card titled "start here" is routing, so it is never shown as an answer;
+ * its chunks (and their vectors) are dropped. Idempotent.
+ */
+export function withCurrentCardRules(pack: KbPack): KbPack {
+  const rerouted = new Set(
+    pack.cards
+      .filter(
+        (card) =>
+          (card.status ?? "full") === "full" && ROUTING_TITLE.test(card.title),
+      )
+      .map((card) => card.pageId),
+  );
+  if (rerouted.size === 0) return pack;
+  const keep = pack.chunks.map((chunk) => !rerouted.has(chunk.pageId));
+  const dense = pack.retrieval.dense;
+  return {
+    ...pack,
+    cards: pack.cards.map((card) =>
+      rerouted.has(card.pageId) ? { ...card, status: "routing" } : card,
+    ),
+    chunks: pack.chunks.filter((_, i) => keep[i]),
+    ...(dense && pack.vectors !== undefined
+      ? {
+          vectors: encodeVectors(
+            decodeVectors(pack).filter((_, i) => keep[i]),
+            dense.dims,
+          ),
+        }
+      : {}),
   };
 }
 
@@ -320,7 +387,7 @@ export async function parseKbPack(
   if ((await sha256(canonicalJson(rest))) !== expected) {
     return { ok: false, code: "checksum_mismatch" };
   }
-  return { ok: true, pack };
+  return { ok: true, pack: withCurrentCardRules(pack) };
 }
 
 /** What the Options card and Preflight show about the loaded pack: no card text. */
@@ -338,6 +405,8 @@ export interface KbPackInfo {
   routingCount?: number;
   /** K27, F11: pages the builder left out; absent from a pack built before K27. */
   skippedCount?: number;
+  /** K29, P3: the builder's page classification; absent from a pack built before it. */
+  classifierRevision?: number;
   chunkCount: number;
   builtAt: string;
   importedAt: string;
@@ -387,6 +456,9 @@ export function describeKbPack(pack: KbPack, importedAt: string): KbPackInfo {
     stubCount: pack.cards.filter((card) => card.status === "stub").length,
     absentCount: pack.cards.filter((card) => card.status === "absent").length,
     routingCount: pack.cards.filter((card) => card.status === "routing").length,
+    ...(pack.classifierRevision !== undefined
+      ? { classifierRevision: pack.classifierRevision }
+      : {}),
     ...(pack.source.skipped
       ? {
           skippedCount:
@@ -407,6 +479,13 @@ export function describeKbPack(pack: KbPack, importedAt: string): KbPackInfo {
   };
 }
 
+/** K29, P3: the pack was built before the card rules this extension expects; it is still used. */
+export function kbPackNeedsRebuild(
+  info: Pick<KbPackInfo, "classifierRevision">,
+): boolean {
+  return (info.classifierRevision ?? 1) < KB_CLASSIFIER_REVISION;
+}
+
 /** Whole days since the pack was built, or undefined when its date does not parse. */
 export function kbPackAgeDays(info: Pick<KbPackInfo, "builtAt">, now: Date) {
   const built = Date.parse(info.builtAt);
@@ -417,14 +496,14 @@ export function kbPackAgeDays(info: Pick<KbPackInfo, "builtAt">, now: Date) {
 /** Where a version's cards live when a link has no card to read its URL from. */
 const KB_CARD_SPACE: Record<KbAptyVersion, string> = {
   "4.x": "https://apty.atlassian.net/wiki/spaces/A4PKH/pages/",
-  "5.x": "https://apty.atlassian.net/wiki/spaces/JA/pages/",
+  "5.x": "https://apty.atlassian.net/wiki/spaces/A5PKH/pages/",
   common: "https://apty.atlassian.net/wiki/spaces/JA/pages/",
 };
 
 /**
  * The Confluence page of a KB card: the card's own `url` when the pack
  * holds it (page ids are unique across spaces), else the space its
- * version's cards live in (JA for 5.x and a schema 1 pack).
+ * version's cards live in (A5PKH for 5.x and a schema 1 pack).
  */
 export function kbCardUrl(
   pageId: string,

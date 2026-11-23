@@ -13,6 +13,7 @@ import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
   buildPack,
+  CLASSIFIER_REVISION,
   canonicalJson,
   customerNameHits,
   diffPacks,
@@ -24,6 +25,7 @@ import {
   run,
   storageToText,
 } from "./build-kb-pack.mjs";
+import { loadAgentCore } from "./eval-kb.mjs";
 
 const SITE = "fixture.atlassian.net";
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -485,6 +487,29 @@ describe("buildPack", () => {
   });
 });
 
+describe("the classifier revision (KB-RAG K29, P3)", () => {
+  it("writes the classification the extension expects, read back as a current pack", async () => {
+    const core = await loadAgentCore();
+    assert.equal(CLASSIFIER_REVISION, core.KB_CLASSIFIER_REVISION);
+    const { pack } = buildPack({
+      site: SITE,
+      space: "FX",
+      label: "rag-card",
+      builtAt: "2026-03-01T00:00:00.000Z",
+      pages: [page("20")],
+    });
+    assert.equal(pack.classifierRevision, CLASSIFIER_REVISION);
+    const parsed = await core.parseKbPack(JSON.stringify(pack), {
+      sha256: async (text) => createHash("sha256").update(text).digest("hex"),
+    });
+    assert.equal(parsed.ok, true);
+    assert.equal(
+      core.kbPackNeedsRebuild(core.describeKbPack(parsed.pack, "x")),
+      false,
+    );
+  });
+});
+
 describe("skipped pages in the pack (K27, F11)", () => {
   it("writes the skipped counts into source.skipped, and leaves it out when none was skipped", () => {
     const options = {
@@ -924,7 +949,7 @@ describe("the CLI", () => {
 
     for (const space of ["JA", "FX"]) {
       const missing = await runWith({
-        argv: ["--space", space],
+        argv: ["--space", space, "--root", "1509720081"],
         version: null,
         fetchImpl,
       });
@@ -948,6 +973,74 @@ describe("the CLI", () => {
       fetchImpl,
     });
     assert.match(wrong.err, /--version takes 4\.x, 5\.x or common/);
+  });
+
+  it("knows A5PKH holds the 5.x cards (KB-RAG K29, P2), and stops on JA's old root with the move", async () => {
+    const home = tempDir();
+    const { fetchImpl } = fakeConfluence({ ids: ["7"] });
+    const fiveX = await runWith({
+      argv: ["--space", "A5PKH", "--root", "1496711169", "--site", SITE],
+      version: null,
+      fetchImpl,
+      home,
+    });
+    assert.equal(fiveX.code, 0, fiveX.err);
+    const pack = JSON.parse(
+      readFileSync(
+        join(home, "apty-kb", "apty-kb-A5PKH-5.x-20260304.kbpack.json"),
+        "utf8",
+      ),
+    );
+    assert.equal(pack.aptyVersion, "5.x");
+    assert.equal(
+      pack.cards[0].url,
+      `https://${SITE}/wiki/spaces/A5PKH/pages/7`,
+    );
+
+    for (const argv of [
+      ["--space", "JA", "--root", "1496711169"],
+      ["--space", "JA", "--root", "1496711169", "--version", "5.x"],
+      ["--space", "JA"],
+    ]) {
+      const moved = await runWith({ argv, version: null, fetchImpl });
+      assert.equal(moved.code, 1, argv.join(" "));
+      assert.match(
+        moved.err,
+        /The 5\.x cards moved to A5PKH; use --space A5PKH/,
+      );
+    }
+  });
+
+  it("builds each version of sources.json with the args the nightly job's matrix passes", async () => {
+    const sources = JSON.parse(
+      readFileSync(new URL("./sources.json", import.meta.url), "utf8"),
+    );
+    assert.equal(sources["5.x"].space, "A5PKH");
+    assert.equal(sources["5.x"].root, "1496711169");
+    for (const version of ["4.x", "5.x"]) {
+      const source = sources[version];
+      const out = join(tempDir(), "p.kbpack.json");
+      const { fetchImpl } = fakeConfluence({ ids: ["7"] });
+      const built = await runWith({
+        argv: [
+          "--site",
+          source.site,
+          "--space",
+          source.space,
+          "--root",
+          source.root,
+          ...source.args,
+          "--out",
+          out,
+        ],
+        version: null,
+        fetchImpl,
+      });
+      assert.equal(built.code, 0, built.err);
+      const pack = JSON.parse(readFileSync(out, "utf8"));
+      assert.equal(pack.aptyVersion, version);
+      assert.equal(pack.source.space, source.space);
+    }
   });
 
   it("writes the calibrated coverage settings into the pack", async () => {
@@ -985,7 +1078,7 @@ describe("the CLI", () => {
     assert.equal(empty.code, 1);
     assert.match(
       empty.err,
-      /No page in space JA matches: "RAG Card:" pages under page 1496711169\./,
+      /No page in space A5PKH matches: "RAG Card:" pages under page 1496711169\./,
     );
     for (const [flag, value, message] of [
       ["--root", "1 OR space=X", /--root takes a page id/],

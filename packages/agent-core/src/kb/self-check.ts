@@ -4,7 +4,7 @@
  * question with the pack's own settings. Routing pages are not answers and
  * are left out. `pnpm kb:eval --self-check` and Options read the same report.
  */
-import type { KbPack } from "./pack.js";
+import { type KbPack, withCurrentCardRules } from "./pack.js";
 import {
   createKbIndex,
   KB_COVERAGE_DEFAULTS,
@@ -57,7 +57,8 @@ export type KbSelfCheckSummary = Pick<
   "cards" | "routing" | "titles" | "symptoms" | "failingTitles"
 >;
 
-export function kbSelfCheck(pack: KbPack): KbSelfCheckReport {
+export function kbSelfCheck(stored: KbPack): KbSelfCheckReport {
+  const pack = withCurrentCardRules(stored);
   const index = createKbIndex(pack);
   const settings = {
     ...KB_COVERAGE_DEFAULTS,

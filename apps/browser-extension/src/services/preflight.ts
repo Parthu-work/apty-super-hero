@@ -20,6 +20,7 @@ import {
   type KbSyncRecord,
   kbPackAgeDays,
   kbPackCheckHours,
+  kbPackNeedsRebuild,
   kbPackSources,
   type OrgPolicyState,
   type ToolCallingSupport,
@@ -685,6 +686,14 @@ function knowledgeBaseCheck(
       status: "warn",
       detail: t("preflight.checks.knowledgeBase.stale", { ...params, days }),
       fix: t("preflight.checks.knowledgeBase.staleFix"),
+    };
+  }
+  if (kbPackNeedsRebuild(info)) {
+    return {
+      ...base,
+      status: "warn",
+      detail: t("preflight.checks.knowledgeBase.rebuild", params),
+      fix: t("preflight.checks.knowledgeBase.rebuildFix"),
     };
   }
   return {

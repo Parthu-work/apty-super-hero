@@ -23,6 +23,7 @@ const INFO: KbPackInfo = {
   mode: "bm25",
   calibrated: false,
   sha256: "a".repeat(64),
+  classifierRevision: 2,
 };
 const NOW = () => new Date("2026-03-10T00:00:00.000Z");
 
@@ -480,6 +481,30 @@ describe("KnowledgeBaseCard: routing and skipped pages (KB-RAG K27, F11)", () =>
       screen.getByText(/4 pages skipped by the builder/),
     ).toBeInTheDocument();
     expect(screen.getByText(/2 not in this version/)).toBeInTheDocument();
+  });
+});
+
+describe("KnowledgeBaseCard: packs built before the latest card rules (KB-RAG K29, P3)", () => {
+  const REBUILD =
+    "Built before the latest card rules: rebuild this pack for the best answers";
+
+  it("says an older pack needs a rebuild, on its own row, and still lists it as loaded", async () => {
+    const { classifierRevision: _current, ...old } = INFO;
+    render(
+      <KnowledgeBaseCard
+        adapter={adapter([old, { ...INFO, aptyVersion: "4.x" }])}
+        now={NOW}
+      />,
+    );
+    const five = await screen.findByRole("region", {
+      name: "Loaded knowledge base (5.x)",
+    });
+    expect(within(five).getByText(new RegExp(REBUILD))).toBeInTheDocument();
+    expect(within(five).queryByText(/Not used/)).toBeNull();
+    const four = screen.getByRole("region", {
+      name: "Loaded knowledge base (4.x)",
+    });
+    expect(within(four).queryByText(new RegExp(REBUILD))).toBeNull();
   });
 });
 
