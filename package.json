@@ -55,6 +55,7 @@
     "kb:demo-pack": "node tooling/scripts/kb/build-demo-pack.mjs",
     "kb:keygen": "node tooling/scripts/kb/kb-keygen.mjs",
     "kb:feedback-merge": "node tooling/scripts/kb/feedback-merge.mjs",
+    "kb:check-leaks": "node tooling/scripts/kb/check-leaks.mjs",
     "policy:generate": "node tooling/scripts/policy/generate-policy.mjs",
     "policy:check": "node tooling/scripts/policy/check-policy.mjs",
     "check:mcp-bridge-docs": "node tooling/scripts/check-mcp-bridge-docs.mjs",

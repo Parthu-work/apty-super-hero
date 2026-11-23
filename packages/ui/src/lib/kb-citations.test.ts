@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { kbReturnedCards, linkKbCitations } from "./kb-citations";
 
-const PAGE = "https://apty.atlassian.net/wiki/spaces/JA/pages/";
+const PAGE = "https://apty.atlassian.net/wiki/spaces/A5PKH/pages/";
 
 describe("linkKbCitations", () => {
   it("links a bare citation and a Markdown link to the card's page", () => {
@@ -58,7 +58,7 @@ describe("linkKbCitations", () => {
     expect(linkKbCitations(attack)).toBe(attack);
     expect(performance.now() - started).toBeLessThan(500);
     expect(linkKbCitations("[[the card](kb://101#L1)")).toBe(
-      "[[the card](https://apty.atlassian.net/wiki/spaces/JA/pages/101)",
+      "[[the card](https://apty.atlassian.net/wiki/spaces/A5PKH/pages/101)",
     );
   });
 

@@ -9,10 +9,12 @@ import {
   canonicalJson,
   decodeVectors,
   describeKbPack,
+  KB_CLASSIFIER_REVISION,
   KB_PACK_LIMITS,
   type KbPack,
   kbCardLocation,
   kbCardUrl,
+  kbPackNeedsRebuild,
   parseKbPack,
 } from "./pack.js";
 
@@ -254,7 +256,7 @@ describe("kbCardUrl", () => {
       "https://apty.atlassian.net/wiki/spaces/A4PKH/pages/1509786000",
     );
     expect(kbCardUrl("1496645690")).toBe(
-      "https://apty.atlassian.net/wiki/spaces/JA/pages/1496645690",
+      "https://apty.atlassian.net/wiki/spaces/A5PKH/pages/1496645690",
     );
     expect(
       kbCardUrl("7", { site: "fixture.atlassian.net", space: "A4X" }),
@@ -271,6 +273,51 @@ describe("kbCardUrl", () => {
         url: "https://fixture.atlassian.net/wiki/spaces/A4X/pages/7",
       }),
     ).toEqual({ site: "fixture.atlassian.net", space: "A4X" });
+  });
+});
+
+describe("5.x card links after the move to A5PKH (KB-RAG K29, P2)", () => {
+  const inSpace = (aptyVersion: KbPack["aptyVersion"], space: string) => {
+    const pack = syntheticPack(
+      [{ pageId: "7", title: "FIXTURE card", layers: ["a", "b", "c", "d"] }],
+      {},
+      { aptyVersion },
+    );
+    return reseal({
+      ...pack,
+      source: { ...pack.source, site: "apty.atlassian.net", space },
+      cards: pack.cards.map((card) => ({
+        ...card,
+        url: `https://apty.atlassian.net/wiki/spaces/${space}/pages/7`,
+      })),
+    });
+  };
+
+  it("a 5.x pack built from JA links its cards to A5PKH", async () => {
+    const parsed = await parse(await inSpace("5.x", "JA"));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.pack.cards[0]?.url).toBe(
+      "https://apty.atlassian.net/wiki/spaces/A5PKH/pages/7",
+    );
+    expect(kbCardLocation(parsed.pack.cards[0] as KbPack["cards"][0])).toEqual({
+      site: "apty.atlassian.net",
+      space: "A5PKH",
+    });
+  });
+
+  it("leaves other versions' and other spaces' links as they are", async () => {
+    for (const [version, space] of [
+      ["4.x", "JA"],
+      ["common", "JA"],
+      ["5.x", "A5PKH"],
+      ["4.x", "A4PKH"],
+    ] as const) {
+      const parsed = await parse(await inSpace(version, space));
+      expect(parsed.ok && parsed.pack.cards[0]?.url).toBe(
+        `https://apty.atlassian.net/wiki/spaces/${space}/pages/7`,
+      );
+    }
   });
 });
 
@@ -357,6 +404,86 @@ describe("routing and skipped counts (KB-RAG K27, F11)", () => {
       skippedCount: 3,
     });
     expect(describeKbPack(pack, "x")).not.toHaveProperty("skippedCount");
+  });
+});
+
+describe("packs built before the latest card rules (KB-RAG K29, P3)", () => {
+  const START_HERE = {
+    pageId: "2",
+    title: "Start here: FIXTURE widget questions",
+    layers: ["w1", "w2", "w3", "w4"] as [string, string, string, string],
+  };
+  const FULL = {
+    pageId: "1",
+    title: "FIXTURE card",
+    layers: ["a", "b", "c", "d"] as [string, string, string, string],
+  };
+
+  it("reads a four-layer start-here card as routing, without its chunks, and says the pack needs a rebuild", async () => {
+    const parsed = await parse(
+      syntheticPack([FULL, START_HERE], {}, { schemaVersion: 2 }),
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.pack.cards.find((c) => c.pageId === "2")?.status).toBe(
+      "routing",
+    );
+    expect(parsed.pack.chunks.map((chunk) => chunk.pageId)).toEqual([
+      "1",
+      "1",
+      "1",
+      "1",
+    ]);
+    const info = describeKbPack(parsed.pack, "x");
+    expect(info).toMatchObject({ routingCount: 1 });
+    expect(info).not.toHaveProperty("classifierRevision");
+    expect(kbPackNeedsRebuild(info)).toBe(true);
+  });
+
+  it("keeps each remaining chunk's vector", async () => {
+    const parsed = await parse(
+      syntheticPack(
+        [START_HERE, { ...FULL, pageId: "3" }],
+        { dense: { model: "fixture", dims: 2 } },
+        {
+          schemaVersion: 2,
+          vectors: encodeVectors([
+            [1, 1],
+            [2, 2],
+            [3, 3],
+            [4, 4],
+            [5, 5],
+            [6, 6],
+            [7, 7],
+            [8, 8],
+          ]),
+        },
+      ),
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(decodeVectors(parsed.pack).map((v) => [...v])).toEqual([
+      [5, 5],
+      [6, 6],
+      [7, 7],
+      [8, 8],
+    ]);
+  });
+
+  it("a pack with the current classifierRevision needs no rebuild", async () => {
+    const parsed = await parse(
+      syntheticPack([FULL], {}, {
+        schemaVersion: 2,
+        classifierRevision: KB_CLASSIFIER_REVISION,
+      } as never),
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const info = describeKbPack(parsed.pack, "x");
+    expect(info.classifierRevision).toBe(KB_CLASSIFIER_REVISION);
+    expect(kbPackNeedsRebuild(info)).toBe(false);
+    expect(kbPackNeedsRebuild({ classifierRevision: 1 })).toBe(true);
+    expect(KB_CLASSIFIER_REVISION).toBe(2);
   });
 });
 

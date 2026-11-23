@@ -72,7 +72,7 @@ describe("routeSymptom", () => {
 
   const widget = [
     "why isn't my Apty widget showing",
-    "The Apty widget is not appearing on the application",
+    "The Apty widget is not appearing in the app",
     "widget is missing for every user",
     "the widget works in Test but not in Production",
     "Apty works in UAT but not in prod",

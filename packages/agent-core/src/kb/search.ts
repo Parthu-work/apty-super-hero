@@ -6,6 +6,7 @@ import {
   type KbChunk,
   type KbLayer,
   type KbPack,
+  withCurrentCardRules,
 } from "./pack.js";
 import { stem } from "./stem.js";
 import { KB_SYNONYM_GROUPS, SYNONYM_MATCH } from "./synonyms.js";
@@ -1216,7 +1217,8 @@ function packIdentity(pack: KbPack): KbIndexInfo["packs"][number] {
   };
 }
 
-export function createKbIndex(pack: KbPack): KbIndex {
+export function createKbIndex(stored: KbPack): KbIndex {
+  const pack = withCurrentCardRules(stored);
   if (pack.schemaVersion !== 1) return createV2Index(pack);
   const { cards, chunks } = uniqueChunks(pack);
   const shared = sharedLayerDescriptions(chunks, cards);

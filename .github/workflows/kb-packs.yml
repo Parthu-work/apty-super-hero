@@ -5,6 +5,11 @@
 # This repository is public: nothing here may print a card title or card
 # text. The builder's own output goes to a temporary file that is deleted;
 # the job summary holds counts, ids, numbers and codes only.
+#
+# KB-RAG K29 (P1): the schedule waits for the repository variable
+# KB_PACKS_ENABLED (set to 1 once the pipeline is set up); until then a
+# scheduled run ends at its first step with a notice and succeeds. A manual
+# run always checks its inputs.
 name: KB packs
 
 on:
@@ -37,10 +42,24 @@ jobs:
   plan:
     runs-on: ubuntu-latest
     outputs:
+      run: ${{ steps.gate.outputs.run }}
       versions: ${{ steps.plan.outputs.versions }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: tooling/scripts/kb/pipeline-inputs.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: Is the pipeline set up
+        id: gate
+        env:
+          KB_PACKS_ENABLED: ${{ vars.KB_PACKS_ENABLED }}
+        run: node tooling/scripts/kb/pipeline-inputs.mjs gate
+
       - name: Choose the versions
         id: plan
+        if: steps.gate.outputs.run == 'true'
         env:
           VERSIONS: ${{ inputs.versions || '4.x,5.x' }}
           OVERRIDE: ${{ inputs.override_card_drop || false }}
@@ -65,6 +84,7 @@ jobs:
 
   pack:
     needs: plan
+    if: needs.plan.outputs.run == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -107,31 +127,7 @@ jobs:
           KB_PUBLISH_URL_4X: ${{ vars.KB_PUBLISH_URL_4X }}
           KB_PUBLISH_URL_5X: ${{ vars.KB_PUBLISH_URL_5X }}
         run: |
-          if [ "$VERSION" = "4.x" ]; then url_name=KB_PUBLISH_URL_4X; else url_name=KB_PUBLISH_URL_5X; fi
-          missing=()
-          if [ "$KB_PUBLISH_DRY_RUN" = "1" ]; then
-            # A dry run on a fork: the demo pack builder stands in for Confluence.
-            if [ -n "$CONFLUENCE_EMAIL" ] && [ -n "$CONFLUENCE_TOKEN" ] && [ -n "$KB_CI_SIGNING_KEY" ]; then
-              echo "source=confluence" >> "$GITHUB_OUTPUT"
-            else
-              echo "source=demo" >> "$GITHUB_OUTPUT"
-            fi
-          else
-            for name in CONFLUENCE_EMAIL CONFLUENCE_TOKEN KB_CI_SIGNING_KEY KB_PUBLISH_TOKEN "$url_name"; do
-              [ -n "${!name}" ] || missing+=("$name")
-            done
-            echo "source=confluence" >> "$GITHUB_OUTPUT"
-          fi
-          if [ "${#missing[@]}" -gt 0 ]; then
-            echo "::error::Missing: ${missing[*]}. Set them as described in docs/release/KB_PACK_DELIVERY.md."
-            exit 1
-          fi
-          echo "publish_url_name=$url_name" >> "$GITHUB_OUTPUT"
-          if [ -n "${!url_name}" ] && [ -n "$KB_PUBLISH_TOKEN" ]; then
-            echo "has_host=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_host=false" >> "$GITHUB_OUTPUT"
-          fi
+          node tooling/scripts/kb/pipeline-inputs.mjs pack --version "$VERSION"
           install -d -m 700 "$KB_WORK"
 
       - name: Build the pack
@@ -260,3 +256,30 @@ jobs:
             const result = await alertForRun({ github, context, workflow: "KB packs" });
             core.summary.addRaw(`- Failure alert: issue #${result.number} ${result.action}.\n`);
             await core.summary.write();
+
+  # KB-RAG K29 (P1): the first green run after a failure comments "Green
+  # again" on the open kb-pipeline issue and closes it.
+  recover:
+    needs: [plan, pack]
+    if: success() && needs.plan.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: tooling/scripts/kb/pipeline-alert.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: Close the kb-pipeline issue
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const { recoverForRun } = await import(`${process.env.GITHUB_WORKSPACE}/tooling/scripts/kb/pipeline-alert.mjs`);
+            const result = await recoverForRun({ github, context, workflow: "KB packs" });
+            if (result.numbers.length > 0) {
+              core.summary.addRaw(`- Green again: closed issue #${result.numbers.join(", #")}.\n`);
+              await core.summary.write();
+            }

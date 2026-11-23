@@ -55,7 +55,7 @@ describe("CheckResultCard", () => {
     });
     expect(links[0]).toHaveAttribute(
       "href",
-      "https://apty.atlassian.net/wiki/spaces/JA/pages/1496842241",
+      "https://apty.atlassian.net/wiki/spaces/A5PKH/pages/1496842241",
     );
   });
 
@@ -239,7 +239,7 @@ describe("CheckResultCard", () => {
       within(card).getAllByRole("link", { name: /KB card 1496645690/ })[0],
     ).toHaveAttribute(
       "href",
-      "https://apty.atlassian.net/wiki/spaces/JA/pages/1496645690",
+      "https://apty.atlassian.net/wiki/spaces/A5PKH/pages/1496645690",
     );
     expect(
       within(card).getByText(

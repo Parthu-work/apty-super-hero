@@ -64,7 +64,9 @@ loads one pack per version:
 - **4.x:** the Apty 4.x Product Knowledge Hub, space `A4PKH`, root page
   `1509720081` (`kb:pack --version 4.x`, the default for `A4PKH`);
 - **5.x:** the cards under JA root `1496711169` until the restructure moves
-  them to the 5.x hub, then that root (`--version 5.x`);
+  them to the 5.x hub, then that root (`--version 5.x`). Moved on 22 Nov
+  2026 (K29, P2): space `A5PKH`, the same root `1496711169` and page ids
+  (`kb:pack --space A5PKH`, 5.x by default);
 - **common:** Apty KB - Common, for cards the same in both versions
   (`--version common`); a common pack is searched with either version.
 

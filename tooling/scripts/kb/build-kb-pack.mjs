@@ -8,7 +8,7 @@
  *
  * Usage:
  *   CONFLUENCE_EMAIL=… CONFLUENCE_TOKEN=… pnpm kb:pack [--site apty.atlassian.net]
- *     [--space JA] [--root <pageId> | --label <label>] [--version 4.x|5.x|common]
+ *     [--space A5PKH] [--root <pageId> | --label <label>] [--version 4.x|5.x|common]
  *     [--out <file>]
  *     [--coverage-min <0-1>] [--coverage-min-idf <idf>]
  *     [--synonyms <file>] [--approved-terms <file>] (K27, E10)
@@ -22,7 +22,7 @@
  * with an expiresAt. The key is read from the file and never printed.
  *
  * The cards are the pages titled "RAG Card: …" under the RAG Answer Cards
- * page (`--root`, default 1496711169 in JA), each group page's title as
+ * page (`--root`, default 1496711169 in A5PKH), each group page's title as
  * their group; `--label` selects labelled pages instead.
  *
  * The token is a read-only service account's classic API token, read from the
@@ -41,6 +41,13 @@ import { fileURLToPath } from "node:url";
 import { formatSelfCheck, loadAgentCore, selfCheck } from "./eval-kb.mjs";
 
 export const BUILDER = "build-kb-pack 1.0.0";
+/**
+ * KB-RAG K29, P3: the page classification this builder applies (2: K27's
+ * "start here" routing rule). Raise it, with agent-core's
+ * KB_CLASSIFIER_REVISION, whenever the classification changes: packs built
+ * before then say so in Options and Preflight.
+ */
+export const CLASSIFIER_REVISION = 2;
 const PACK_KIND = "apty-kb-pack";
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const MAX_CHUNK_CHARS = 1000;
@@ -60,20 +67,22 @@ const LAYER_HEADING = /^Layer\s+(\d+)\s*:/i;
 const NOT_VERIFIED = /\bNOT VERIFIED\b/g;
 const TITLE_PREFIX = /^RAG Card:\s*/i;
 const GROUP_PREFIX = /^RAG Cards:\s*/i;
-/** The RAG Answer Cards page in JA, whose descendants are the cards. */
+/** The 5.x RAG Answer Cards page in A5PKH, whose descendants are the cards. */
 export const RAG_ANSWER_CARDS_PAGE = "1496711169";
 /**
  * The Apty version a space's cards are for, when the space holds one
- * version only (D-KB6); JA and any other space need `--version`.
+ * version only (D-KB6); any other space needs `--version`.
  */
-const SPACE_VERSIONS = { A4PKH: "4.x" };
+const SPACE_VERSIONS = { A4PKH: "4.x", A5PKH: "5.x" };
+/** KB-RAG K29, P2: the 5.x cards left JA for A5PKH with their page ids. */
+const MOVED_SPACE = { JA: "A5PKH" };
 const VERSIONS = ["4.x", "5.x", "common"];
 
 /** The search's own defaults (agent-core `KB_COVERAGE_DEFAULTS`), for a flag given alone. */
 const COVERAGE_DEFAULTS = { min: 0.5, minIdf: 1.5, minTerms: 1 };
 const DEFAULTS = {
   site: "apty.atlassian.net",
-  space: "JA",
+  space: "A5PKH",
   root: RAG_ANSWER_CARDS_PAGE,
 };
 
@@ -657,6 +666,7 @@ export function buildPack({
     builtAt,
     expiresAt,
     builder: BUILDER,
+    classifierRevision: CLASSIFIER_REVISION,
     source: {
       site,
       space,
@@ -883,6 +893,12 @@ function parseArgs(argv) {
   }
   if (options.version !== undefined && !VERSIONS.includes(options.version)) {
     throw new BuildError("--version takes 4.x, 5.x or common.");
+  }
+  const moved = MOVED_SPACE[options.space];
+  if (moved && options.root === RAG_ANSWER_CARDS_PAGE && !options.label) {
+    throw new BuildError(
+      `The 5.x cards moved to ${moved}; use --space ${moved}`,
+    );
   }
   options.version ??= SPACE_VERSIONS[options.space];
   if (options.version === undefined) {

@@ -11,7 +11,12 @@ import { after, before, describe, it } from "node:test";
 import { buildPack, signPack } from "./build-kb-pack.mjs";
 import { SYNTHETIC_PAGES } from "./fixtures/synthetic-cards.mjs";
 import { MAX_PACK_AGE_HOURS, run as packAge } from "./pack-age.mjs";
-import { ALERT_LABEL, failingSteps, raiseAlert } from "./pipeline-alert.mjs";
+import {
+  ALERT_LABEL,
+  failingSteps,
+  raiseAlert,
+  resolveAlert,
+} from "./pipeline-alert.mjs";
 
 const NOW = new Date("2026-11-19T12:00:00.000Z");
 const TOKEN = "FIXTURE-publish-token";
@@ -160,7 +165,7 @@ describe("pack-age", () => {
   });
 });
 
-function fakeGitHub(openIssues = []) {
+function fakeGitHub(openIssues = [], comments = {}) {
   const calls = [];
   const record =
     (name, result = {}) =>
@@ -177,8 +182,14 @@ function fakeGitHub(openIssues = []) {
           listForRepo: record("listForRepo", openIssues),
           create: record("create", { number: 41 }),
           createComment: record("createComment", { id: 7 }),
+          listComments: record(
+            "listComments",
+            (params) => comments[params.issue_number] ?? [],
+          ),
+          update: record("update", {}),
         },
       },
+      paginate: async (method, params) => (await method(params)).data,
     },
   };
 }
@@ -264,6 +275,85 @@ const workflowText = (name) =>
     new URL(`../../../.github/workflows/${name}`, import.meta.url),
     "utf8",
   );
+
+describe("pipeline-alert: green again", () => {
+  const GREEN = {
+    owner: "example-org",
+    repo: "example-repo",
+    workflow: "KB packs",
+    runUrl: "https://github.com/example-org/example-repo/actions/runs/200",
+  };
+  const failedBody = (workflow, run) =>
+    `**${workflow}** failed: https://github.com/example-org/example-repo/actions/runs/${run}\n\nFailing steps:`;
+
+  it("comments Green again with the run link and closes the open kb-pipeline issue", async () => {
+    const fake = fakeGitHub([
+      { number: 12, body: failedBody("KB packs", 150) },
+    ]);
+    const result = await resolveAlert({ github: fake.github, ...GREEN });
+    assert.deepEqual(result, { action: "closed", numbers: [12] });
+    const comment = fake.calls.find(
+      (call) => call.name === "createComment",
+    ).params;
+    assert.equal(comment.issue_number, 12);
+    assert.equal(
+      comment.body,
+      "Green again: https://github.com/example-org/example-repo/actions/runs/200",
+    );
+    const update = fake.calls.find((call) => call.name === "update").params;
+    assert.deepEqual(
+      {
+        number: update.issue_number,
+        state: update.state,
+        reason: update.state_reason,
+      },
+      { number: 12, state: "closed", reason: "completed" },
+    );
+  });
+
+  it("does nothing when no kb-pipeline issue is open", async () => {
+    const fake = fakeGitHub([{ number: 9, pull_request: {} }]);
+    assert.deepEqual(await resolveAlert({ github: fake.github, ...GREEN }), {
+      action: "none",
+      numbers: [],
+    });
+    assert.equal(fake.calls.filter((call) => call.name === "update").length, 0);
+    assert.equal(
+      fake.calls.filter((call) => call.name === "createComment").length,
+      0,
+    );
+  });
+
+  it("leaves the issue open while its latest failure is another workflow's", async () => {
+    const fake = fakeGitHub(
+      [{ number: 12, body: failedBody("KB packs", 150) }],
+      {
+        12: [
+          { body: failedBody("KB pack health", 160) },
+          { body: "a person's note" },
+        ],
+      },
+    );
+    assert.equal(
+      (await resolveAlert({ github: fake.github, ...GREEN })).action,
+      "none",
+    );
+    const health = fakeGitHub(
+      [{ number: 12, body: failedBody("KB packs", 150) }],
+      {
+        12: [{ body: failedBody("KB pack health", 160) }],
+      },
+    );
+    assert.deepEqual(
+      await resolveAlert({
+        github: health.github,
+        ...GREEN,
+        workflow: "KB pack health",
+      }),
+      { action: "closed", numbers: [12] },
+    );
+  });
+});
 
 describe("the workflows' failure alert", () => {
   for (const name of ["kb-packs.yml", "kb-pack-health.yml"]) {
