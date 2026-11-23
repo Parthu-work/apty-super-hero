@@ -1,11 +1,10 @@
 /**
- * Browser context bar + live investigation banner (product spec sections 8
- * & 9 & 24). Rendered inside the header, below the title row.
- *
- * Shows a quiet "what tab is this debugging" line most of the time, and
- * switches to a prominent "LIVE INVESTIGATION" banner (with a real Stop
- * action) only while an `InvestigationSession` is actually in progress —
- * never a fabricated "Investigating..." state.
+ * The header's one context line (KB-RAG K29, L1; product spec sections 8,
+ * 9 and 24): what the tab is, the case chip, the site's Apty version and the
+ * setup badge. While an `InvestigationSession` is actually in progress the
+ * same line leads with LIVE, its status and a real Stop action, never a
+ * fabricated "Investigating..." state. Its plan, components and timeline
+ * open in the chat, not here.
  */
 
 import { stopInvestigation } from "@apty/browser-runtime";
@@ -17,7 +16,7 @@ import { cn } from "@apty/ui/lib/utils";
 import { CheckIcon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import { useState } from "react";
 import { navigationStore, useNavigation } from "../../state/navigation-store";
-import { CaseStrip, InlineCaseId } from "../cases/case-strip";
+import { CaseChip } from "../cases/case-chip";
 import { useSiteLabels } from "../cases/use-site-label";
 import { SetupBadge } from "../connections/setup-badge";
 import { useReadiness } from "../connections/use-readiness";
@@ -26,7 +25,41 @@ import { describeInvestigationStatus, isTerminalStatus } from "./status-meta";
 import { toneBadgeClass, toneDotClass, toneTextClass } from "./tone-classes";
 import { useInvestigationData } from "./use-investigation-data";
 
-/** The quiet bar ends with the setup badge, which opens Connections (whose own header shows the count). */
+function TabState() {
+  const { t } = useTranslation();
+  const { target } = useReadiness();
+  const StateIcon = target.checking
+    ? LoaderIcon
+    : target.inspectable
+      ? CheckIcon
+      : TriangleAlertIcon;
+  return (
+    <>
+      <StateIcon
+        aria-hidden="true"
+        className={cn(
+          "size-4 shrink-0",
+          target.checking
+            ? "text-muted-foreground"
+            : target.inspectable
+              ? "text-success"
+              : "text-warning",
+        )}
+      />
+      <span className="sr-only">
+        {t(
+          target.checking
+            ? "readiness.state.checking"
+            : target.inspectable
+              ? "shell.canInspect"
+              : "shell.cantInspect",
+        )}
+      </span>
+    </>
+  );
+}
+
+/** The quiet line ends with the setup badge, which opens Connections (whose own header shows the count). */
 export function InvestigationContextBar() {
   const { sessionId, status, interrupt } = useChatContext();
   const { t } = useTranslation();
@@ -57,115 +90,83 @@ export function InvestigationContextBar() {
     forceRerender((n) => n + 1);
   };
 
-  if (!isLive) {
-    const StateIcon = target.checking
-      ? LoaderIcon
-      : target.inspectable
-        ? CheckIcon
-        : TriangleAlertIcon;
-    return (
-      <>
-        <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-4">
-          <StateIcon
-            aria-hidden="true"
-            className={cn(
-              "size-4 shrink-0",
-              target.checking
-                ? "text-muted-foreground"
-                : target.inspectable
-                  ? "text-success"
-                  : "text-warning",
-            )}
-          />
-          <span className="sr-only">
-            {t(
-              target.checking
-                ? "readiness.state.checking"
-                : target.inspectable
-                  ? "shell.canInspect"
-                  : "shell.cantInspect",
-            )}
-          </span>
-          <span className="min-w-0 truncate text-sm font-medium text-foreground">
-            {siteLabel(target.hostname ?? undefined) ??
-              (target.checking
-                ? ""
-                : t(target.tabId === null ? "shell.noPage" : "shell.thisPage"))}
-          </span>
-          <KbVersionChip host={target.hostname ?? undefined} />
-          {target.title && (
-            <span className="min-w-0 flex-1 truncate text-small text-muted-foreground">
-              {target.title}
-            </span>
-          )}
-          {setupCount > 0 && page !== "connections" && (
-            <span className="ml-auto shrink-0">
-              <SetupBadge
-                count={setupCount}
-                onClick={() => navigationStore.openPage("connections")}
-              />
-            </span>
-          )}
-        </div>
-        <CaseStrip />
-      </>
-    );
-  }
-
-  const meta = describeInvestigationStatus(investigation.status, t);
+  const site =
+    siteLabel(target.hostname ?? undefined) ??
+    (target.checking
+      ? ""
+      : t(target.tabId === null ? "shell.noPage" : "shell.thisPage"));
+  const meta = isLive
+    ? describeInvestigationStatus(investigation.status, t)
+    : undefined;
 
   return (
-    <div className="animate-in fade-in slide-in-from-top-1 border-b bg-muted/20 px-4 py-2 duration-200 motion-reduce:animate-none">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex items-center gap-1.5">
-            <span
-              className={cn(
-                "size-2 shrink-0 rounded-full",
-                toneDotClass(meta.tone),
-                meta.inProgress && "animate-pulse motion-reduce:animate-none",
-              )}
-              aria-hidden="true"
-            />
-            <span
-              className={cn(
-                "shrink-0 rounded-sm border px-1.5 py-0.5 text-xs font-semibold",
-                toneBadgeClass(meta.tone),
-              )}
-            >
-              {t("investigation.live")}
-            </span>
-            {target.hostname && (
-              <p className="min-w-0 truncate text-sm font-medium text-foreground">
-                {target.hostname}
-              </p>
+    <div
+      className={cn(
+        "flex h-9 shrink-0 items-center gap-1.5 border-b border-border px-3",
+        isLive && "bg-muted/20",
+      )}
+      data-testid="context-line"
+    >
+      {meta ? (
+        <>
+          <span
+            className={cn(
+              "size-2 shrink-0 rounded-full",
+              toneDotClass(meta.tone),
+              meta.inProgress && "animate-pulse motion-reduce:animate-none",
             )}
-          </div>
-          <p className="line-clamp-2 text-xs text-muted-foreground">
-            {investigation.userProblem}
-          </p>
-          <div className="flex min-w-0 items-center gap-2">
-            <p
-              className={cn(
-                "shrink-0 text-xs font-medium",
-                toneTextClass(meta.tone),
-              )}
-            >
-              {meta.label}
-            </p>
-            <InlineCaseId />
-          </div>
-        </div>
+            aria-hidden="true"
+          />
+          <span
+            className={cn(
+              "shrink-0 rounded-sm border px-1.5 py-0.5 text-xs font-semibold",
+              toneBadgeClass(meta.tone),
+            )}
+          >
+            {t("investigation.live")}
+          </span>
+          <span
+            className={cn(
+              "min-w-0 shrink truncate text-xs font-medium",
+              toneTextClass(meta.tone),
+            )}
+            title={investigation?.userProblem}
+          >
+            {meta.label}
+          </span>
+        </>
+      ) : (
+        <TabState />
+      )}
+      <span
+        className="min-w-0 flex-1 truncate text-sm font-medium text-foreground"
+        title={target.title ?? undefined}
+        data-testid="context-site"
+      >
+        {site}
+      </span>
+      <KbVersionChip host={target.hostname ?? undefined} />
+      <CaseChip />
+      {meta ? (
         <Button
           size="sm"
           variant="secondary"
-          className="shrink-0"
+          className="h-7 shrink-0 px-2 text-xs"
           onClick={() => setConfirmOpen(true)}
         >
           {t("common.stop")}
         </Button>
-      </div>
-
+      ) : (
+        setupCount > 0 &&
+        page !== "connections" && (
+          <span className="shrink-0">
+            <SetupBadge
+              count={setupCount}
+              onClick={() => navigationStore.openPage("connections")}
+            />
+          </span>
+        )
+      )}
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}

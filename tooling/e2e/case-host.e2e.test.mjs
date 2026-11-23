@@ -9,9 +9,11 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import {
+  caseChip,
   describeViolations,
   extensionPage,
   launchBrowser,
+  openCaseMenu,
   openSidePanel,
   runAxe,
   sendChat,
@@ -41,10 +43,13 @@ after(async () => {
 });
 
 async function caseIdShown(panel, other) {
-  const id = panel.getByTestId("case-id").filter({ visible: true });
+  const chip = caseChip(panel);
   const deadline = Date.now() + 30_000;
   for (;;) {
-    const text = (await id.count()) > 0 ? await id.first().innerText() : "";
+    const text =
+      (await chip.count()) > 0
+        ? await chip.first().getAttribute("data-case-id")
+        : "";
     if (text && text !== other) return text;
     if (Date.now() > deadline) throw new Error("no new case id shown");
     await new Promise((r) => setTimeout(r, 200));
@@ -62,17 +67,13 @@ describe("one case, one site (KB-RAG K27, F4)", () => {
 
     await sendChat(panel, SYMPTOM);
     const one = await caseIdShown(panel);
-    await panel
-      .getByTestId("case-site")
-      .filter({ visible: true })
-      .waitFor({ timeout: 10_000 });
+    const menu = await openCaseMenu(panel);
     assert.match(
-      await panel
-        .getByTestId("case-site")
-        .filter({ visible: true })
-        .innerText(),
+      await menu.getByTestId("case-site").innerText(),
       /127\.0\.0\.1/,
     );
+    await panel.keyboard.press("Escape");
+    await menu.waitFor({ state: "hidden" });
 
     await app.goto(second.href);
     await app.bringToFront();

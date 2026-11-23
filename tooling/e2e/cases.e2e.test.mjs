@@ -10,12 +10,15 @@ import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import {
   axeInBothThemes,
+  caseChip,
   describeViolations,
   extensionPage,
   launchBrowser,
+  openCaseMenu,
   openSidePanel,
   runAxe,
   sendChat,
+  shownCaseId,
   startMockModel,
   startPageServer,
 } from "./harness.mjs";
@@ -46,7 +49,7 @@ describe("cases (KB-RAG K25, L1)", () => {
   let app;
   let panel;
 
-  it("a check opens a case, and the context bar shows its id", async () => {
+  it("a check opens a case, and the header's case chip shows its id", async () => {
     app = await browser.context.newPage();
     await app.goto(`${site.origin}/app.html`);
     panel = await openSidePanel(browser, model, app, { aiToken: "" });
@@ -54,10 +57,16 @@ describe("cases (KB-RAG K25, L1)", () => {
     await panel
       .getByRole("region", { name: "Why “Take a tour” may not be visible" })
       .waitFor({ timeout: 60_000 });
-    const id = panel.getByTestId("case-id").filter({ visible: true });
-    await id.waitFor({ timeout: 30_000 });
-    caseId = await id.innerText();
+    caseId = await shownCaseId(panel);
     assert.match(caseId, /^CASE-\d{8}-[0-9A-HJKMNP-TV-Z]{4}$/);
+    assert.match(
+      await caseChip(panel).innerText(),
+      new RegExp(caseId.slice(-4)),
+    );
+    const menu = await openCaseMenu(panel);
+    assert.match(await menu.innerText(), new RegExp(caseId));
+    await panel.keyboard.press("Escape");
+    await menu.waitFor({ state: "hidden" });
     assert.equal(model.requests.length, 0);
     const violations = await axeInBothThemes(panel);
     assert.deepEqual(violations, [], describeViolations(violations));
@@ -86,14 +95,7 @@ describe("cases (KB-RAG K25, L1)", () => {
       .first()
       .click();
     await menu.waitFor({ state: "hidden" });
-    await panel
-      .getByTestId("case-id")
-      .filter({ visible: true })
-      .waitFor({ timeout: 30_000 });
-    assert.equal(
-      await panel.getByTestId("case-id").filter({ visible: true }).innerText(),
-      caseId,
-    );
+    assert.equal(await shownCaseId(panel), caseId);
     await panel.close();
     await app.close();
   });

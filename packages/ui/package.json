@@ -145,8 +145,7 @@
     "lucide-react": "^0.577.0",
     "nanoid": "^5.1.7",
     "streamdown": "^2.3.0",
-    "tailwind-merge": "^3.5.0",
-    "use-stick-to-bottom": "^1.1.4"
+    "tailwind-merge": "^3.5.0"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",

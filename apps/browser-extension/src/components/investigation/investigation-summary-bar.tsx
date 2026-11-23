@@ -1,10 +1,9 @@
 /**
- * Compact, persistent investigation summary (product spec sections 6/12/
- * 13/14/15) — rendered above the chat input via the `promptExtras` slot so
- * it's always visible. Collapsed it is one 44 px row: the status, the real
- * plan count and the diagnosis confidence. Expanded it stacks the plan,
- * the components, the timeline and the diagnosis in a panel capped so the
- * composer and some of the chat stay in view.
+ * Compact investigation summary (product spec sections 6/12/13/14/15),
+ * after the last message in the chat's one scroll area (KB-RAG K29, L1).
+ * Collapsed it is one 44 px row: the status, the real plan count and the
+ * diagnosis confidence. Expanded it stacks the plan, the components, the
+ * timeline and the diagnosis in the chat, which scrolls them.
  *
  * Renders nothing until there's something real to show (an investigation
  * has started, or evidence exists) — no placeholder/empty investigation
@@ -19,9 +18,7 @@ import { ChevronDownIcon, Loader2Icon } from "lucide-react";
 import {
   type KeyboardEvent,
   type ReactNode,
-  type RefObject,
   useId,
-  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -32,49 +29,6 @@ import { PlanChecklist, planCounts } from "./plan-checklist";
 import { describeInvestigationStatus } from "./status-meta";
 import { toneDotClass } from "./tone-classes";
 import { useInvestigationData } from "./use-investigation-data";
-
-/** The chat keeps at least this much height while the summary is expanded. */
-const CHAT_KEEPS_PX = 96;
-
-/**
- * The expanded panel's height cap: 60% of the panel at most, and never so
- * tall that the chat above it keeps less than 96 px. It is measured, as
- * what sits above the chat (the context bar or the taller live banner)
- * changes, and again whenever the panel or the chat resizes, so it settles
- * after a resize that left the composer overflowing; the CSS value holds
- * until the first measure.
- */
-function useExpandedCap(open: boolean, panel: RefObject<HTMLElement | null>) {
-  const [cap, setCap] = useState<number | null>(null);
-  useLayoutEffect(() => {
-    if (!open) {
-      setCap(null);
-      return undefined;
-    }
-    const chat = () => document.querySelector('[role="log"]');
-    const measure = () => {
-      const own = panel.current?.getBoundingClientRect().height ?? 0;
-      const above = chat()?.getBoundingClientRect().height ?? 0;
-      setCap(
-        Math.max(
-          0,
-          Math.min(window.innerHeight * 0.6, own + above - CHAT_KEEPS_PX),
-        ),
-      );
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    for (const element of [panel.current, chat()]) {
-      if (element) observer.observe(element);
-    }
-    window.addEventListener("resize", measure);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [open, panel]);
-  return cap === null ? "max(0px, min(60vh, calc(100vh - 424px)))" : `${cap}px`;
-}
 
 function Section({
   title,
@@ -107,9 +61,7 @@ export function InvestigationSummaryBar() {
     useInvestigationData(sessionId, isActive);
   const [open, setOpen] = useState(false);
   const toggle = useRef<HTMLButtonElement>(null);
-  const panel = useRef<HTMLElement>(null);
   const panelId = useId();
-  const maxHeight = useExpandedCap(open, panel);
 
   const hasContent = Boolean(investigation) || evidence.length > 0;
   if (!hasContent) {
@@ -134,7 +86,7 @@ export function InvestigationSummaryBar() {
     <section
       aria-label={t("investigation.summary.title")}
       onKeyDown={handleKeyDown}
-      className="mb-2 overflow-hidden rounded-lg border border-border bg-card"
+      className="overflow-hidden rounded-lg border border-border bg-card"
     >
       <div className="flex min-h-11 items-center gap-2 pl-3 pr-1">
         {meta.inProgress ? (
@@ -197,13 +149,9 @@ export function InvestigationSummaryBar() {
       </div>
       {open && (
         <section
-          ref={panel}
           id={panelId}
-          // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling region must take focus to scroll by keyboard.
-          tabIndex={0}
           aria-label={t("investigation.summary.details")}
-          style={{ maxHeight }}
-          className="space-y-4 overflow-y-auto border-t border-border p-3 outline-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
+          className="space-y-4 border-t border-border p-3"
         >
           {investigation?.userProblem && (
             <p className="text-xs text-muted-foreground">

@@ -5,6 +5,7 @@ export const OPTIONS_SECTIONS = {
   "data-handling": "general",
   troubleshooting: "general",
   "knowledge-base": "general",
+  cases: "general",
   "ai-provider": "ai",
   "apty-client": "connection",
   "apty-studio": "connection",

@@ -1433,7 +1433,9 @@
     "kbUngroundedTitle": "Not found in the cited KB cards",
     "kbUngrounded": "Not found in the cited KB cards: {{phrases}}",
     "kbCitation": "KB card {{pageId}}, layer {{layer}}",
-    "moreQuestions": "More questions ({{count}})"
+    "moreQuestions": "More questions ({{count}})",
+    "newAnswers": "{{count}} new",
+    "scrollToBottomNew": "Scroll to the latest message ({{count}} new)"
   },
   "investigation": {
     "componentHealth": "Apty component health",
@@ -2910,7 +2912,6 @@
     "fromSite": "From {{site}}",
     "otherSiteNote": "This came from another site than the current tab.",
     "label": "Case",
-    "copyId": "Copy case id {{id}}",
     "continue": "Continue {{id}}",
     "continueText": "A case on this site is still open from the last 24 hours: {{id}}.",
     "outcome": {
@@ -2942,7 +2943,15 @@
       "decisions": "Turns",
       "none": "None",
       "close": "Close details"
-    }
+    },
+    "continueShort": "Continue {{id}}",
+    "dismissContinue": "Dismiss continuing {{id}}",
+    "copyCaseId": "Copy case id",
+    "closeCaseMenu": "Close case…",
+    "openInCases": "Open in Cases",
+    "chipName": "Case {{id}}",
+    "closeDialogTitle": "Close {{id}}",
+    "closeDialogDescription": "How did the case end? The answer stays on this device."
   },
   "supportBundle": {
     "nothingYet": "Nothing to bundle yet: run a check or open a KB card",
@@ -3031,7 +3040,8 @@
       "pack": "{{version}}: built {{date}}. New answers use it.",
       "gotIt": "Got it",
       "open": "Open Knowledge base"
-    }
+    },
+    "status": "KB packs"
   },
   "turnActions": {
     "runCheck": "Run the check",

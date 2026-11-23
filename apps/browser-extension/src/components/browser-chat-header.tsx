@@ -1,7 +1,8 @@
 /**
  * BrowserChatHeader
- * The side panel header (Menu, app mark, title, New chat), the context bar,
- * conversation persistence and the menu drawer with the recent chats.
+ * The side panel header (KB-RAG K29, L1), at most 96 px: Menu, the app
+ * mark, the title, the pack-status icon and New chat, then one context
+ * line; conversation persistence and the menu drawer with the recent chats.
  */
 
 import { createLogger } from "@apty/agent-core";
@@ -21,7 +22,10 @@ import {
 } from "../services/message-adapter";
 import { chatHandoff } from "../state/chat-handoff";
 import { navigationStore, useNavigation } from "../state/navigation-store";
-import { PacksLine, PackUpdateBanner } from "./connections/pack-freshness-view";
+import {
+  PackStatusIcon,
+  PackUpdateBanner,
+} from "./connections/pack-freshness-view";
 import { usePackFreshness } from "./connections/use-pack-freshness";
 import { useReadiness } from "./connections/use-readiness";
 import { InvestigationContextBar } from "./investigation/investigation-context-bar";
@@ -225,13 +229,14 @@ export function BrowserChatHeader({
   return (
     <div
       className={cn("relative flex shrink-0 flex-col", className)}
+      data-testid="panel-header"
       {...props}
     >
-      <div className="flex h-14 items-center gap-2 border-b border-border px-2">
+      <div className="flex h-11 items-center gap-1.5 border-b border-border px-2">
         <Button
           ref={menuButtonRef}
           variant="ghost"
-          size="icon"
+          size="icon-sm"
           aria-label={t("shell.menu")}
           aria-haspopup="dialog"
           aria-expanded={drawerOpen}
@@ -241,19 +246,20 @@ export function BrowserChatHeader({
         </Button>
         <span
           aria-hidden="true"
-          className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-card text-foreground"
+          className="flex size-7 shrink-0 items-center justify-center rounded-md border border-border bg-card text-foreground"
         >
           <ActivityIcon className="size-4" />
         </span>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-title font-semibold text-foreground">
-            {t("shell.appName")}
-          </h1>
-          <PacksLine items={packs.items} />
-        </div>
+        <h1 className="min-w-0 flex-1 truncate text-title font-semibold text-foreground">
+          {t("shell.appName")}
+        </h1>
+        <PackStatusIcon
+          items={packs.items}
+          onOpen={() => void openOptions({ section: "knowledge-base" })}
+        />
         <Button
           variant="ghost"
-          size="icon"
+          size="icon-sm"
           aria-label={t("shell.newChat")}
           title={t("shell.newChat")}
           onClick={() => void newChat()}
