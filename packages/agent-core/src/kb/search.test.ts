@@ -909,6 +909,64 @@ describe("F7: synonym groups that do not collide", () => {
   });
 });
 
+describe('"gone" and "not appearing" mean the same (KB-RAG K29, B7)', () => {
+  const index = createKbIndex(
+    syntheticPack(
+      [
+        card("961", "DEMO panel missing for some users", [
+          "- In Admin, check the DEMO panel segment for those users.",
+          "- Some users lack the DEMO panel role.",
+          "- segment.json lists the DEMO panel users.",
+          "- Send support the DEMO panel user ids.",
+        ]),
+        card("962", "DEMO panel does not appear", [
+          "- In Admin, switch on the DEMO panel for this environment.",
+          "- The DEMO panel container must be on the page.",
+          "- app-data.json holds the DEMO panel switch.",
+          "- Send support the DEMO panel environment id.",
+        ]),
+        card("963", "DEMO report export is slow", [
+          "- In Admin, limit the DEMO report rows.",
+          "- The DEMO report table renders every row.",
+          "- report.json lists the DEMO rows.",
+          "- Send support the DEMO report id.",
+        ]),
+      ],
+      { coverage: { min: 0.35, minIdf: 0.5, minTerms: 1 } },
+      V2,
+    ),
+  );
+  const top = (q: string) =>
+    index.search(q, { onePerCard: true }).hits.map((hit) => hit.chunk.pageId);
+
+  it.each([
+    "the DEMO panel icon is gone",
+    "the DEMO panel has disappeared",
+    "the DEMO panel is not appearing",
+    "the DEMO panel is not showing",
+    "the DEMO panel doesn't show",
+    "the DEMO panel is not visible",
+  ])("%s ranks the does-not-appear card first", (q) => {
+    expect(top(q)[0]).toBe("962");
+  });
+
+  it("keeps every phrase in the disappear and missing group", () => {
+    const group = KB_SYNONYM_GROUPS.find((g) => g.includes("disappear"));
+    expect(group).toEqual(
+      expect.arrayContaining([
+        "missing",
+        "gone",
+        "disappeared",
+        "not appearing",
+        "does not appear",
+        "doesn't show",
+        "not showing",
+        "not visible",
+      ]),
+    );
+  });
+});
+
 describe("K24-2: context words count only when the card holds them", () => {
   const CONTEXT_CARDS = [
     card("901", "FIXTURE balloon missing on the field", [

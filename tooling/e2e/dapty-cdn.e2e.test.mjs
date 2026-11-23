@@ -7,7 +7,9 @@
  * page, reads the content files and the user's stored chat from the content
  * CDN (a local server here), and shows each suggestion's outcome with ids,
  * with no model request. With Settings' content CDN switch off, it reads
- * nothing from the CDN.
+ * nothing from the CDN. A Client that is connected but has no record for
+ * the tab (its content script does not run on the site) does not stop the
+ * check either: the content CDN is read (KB-RAG K29, B4).
  */
 import assert from "node:assert/strict";
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -66,8 +68,12 @@ const STORED_CHAT = {
   ],
 };
 
-/** An Apty Client as it ships: a page script and a config, and no answer to other extensions. */
-function writeUnpatchedClient(dir, contentURL) {
+/**
+ * An Apty Client as it ships: a page script and a config, and no answer to
+ * other extensions. `answersEmpty`: a Client that answers the Agent but
+ * observed no Apty file for this site (KB-RAG K29, B4).
+ */
+function writeUnpatchedClient(dir, contentURL, { answersEmpty = false } = {}) {
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     join(dir, "manifest.json"),
@@ -95,7 +101,20 @@ script.src = chrome.runtime.getURL("window-script.js");
   // takes every external message and never answers one it does not know.
   writeFileSync(
     join(dir, "background.js"),
-    "chrome.runtime.onMessageExternal.addListener(() => true);\n",
+    answersEmpty
+      ? `chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "apty-debug-agent:get-service-worker-status") {
+    sendResponse({ running: true, lastActivity: Date.now() });
+    return true;
+  }
+  if (message?.type === "apty-debug-agent:list-observed-resources") {
+    sendResponse({ resources: [] });
+    return true;
+  }
+  return false;
+});
+`
+      : "chrome.runtime.onMessageExternal.addListener(() => true);\n",
   );
   writeFileSync(
     join(dir, "player-config.json"),
@@ -105,6 +124,7 @@ script.src = chrome.runtime.getURL("window-script.js");
 }
 
 let browser;
+let emptyClientBrowser;
 let model;
 let site;
 let cdn;
@@ -166,10 +186,19 @@ before(async () => {
     cdn.origin,
   );
   browser = await launchBrowser({ extraExtensions: [clientDir] });
+  const emptyClientDir = writeUnpatchedClient(
+    join(tempDir("apty-e2e-dapty-cdn-empty-"), "client"),
+    cdn.origin,
+    { answersEmpty: true },
+  );
+  emptyClientBrowser = await launchBrowser({
+    extraExtensions: [emptyClientDir],
+  });
 });
 
 after(async () => {
   await browser?.close();
+  await emptyClientBrowser?.close();
   model?.close();
   site?.close();
   cdn?.close();
@@ -355,6 +384,47 @@ describe("checks with an unpatched Apty Client", () => {
         .map((r) => r.path)
         .join(", ")})`,
     );
+    assert.deepEqual(panel.consoleErrors, []);
+    await panel.close();
+    await app.close();
+  });
+});
+
+describe("a connected Apty Client with nothing for the tab (KB-RAG K29, B4)", () => {
+  it("reads the content files from the CDN and gives a verdict, never the 4.x HAR route", async () => {
+    const app = await emptyClientBrowser.context.newPage();
+    await app.goto(`${site.origin}/app.html`);
+    await app.waitForFunction(() =>
+      document.querySelector('script[src$="/window-script.js"]'),
+    );
+    const panel = await openSidePanel(emptyClientBrowser, model, app);
+    const requestsBefore = served.length;
+    const before = model.requests.length;
+
+    await sendChat(panel, "the Apty widget is not appearing");
+
+    const card = panel.getByRole("region", {
+      name: "Why the widget may not be visible",
+    });
+    await card.waitFor({ timeout: 30_000 });
+    await card
+      .getByText(
+        "Content files read from Apty's content CDN, as the Apty Client does not report its calls.",
+      )
+      .waitFor();
+    const text = await card.textContent();
+    assert.ok(
+      !text.includes("did not report loading app-urls.json"),
+      "the check did not stop at the empty Client",
+    );
+    assert.ok(!/service worker/i.test(text), "no service-worker HAR route");
+    assert.ok(
+      served
+        .slice(requestsBefore)
+        .some((r) => r.path.endsWith(`/env-${ENV}/segment.json`)),
+      "segment.json was read from the CDN",
+    );
+    assert.equal(model.requests.length, before, "the model was not asked");
     assert.deepEqual(panel.consoleErrors, []);
     await panel.close();
     await app.close();

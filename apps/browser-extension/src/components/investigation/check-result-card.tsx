@@ -817,9 +817,9 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
         </ul>
       )}
 
-      {verdict.status === "no_cause_in_data" && result.cardPageId && (
-        <NoCauseCardLayers pageId={result.cardPageId} />
-      )}
+      {(verdict.status === "no_cause_in_data" ||
+        verdict.status === "no_data") &&
+        result.cardPageId && <NoCauseCardLayers pageId={result.cardPageId} />}
 
       {verdict.nextCheck && (
         <p className="text-sm text-foreground">

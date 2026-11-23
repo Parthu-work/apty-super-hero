@@ -4,7 +4,8 @@
  * mode captures the tab while it reloads and runs the check again on the
  * page's Apty calls; Extension mode shows how to save a HAR from the
  * Client's service worker, with a drop zone that runs the same check on it
- * here. The route last used on the site is remembered on the device.
+ * here. The route last used on the site is remembered on the device. The
+ * HAR route is the 4.x Client's, so a 5.x site is never offered it (K29, B4).
  */
 
 import { siteKeyOf } from "@apty/agent-core";
@@ -25,12 +26,17 @@ import {
   type DetectedClientMode,
   type EvidenceRoute,
   evidenceRouteOf,
+  evidenceRoutesFor,
   rememberedRoute,
   rememberRoute,
   tabClientModeFacts,
 } from "@apty/browser-runtime/apty/evidence-route";
 import { listObservedResources } from "@apty/browser-runtime/apty/extension-network-inspector";
 import { siteHostOf } from "@apty/browser-runtime/conversation/site-host";
+import {
+  kbVersionForHost,
+  versionFromFileNames,
+} from "@apty/browser-runtime/kb/kb-version";
 import { ChatContext } from "@apty/ui/components/chatbot";
 import { Button } from "@apty/ui/components/ui/button";
 import { CopyButton } from "@apty/ui/components/ui/copy-button";
@@ -52,10 +58,13 @@ interface ActiveTab {
   siteKey?: string;
 }
 
+type SiteVersion = "4.x" | "5.x" | "unknown";
+
 interface Plan {
   detected?: DetectedClientMode;
   route: EvidenceRoute;
   why: "remembered" | "detected" | "default";
+  version: SiteVersion;
 }
 
 type Step =
@@ -63,6 +72,7 @@ type Step =
   | { kind: "starting" }
   | { kind: "capturing" }
   | { kind: "none" }
+  | { kind: "noneFiveX" }
   | { kind: "failed" }
   | { kind: "captured"; calls: number; result: DiagnosisResult }
   | { kind: "har" };
@@ -87,9 +97,24 @@ async function activeTab(): Promise<ActiveTab | undefined> {
   };
 }
 
+/** What the check's files say of the tenant's version, else what the site is known to run. */
+function versionOf(
+  result: DiagnosisResult,
+  tab: ActiveTab | undefined,
+): SiteVersion {
+  if (result.filesFromCdn) return "5.x";
+  const fromFiles = versionFromFileNames(
+    result.files.filter((f) => f.status !== "not_observed").map((f) => f.name),
+  );
+  return fromFiles !== "unknown"
+    ? fromFiles
+    : kbVersionForHost(siteHostOf(tab?.url));
+}
+
 async function planFor(
   tab: ActiveTab | undefined,
   conversationId: string | null,
+  version: SiteVersion,
 ): Promise<Plan> {
   const [page, listed, remembered] = await Promise.all([
     tab ? tabClientModeFacts(tab.id) : undefined,
@@ -106,7 +131,8 @@ async function planFor(
   });
   return {
     ...(detected ? { detected } : {}),
-    ...evidenceRouteOf(detected, remembered),
+    ...evidenceRouteOf(detected, remembered, version),
+    version,
   };
 }
 
@@ -115,10 +141,14 @@ interface Planned {
   plan: Plan;
 }
 
-async function plan(conversationId: string | null): Promise<Planned> {
+async function plan(
+  conversationId: string | null,
+  result: DiagnosisResult,
+): Promise<Planned> {
   const tab = await activeTab().catch(() => undefined);
-  const planned = await planFor(tab, conversationId).catch(
-    (): Plan => ({ route: "capture", why: "default" }),
+  const version = versionOf(result, tab);
+  const planned = await planFor(tab, conversationId, version).catch(
+    (): Plan => ({ route: "capture", why: "default", version }),
   );
   return { tab, plan: planned };
 }
@@ -128,7 +158,7 @@ async function plan(conversationId: string | null): Promise<Planned> {
  * click that comes before detection ends; `choose` keeps the user's route
  * for the site.
  */
-function useEvidencePlan(): {
+function useEvidencePlan(result: DiagnosisResult): {
   planned: Planned | undefined;
   ready: () => Promise<Planned>;
   choose: (route: EvidenceRoute) => void;
@@ -138,22 +168,24 @@ function useEvidencePlan(): {
   const pending = useRef<Promise<Planned> | null>(null);
   useEffect(() => {
     let live = true;
-    const running = plan(conversationId);
+    const running = plan(conversationId, result);
     pending.current = running;
     void running.then((done) => live && setPlanned(done));
     return () => {
       live = false;
     };
-  }, [conversationId]);
-  const ready = () => pending.current ?? plan(conversationId);
+  }, [conversationId, result]);
+  const ready = () => pending.current ?? plan(conversationId, result);
   const choose = (route: EvidenceRoute) => {
     void ready().then(({ tab, plan: detected }) => {
+      if (!evidenceRoutesFor(detected.version).includes(route)) return;
       const chosen: Planned = {
         tab,
         plan: {
           ...(detected.detected ? { detected: detected.detected } : {}),
           route,
           why: "remembered",
+          version: detected.version,
         },
       };
       pending.current = Promise.resolve(chosen);
@@ -429,9 +461,12 @@ export function GetEvidence({
 }) {
   const { t } = useTranslation();
   const routeId = useId();
-  const { planned, ready, choose } = useEvidencePlan();
+  const { planned, ready, choose } = useEvidencePlan(result);
   const [step, setStep] = useState<Step>({ kind: "idle" });
   const plan = planned?.plan;
+  const harAllowed = evidenceRoutesFor(plan?.version ?? "unknown").includes(
+    "har",
+  );
 
   const capture = async (tab: ActiveTab | undefined) => {
     if (!tab) {
@@ -444,7 +479,7 @@ export function GetEvidence({
       if (!captured.ok) throw new Error(captured.error);
       if (captured.calls === 0) {
         choose("har");
-        setStep({ kind: "none" });
+        setStep({ kind: harAllowed ? "none" : "noneFiveX" });
         return;
       }
       const again = await recheckFromCapture(result, tab.id, tab.url);
@@ -470,7 +505,8 @@ export function GetEvidence({
   const other: EvidenceRoute = plan?.route === "har" ? "capture" : "har";
   const busy = step.kind === "starting" || step.kind === "capturing";
   const showHar =
-    step.kind === "har" || step.kind === "none" || step.kind === "failed";
+    harAllowed &&
+    (step.kind === "har" || step.kind === "none" || step.kind === "failed");
 
   return (
     <div
@@ -491,6 +527,14 @@ export function GetEvidence({
             ` ${t("checkPack.getEvidence.remembered")}`}
         </p>
       )}
+      {plan?.version === "unknown" && (
+        <p
+          className="text-xs text-muted-foreground"
+          data-testid="evidence-version-hint"
+        >
+          {t("checkPack.getEvidence.versionHint")}
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <Button
           size="sm"
@@ -500,7 +544,7 @@ export function GetEvidence({
         >
           {t("checkPack.getEvidence.get")}
         </Button>
-        {plan && !busy && (
+        {plan && !busy && harAllowed && (
           <Button
             variant="ghost"
             size="sm"
@@ -529,6 +573,11 @@ export function GetEvidence({
             {t("checkPack.captureNone")}
           </p>
         )}
+        {step.kind === "noneFiveX" && (
+          <p className="text-xs text-muted-foreground">
+            {t("checkPack.captureNoneFiveX")}
+          </p>
+        )}
         {step.kind === "failed" && (
           <p className="text-xs text-muted-foreground">
             {t("checkPack.captureFailed")}
@@ -543,7 +592,7 @@ export function GetEvidence({
           </>
         )}
       </div>
-      <HarSteps open={showHar} />
+      {harAllowed && <HarSteps open={showHar} />}
       {showHar && (
         <HarDrop
           result={result}

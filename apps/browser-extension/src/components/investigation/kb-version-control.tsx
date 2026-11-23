@@ -2,7 +2,7 @@
  * "Apty version: 4.x / 5.x / Not sure" (KB-RAG K12): which version's KB
  * cards the side panel searches for the site in the active tab. A check's
  * files decide it when a check has run there; otherwise the user's choice,
- * kept in memory for this side panel only (`kb-version.ts`).
+ * kept per site on the device (`kb-version.ts`, KB-RAG K29 B1).
  */
 
 import { siteHostOf } from "@apty/browser-runtime/conversation/site-host";
@@ -11,6 +11,7 @@ import {
   kbVersionForHost,
   kbVersionFromEvidence,
   rememberKbVersion,
+  subscribeKbVersions,
 } from "@apty/browser-runtime/kb/kb-version";
 import { useTranslation } from "@apty/ui/i18n/context";
 import { useEffect, useId, useState } from "react";
@@ -46,7 +47,10 @@ export function KbVersionControl({
   const [version, setVersion] = useState<KbTabVersion>(() =>
     kbVersionForHost(host),
   );
-  useEffect(() => setVersion(kbVersionForHost(host)), [host]);
+  useEffect(() => {
+    setVersion(kbVersionForHost(host));
+    return subscribeKbVersions(() => setVersion(kbVersionForHost(host)));
+  }, [host]);
 
   if (kbVersionFromEvidence(host)) {
     return (

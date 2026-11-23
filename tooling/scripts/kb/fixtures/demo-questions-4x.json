@@ -282,6 +282,12 @@
     "expectedPageIds": ["4006"]
   },
   {
+    "id": "d4-k29-b7",
+    "category": "synonym",
+    "q": "the DEMO balloon on the field is gone",
+    "expectedPageIds": ["4002"]
+  },
+  {
     "id": "d4-f7b",
     "category": "collision",
     "q": "I tried again and the DEMO balloon does not appear",

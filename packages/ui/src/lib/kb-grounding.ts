@@ -12,6 +12,23 @@ const MARKDOWN_LINK = /\[([^\]\n]*)\]\([^)\n]*\)/g;
 const CITATION = /kb:\/\/\d+(?:#L[1-4])?/g;
 const HEADING_MARK = /^#{1,6}\s+/gm;
 
+/** Product and role names an answer may name; never a setting (K29, B6). */
+const PRODUCT_NAMES = new Set([
+  "apty",
+  "apty studio",
+  "apty admin",
+  "apty support",
+  "apty kb",
+  "apty client",
+  "kb owner",
+  "confluence",
+  "chrome",
+  "edge",
+]);
+
+const isProductName = (phrase: string) =>
+  PRODUCT_NAMES.has(phrase.toLowerCase().replace(/^the\s+/, ""));
+
 const TITLE_WORDS = "[A-Z][\\w-]*(?: [A-Z][\\w-]*)*";
 /** A menu path such as "Admin Portal → Applications → Settings" (K27, F2). */
 const MENU_PATH = new RegExp(
@@ -51,10 +68,40 @@ export function ungroundedPhrases(
   );
   const phrases = namedPhrases(prose, { everyRun: true }).filter(
     (phrase) =>
+      !isProductName(phrase) &&
       !held(phrase) &&
       !pathWords.some((words) => words.includes(phrase.toLowerCase())),
   );
   return [...new Set([...paths, ...phrases])];
+}
+
+const SENTENCE = /[^.!?\n]+[.!?]?/g;
+const HEDGED_PLACE =
+  /\b(?:may|might|could|should|would|probably|likely|usually|typically|often)\b(?:\s+\w+){0,3}?\s+(?:in|under|within|inside)\s+the\b/i;
+const PLACE_NOUN =
+  /\b(?:settings?|menu|tab|page|section|area|panel|configuration|portal|screen|dashboard)\b/i;
+
+/**
+ * K29, B6: on a model turn with no KB card, the sentences that guess where
+ * a setting might be ("the toggle may be in the application settings"). A
+ * turn whose cards were returned is left to `ungroundedPhrases`.
+ */
+export function ungroundedLocations(
+  answer: string,
+  chunks: readonly string[],
+): string[] {
+  if (chunks.length > 0) return [];
+  const prose = answer.replace(CODE, " . ").replace(MARKDOWN_LINK, "$1");
+  return [
+    ...new Set(
+      (prose.match(SENTENCE) ?? [])
+        .map((sentence) => sentence.trim())
+        .filter(
+          (sentence) =>
+            HEDGED_PLACE.test(sentence) && PLACE_NOUN.test(sentence),
+        ),
+    ),
+  ];
 }
 
 const SKIPPED = "code, pre, a, [data-kb-ungrounded]";

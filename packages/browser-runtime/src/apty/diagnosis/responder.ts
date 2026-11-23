@@ -1,6 +1,7 @@
 import {
   KB_NO_CARD_INSTRUCTION,
   type LocalResponder,
+  namedFileVersion,
   packIdOf,
   siteKeyOf,
   type TabVersionSource,
@@ -24,6 +25,8 @@ import {
   kbVersionSourceForHost,
   rememberKbVersion,
   resolveKbVersionFromClient,
+  touchKbVersion,
+  whenKbVersionsLoaded,
 } from "../../kb/kb-version.js";
 import { getRedactionMode } from "../../runtime/redaction-mode.js";
 import { applyResultPrivacy } from "../../runtime/result-privacy.js";
@@ -550,7 +553,9 @@ export function tabVersionOf(url: string | undefined): {
         ? "unknown"
         : kbVersionSourceForHost(host) === "user"
           ? "user"
-          : "files",
+          : kbVersionSourceForHost(host) === "question"
+            ? "question"
+            : "files",
   };
 }
 
@@ -595,11 +600,17 @@ async function kbAnswer(
   runContext: unknown,
 ) {
   const pageUrl = await sources.pageUrlOf(runContext);
+  await whenKbVersionsLoaded();
+  touchKbVersion(siteHostOf(pageUrl));
   const observed = sources.observedNamesOf;
   if (observed) {
     await resolveKbVersionFromClient(siteHostOf(pageUrl), () =>
       observed(runContext),
     );
+  }
+  const named = namedFileVersion(input);
+  if (named && kbVersionForHost(siteHostOf(pageUrl)) === "unknown") {
+    rememberKbVersion(siteHostOf(pageUrl), named.version, "question");
   }
   const tab = tabVersionOf(pageUrl);
   const siteKey = siteKeyFor(pageUrl);

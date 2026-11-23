@@ -14,9 +14,11 @@ const localKbMatches = async (...args: Parameters<typeof outcomeOf>) =>
 
 import {
   FIXTURE_CARDS,
+  type FixtureCard,
   fixturePackText,
   fixtureV2PackText,
   memoryRecords,
+  versionPackText,
 } from "./kb-test-utils.js";
 
 async function source(retrieval: Record<string, unknown> = {}) {
@@ -304,5 +306,87 @@ describe("choices are what the record holds (KB-RAG K27, E3)", () => {
         results: [{ cite: "kb://801#L1" } as never],
       }),
     ).toEqual(["802", "803"]);
+  });
+});
+
+describe("a named content file picks the version (KB-RAG K29, B3)", () => {
+  const FLOWS_4X: FixtureCard = {
+    pageId: "4401",
+    title: "FIXTURE flow.json lists the flows",
+    layers: [
+      "- flow.json holds each FIXTURE flow and its segments.",
+      "- Open flow.json in the FIXTURE network tab.",
+      "- flow.json is read on every FIXTURE page load.",
+      "- Contact support when flow.json is empty.",
+    ],
+  };
+  const WORKFLOWS_5X: FixtureCard = {
+    pageId: "5501",
+    title: "FIXTURE workflow.json lists the workflows",
+    layers: [
+      "- workflow.json holds each FIXTURE workflow and its segments.",
+      "- Open workflow.json in the FIXTURE network tab.",
+      "- workflow.json is read on every FIXTURE page load.",
+      "- Contact support when workflow.json is empty.",
+    ],
+  };
+  const RELOAD_5X: FixtureCard = {
+    pageId: "5502",
+    title: "FIXTURE workflow stops after a reload",
+    layers: [
+      "- A FIXTURE workflow stops after the page reloads; check its meaning.",
+      "- Watch the FIXTURE console during the reload.",
+      "- The FIXTURE session request fails after a reload.",
+      "- Contact support when the workflow still stops.",
+    ],
+  };
+
+  async function twoVersions() {
+    const store = createKbPackStore({
+      assess: unsignedAllowed,
+      records: memoryRecords(),
+    });
+    await store.replace(versionPackText("4.x", [FLOWS_4X], "A4X"));
+    await store.replace(
+      versionPackText("5.x", [WORKFLOWS_5X, RELOAD_5X], "A5X"),
+    );
+    return createKbIndexSource(store);
+  }
+
+  it("on a 5.x site, answers flow.json from the 4.x pack, says what the 5.x file is, and shows the 5.x card for it", async () => {
+    const result = await localKbMatches(
+      "what does flow.json mean",
+      await twoVersions(),
+      { version: "5.x" },
+    );
+    expect(result?.results[0]?.cite).toMatch(/^kb:\/\/4401#/);
+    expect(result?.results.map((hit) => hit.cite.split("#")[0])).toEqual([
+      "kb://4401",
+      "kb://5501",
+    ]);
+    expect(result?.fileVersion).toEqual({
+      file: "flow.json",
+      version: "4.x",
+      siteVersion: "5.x",
+      counterpart: "workflow.json",
+      kind: "workflows",
+    });
+    expect(result?.cards.map((card) => card.pageId)).toEqual(
+      expect.arrayContaining(["4401", "5501"]),
+    );
+  });
+
+  it("on a 4.x site or with the version unknown, answers from the 4.x pack with no line", async () => {
+    for (const version of ["4.x", "unknown"] as const) {
+      const result = await localKbMatches(
+        "what does flow.json mean",
+        await twoVersions(),
+        { version },
+      );
+      expect(result?.results.map((hit) => hit.cite.split("#")[0])).toEqual([
+        "kb://4401",
+      ]);
+      expect(result?.fileVersion).toBeUndefined();
+    }
   });
 });

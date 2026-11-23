@@ -1,8 +1,8 @@
 /**
- * Under a check with no cause in the files (KB-RAG K27, F8): the rule's
- * KB card by title, with its layer 1 and 2 text (settings, then Console and
- * Elements) from the pack loaded in Options, so the SE has the next things
- * to look at rather than a bare link. Nothing without a pack holding the
+ * Under a check with no cause in the files (KB-RAG K27, F8), or with no
+ * data to read (K29, B5): the rule's KB card by title, with its layer 1 and
+ * 2 text (settings, then Console and Elements) from the pack loaded in
+ * Options, so the SE has the next things to look at rather than a bare link. Nothing without a pack holding the
  * card. The text is rendered as text.
  */
 import type { KbCard, KbChunk } from "@apty/agent-core";

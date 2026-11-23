@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { markUngrounded, ungroundedPhrases } from "./kb-grounding";
+import {
+  markUngrounded,
+  ungroundedLocations,
+  ungroundedPhrases,
+} from "./kb-grounding";
 
 const CHUNKS = [
   "- In Studio, turn on the FIXTURE Hide From Widget switch, then publish.",
@@ -63,6 +67,33 @@ describe("ungroundedPhrases", () => {
       ungroundedPhrases(answer, CHUNKS),
     );
     expect(ungroundedPhrases("", CHUNKS)).toEqual([]);
+  });
+});
+
+describe("the reply after Ask the AI anyway (KB-RAG K29, B6)", () => {
+  const REPLY = [
+    'I could not find a "Widget Activation" setting in the Apty KB.',
+    "The toggle may be in the application settings, widget configuration, or environment settings area.",
+    "Ask Apty Support or the KB owner, or check Apty Studio and Apty Admin in Chrome or Edge; Confluence may help.",
+  ].join(" ");
+
+  it("flags only the setting name, never a product or role name", () => {
+    expect(ungroundedPhrases(REPLY, [])).toEqual(["Widget Activation"]);
+  });
+
+  it("flags the sentence that says where the setting might be", () => {
+    expect(ungroundedLocations(REPLY, [])).toEqual([
+      "The toggle may be in the application settings, widget configuration, or environment settings area.",
+    ]);
+    expect(
+      ungroundedLocations("The KB has no such setting; ask the KB owner.", []),
+    ).toEqual([]);
+  });
+
+  it("leaves a location to a turn whose KB cards could hold it", () => {
+    expect(
+      ungroundedLocations(REPLY, ["- In Studio, open the FIXTURE settings."]),
+    ).toEqual([]);
   });
 });
 

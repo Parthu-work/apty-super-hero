@@ -3,6 +3,7 @@ import {
   capture,
   evidenceFrom,
 } from "@apty/browser-runtime/apty/diagnosis/diagnosis-test-utils";
+import { diagnoseWidgetNotVisible } from "@apty/browser-runtime/apty/diagnosis/widget-not-visible";
 import type { UIToolPart } from "@apty/ui/types";
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -63,5 +64,24 @@ describe("a check with no cause (KB-RAG K27, F8)", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Confidence: likely/)).toBeNull();
+  });
+});
+
+describe("a check with no data (KB-RAG K29, B5)", () => {
+  it("shows the card's Settings and Console steps, not only its link", async () => {
+    const result = diagnoseWidgetNotVisible(
+      {
+        connection: { ok: true },
+        observedNames: [],
+        files: {},
+      },
+      "https://crm.example.com/leads",
+    );
+    expect(result.verdict.status).toBe("no_data");
+    render(<CheckResultCard tool={tool(result)} />);
+    const card = await screen.findByTestId("no-cause-card");
+    expect(within(card).getByText("FIXTURE layer 1")).toBeInTheDocument();
+    expect(within(card).getByText("FIXTURE layer 2")).toBeInTheDocument();
+    expect(within(card).queryByText("FIXTURE layer 3")).toBeNull();
   });
 });

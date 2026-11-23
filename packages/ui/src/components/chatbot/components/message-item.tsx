@@ -16,7 +16,11 @@ import { useTranslation } from "../../../i18n/context";
 import { translatedToolName } from "../../../i18n/tool-names";
 import { downloadText, timestampedFilename } from "../../../lib/download";
 import { kbReturnedCards, linkKbCitations } from "../../../lib/kb-citations";
-import { markUngrounded, ungroundedPhrases } from "../../../lib/kb-grounding";
+import {
+  markUngrounded,
+  ungroundedLocations,
+  ungroundedPhrases,
+} from "../../../lib/kb-grounding";
 import { foldQuestions } from "../../../lib/one-question";
 import { isLocalImageUrl } from "../../../lib/safe-media";
 import {
@@ -103,11 +107,14 @@ function OneQuestionResponse({ text, fold }: { text: string; fold: boolean }) {
 function GroundedResponse({
   text,
   ungrounded,
+  locations = [],
   withoutCards = false,
   fold,
 }: {
   text: string;
   ungrounded: string[];
+  /** K29, B6: sentences guessing where a setting might be, on a turn with no card. */
+  locations?: string[];
   fold: boolean;
   /** A model turn the KB returned no card for (K27, F2): nothing it names is grounded. */
   withoutCards?: boolean;
@@ -117,18 +124,23 @@ function GroundedResponse({
   const title = t(
     withoutCards ? "chat.kbNotFoundTitle" : "chat.kbUngroundedTitle",
   );
+  const placeTitle = t("chat.kbLocationTitle");
   const key = ungrounded.join("\n");
+  const placesKey = locations.join("\n");
   useEffect(() => {
     const root = ref.current;
-    if (!root || !key) return;
-    const phrases = key.split("\n");
-    markUngrounded(root, phrases, title);
-    const observer = new MutationObserver(() =>
-      markUngrounded(root, phrases, title),
-    );
+    if (!root || (!key && !placesKey)) return;
+    const phrases = key ? key.split("\n") : [];
+    const places = placesKey ? placesKey.split("\n") : [];
+    const mark = () => {
+      markUngrounded(root, places, placeTitle);
+      markUngrounded(root, phrases, title);
+    };
+    mark();
+    const observer = new MutationObserver(mark);
     observer.observe(root, { childList: true, subtree: true });
     return () => observer.disconnect();
-  }, [key, title]);
+  }, [key, placesKey, title, placeTitle]);
   return (
     <>
       <div ref={ref}>
@@ -139,6 +151,14 @@ function GroundedResponse({
           {t(withoutCards ? "chat.kbNotFound" : "chat.kbUngrounded", {
             phrases: ungrounded.join(", "),
           })}
+        </p>
+      )}
+      {locations.length > 0 && (
+        <p
+          className="text-xs text-muted-foreground"
+          data-testid="kb-location-guess"
+        >
+          {t("chat.kbLocation")}
         </p>
       )}
     </>
@@ -315,6 +335,11 @@ export function DefaultMessageItem({
                         isStreaming && isLast
                           ? []
                           : ungroundedPhrases(part.text, kbCards.texts)
+                      }
+                      locations={
+                        isStreaming && isLast
+                          ? []
+                          : ungroundedLocations(part.text, kbCards.texts)
                       }
                     />
                   ) : message.role === "assistant" ? (

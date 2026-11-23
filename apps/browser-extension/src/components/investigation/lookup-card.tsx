@@ -240,12 +240,16 @@ function LookupBody({ result }: { result: LookupResult }) {
         <EvidenceActions asked={result.asked} />
       )}
       <p className="text-xs text-muted-foreground">
-        {result.files.length > 0
-          ? t(`lookup.source.${result.source}`, {
-              version: result.aptyVersion,
+        {result.files.length > 0 && result.aptyVersion === "unknown"
+          ? t("lookup.source.unknownVersion", {
               files: result.files.join(", "),
             })
-          : t("lookup.source.none")}
+          : result.files.length > 0
+            ? t(`lookup.source.${result.source}`, {
+                version: result.aptyVersion,
+                files: result.files.join(", "),
+              })
+            : t("lookup.source.none")}
       </p>
     </>
   );
@@ -255,7 +259,13 @@ export function LookupCard({ tool }: ToolDisplaySlotProps) {
   const { t } = useTranslation();
   const result = tool.output;
   if (!isLookupResult(result)) return null;
-  const title = t("lookup.title");
+  const title = t(
+    result.message.key === "clientNotConnected"
+      ? "lookup.titleNotConnected"
+      : result.aptyVersion === "unknown"
+        ? "lookup.titleVersionUnknown"
+        : "lookup.title",
+  );
   return (
     <section
       aria-label={title}

@@ -54,6 +54,44 @@ const hit = (
   text,
 });
 
+describe("a named file of the other version (KB-RAG K29, B3)", () => {
+  it("says what the site's version calls the file, above the cards", () => {
+    render(
+      <AptyToolDisplay
+        tool={tool({
+          status: "ok",
+          results: [
+            hit("4401", 3, "- FIXTURE flow file.", false, "4.x"),
+            hit("5501", 3, "- FIXTURE workflow file.", false, "5.x"),
+          ],
+          fileVersion: {
+            file: "flow.json",
+            version: "4.x",
+            siteVersion: "5.x",
+            counterpart: "workflow.json",
+            kind: "workflows",
+          },
+        })}
+      />,
+    );
+    expect(screen.getByTestId("kb-file-version")).toHaveTextContent(
+      "flow.json is a 4.x file. On Apty 5.x the workflow list is workflow.json.",
+    );
+  });
+
+  it("shows no line without one", () => {
+    render(
+      <AptyToolDisplay
+        tool={tool({
+          status: "ok",
+          results: [hit("4401", 3, "- FIXTURE flow file.", false, "4.x")],
+        })}
+      />,
+    );
+    expect(screen.queryByTestId("kb-file-version")).toBeNull();
+  });
+});
+
 describe("KbMatchesCard", () => {
   it("labels each card with its version and asks which one the tenant runs when they differ (K12)", () => {
     render(
@@ -331,7 +369,7 @@ describe("a setting no KB card has (K27, F2)", () => {
     ).toBeNull();
   });
 
-  it("Ask the AI anyway sends the question past the KB with the fixed instruction", async () => {
+  it("Ask the AI anyway sends the question past the KB with the fixed instruction and the KB's outcome as a fact (K29, B6)", async () => {
     const { ChatContext } = await import("@apty/ui/components/chatbot");
     const { KB_NO_CARD_INSTRUCTION } = await import("@apty/agent-core");
     const sendMessage = vi.fn(async () => {});
@@ -345,7 +383,28 @@ describe("a setting no KB card has (K27, F2)", () => {
       "the tooltip opens twice",
       undefined,
       undefined,
-      { skipLocalResponder: true, turnInstruction: KB_NO_CARD_INSTRUCTION },
+      {
+        skipLocalResponder: true,
+        turnInstruction: expect.stringContaining(
+          KB_NO_CARD_INSTRUCTION.split(" Say you do not know")[0] ?? "",
+        ),
+        followsKb: {
+          kind: "unknown_setting",
+          phrases: ["FIXTURE Glow Pulse Switch"],
+        },
+      },
+    );
+    const [, , , options] = sendMessage.mock.calls[0] as unknown as [
+      string,
+      undefined,
+      undefined,
+      { turnInstruction: string },
+    ];
+    expect(options.turnInstruction).toContain(
+      "The Apty KB has no setting named 'FIXTURE Glow Pulse Switch'.",
+    );
+    expect(options.turnInstruction).toContain(
+      "Do not say where a setting with that name might be.",
     );
   });
 });

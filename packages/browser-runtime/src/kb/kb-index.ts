@@ -10,6 +10,7 @@ import {
   type KbSourceTag,
   kbCardLocation,
   kbSourceTag,
+  type NamedFileKind,
   type RunCheckRequest,
 } from "@apty/agent-core";
 import { measured, PERF } from "../runtime/perf-marks.js";
@@ -162,6 +163,20 @@ export interface KbToolResult extends KbSourceTag {
   siteKey?: string;
   /** K27, E5: the check the top card's symptom belongs to, for "Run the check"; never sent to the model. */
   runCheck?: RunCheckRequest;
+  /**
+   * K29, B3: the question names a content file of another version than the
+   * site's: the cards come from the file's version, and the line says what
+   * the site's version calls the file.
+   */
+  fileVersion?: KbFileVersionNote;
+}
+
+export interface KbFileVersionNote {
+  file: string;
+  version: "4.x" | "5.x";
+  siteVersion: "4.x" | "5.x";
+  counterpart: string;
+  kind: NamedFileKind;
 }
 
 /** A card saying a feature has no equivalent in its Apty version. */

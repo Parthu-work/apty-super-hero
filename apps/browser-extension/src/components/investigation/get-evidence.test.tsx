@@ -44,6 +44,10 @@ vi.mock(
   }),
 );
 
+import {
+  forgetKbVersions,
+  rememberKbVersion,
+} from "@apty/browser-runtime/kb/kb-version";
 import { CheckResultCard } from "./check-result-card";
 import { GetEvidence } from "./get-evidence";
 
@@ -273,5 +277,62 @@ describe("Get the evidence (KB-RAG K27, E8)", () => {
       await screen.findByText(/This HAR holds no Apty content file\./),
     ).toBeInTheDocument();
     expect(runHarCheck).not.toHaveBeenCalled();
+  });
+});
+
+describe("the routes the site's Apty version allows (KB-RAG K29, B4)", () => {
+  beforeEach(() => forgetKbVersions());
+
+  it("never offers a 5.x site the 4.x service-worker HAR route, even in Extension mode", async () => {
+    rememberKbVersion("uat.crm.example.com", "5.x", "evidence");
+    facts.mockResolvedValue({ ...NO_SIGNS, clientScript: true });
+    captureAndReload.mockResolvedValue({ ok: true, calls: 0 });
+    remembered.mockResolvedValue("har");
+    show();
+    await screen.findByText("Route: Capture and reload this tab.");
+    expect(screen.getByTestId("get-evidence")).toHaveAttribute(
+      "data-route",
+      "capture",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Use a HAR instead" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Get the evidence" }));
+    expect(
+      await screen.findByText(/The page made no Apty content call\. Reload/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Drop the HAR file here, or choose it"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Save a HAR from the 4.x Client's service worker"),
+    ).not.toBeInTheDocument();
+    expect(remember).not.toHaveBeenCalledWith(expect.any(String), "har");
+  });
+
+  it("offers the HAR route on a 4.x site", async () => {
+    rememberKbVersion("uat.crm.example.com", "4.x", "evidence");
+    facts.mockResolvedValue({ ...NO_SIGNS, clientScript: true });
+    show();
+    await screen.findByText("Route: a HAR from the Client's service worker.");
+    expect(
+      screen.getByRole("button", { name: "Use Capture and reload instead" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("evidence-version-hint")).toBeNull();
+  });
+
+  it("with the version unknown and no files, offers both routes and says how to tell them apart", async () => {
+    show();
+    expect(
+      await screen.findByTestId("evidence-version-hint"),
+    ).toHaveTextContent(
+      "Apty 4.x: the Client's service worker reads the files, so save a HAR there. Apty 5.x: the page reads them, so capture this tab while it reloads.",
+    );
+    expect(
+      screen.getByRole("button", { name: "Get the evidence" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Use a HAR instead" }),
+    ).toBeInTheDocument();
   });
 });

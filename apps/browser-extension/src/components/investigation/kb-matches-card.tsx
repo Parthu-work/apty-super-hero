@@ -230,6 +230,17 @@ export function KbMatchesCard({ tool }: ToolDisplaySlotProps) {
           )}
         </div>
       )}
+      {output.fileVersion && (
+        <p className="text-sm text-foreground" data-testid="kb-file-version">
+          {t("kbMatches.fileVersion", {
+            file: output.fileVersion.file,
+            version: output.fileVersion.version,
+            siteVersion: output.fileVersion.siteVersion,
+            what: t(`kbMatches.fileKinds.${output.fileVersion.kind}`),
+            counterpart: output.fileVersion.counterpart,
+          })}
+        </p>
+      )}
       <ul className="space-y-2">
         {output.results.map((hit) => {
           const [, pageId = "", layer = ""] = CITE.exec(hit.cite) ?? [];
