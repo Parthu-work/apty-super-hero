@@ -40,6 +40,23 @@ export function packHeaderItems(states: KbPackState[]): PackHeaderItem[] {
   });
 }
 
+export type PackStatusTone = "none" | "ok" | "warning" | "danger";
+
+/** Under this many days left, the header's pack icon turns amber. */
+const PACK_WARNING_DAYS = 14;
+
+/** The header icon's tone: red when a pack cannot be used, amber when one expires soon. */
+export function packStatusTone(items: PackHeaderItem[]): PackStatusTone {
+  if (items.length === 0) return "none";
+  if (items.some((i) => i.state === "expired" || i.state === "notUsed")) {
+    return "danger";
+  }
+  if (items.some((i) => i.state === "expires" && i.days < PACK_WARNING_DAYS)) {
+    return "warning";
+  }
+  return "ok";
+}
+
 /** The version and pack the SE last dismissed the banner for. */
 export type SeenPacks = Partial<Record<KbAptyVersion, string>>;
 

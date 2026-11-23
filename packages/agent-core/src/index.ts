@@ -185,6 +185,7 @@ export {
   canonicalJson,
   describeKbPack,
   KB_APTY_VERSIONS,
+  KB_CLASSIFIER_REVISION,
   KB_LAYERS,
   KB_PACK_KIND,
   KB_PACK_LIMITS,
@@ -204,6 +205,7 @@ export {
   kbCardLocation,
   kbCardUrl,
   kbPackAgeDays,
+  kbPackNeedsRebuild,
   parseKbPack,
   type Sha256Hex,
 } from "./kb/pack.js";

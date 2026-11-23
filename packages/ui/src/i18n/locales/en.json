@@ -159,6 +159,7 @@
       "calibrated": "calibrated",
       "uncalibrated": "not calibrated: default coverage settings",
       "stale": "This pack was built {{days}} days ago. Ask the KB owner for a newer one and import it.",
+      "rebuild": "Built before the latest card rules: rebuild this pack for the best answers. It is still used.",
       "import": "Import pack…",
       "remove": "Remove",
       "fileLabel": "KB pack file",
@@ -1255,6 +1256,8 @@
         "notLoadedFix": "Import the KB pack your KB owner shared in Settings → General → Knowledge base.",
         "stale": "Loaded: {{count}} cards from space {{space}}, built {{date}}, {{days}} days ago.",
         "staleFix": "Ask the KB owner for a newer pack and import it in Settings → General → Knowledge base.",
+        "rebuild": "Loaded: {{count}} cards from space {{space}}, built {{date}}. Built before the latest card rules: rebuild this pack for the best answers.",
+        "rebuildFix": "The pack is still used. Ask the KB owner to rebuild it with the current pnpm kb:pack.",
         "expiring": "Loaded: {{count}} cards from space {{space}}, built {{date}}; it expires in {{days}} days.",
         "unusable": {
           "expired": "Not used: the {{version}} pack expired on {{until}}.",
@@ -1432,7 +1435,9 @@
     "kbCitation": "KB card {{pageId}}, layer {{layer}}",
     "moreQuestions": "More questions ({{count}})",
     "kbLocationTitle": "The KB does not say where this is",
-    "kbLocation": "A sentence guesses where a setting might be; the KB does not say so."
+    "kbLocation": "A sentence guesses where a setting might be; the KB does not say so.",
+    "newAnswers": "{{count}} new",
+    "scrollToBottomNew": "Scroll to the latest message ({{count}} new)"
   },
   "investigation": {
     "componentHealth": "Apty component health",
@@ -2925,7 +2930,6 @@
     "fromSite": "From {{site}}",
     "otherSiteNote": "This came from another site than the current tab.",
     "label": "Case",
-    "copyId": "Copy case id {{id}}",
     "continue": "Continue {{id}}",
     "continueText": "A case on this site is still open from the last 24 hours: {{id}}.",
     "outcome": {
@@ -2957,7 +2961,15 @@
       "decisions": "Turns",
       "none": "None",
       "close": "Close details"
-    }
+    },
+    "continueShort": "Continue {{id}}",
+    "dismissContinue": "Dismiss continuing {{id}}",
+    "copyCaseId": "Copy case id",
+    "closeCaseMenu": "Close case…",
+    "openInCases": "Open in Cases",
+    "chipName": "Case {{id}}",
+    "closeDialogTitle": "Close {{id}}",
+    "closeDialogDescription": "How did the case end? The answer stays on this device."
   },
   "supportBundle": {
     "nothingYet": "Nothing to bundle yet: run a check or open a KB card",
@@ -3046,7 +3058,8 @@
       "pack": "{{version}}: built {{date}}. New answers use it.",
       "gotIt": "Got it",
       "open": "Open Knowledge base"
-    }
+    },
+    "status": "KB packs"
   },
   "turnActions": {
     "runCheck": "Run the check",

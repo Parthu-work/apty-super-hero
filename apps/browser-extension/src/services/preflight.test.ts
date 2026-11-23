@@ -73,6 +73,7 @@ const PACK_INFO = {
   mode: "bm25" as const,
   calibrated: true,
   sha256: "a".repeat(64),
+  classifierRevision: 2,
 };
 
 async function check(id: string, overrides: Partial<PreflightDeps> = {}) {
@@ -381,6 +382,21 @@ describe("the knowledge base check", () => {
       expect(result.status).toBe("info");
       expect(result.detail).toMatch(/^Not loaded\./);
       expect(result.fix).toMatch(/Settings → General → Knowledge base/);
+    }
+  });
+
+  it("says a pack built before the latest card rules needs a rebuild, and still uses it (KB-RAG K29, P3)", async () => {
+    const { classifierRevision: _current, ...old } = PACK_INFO;
+    for (const info of [old, { ...PACK_INFO, classifierRevision: 1 }]) {
+      const result = await check("knowledge-base", {
+        knowledgeBase: async () => [info],
+      });
+      expect(result).toMatchObject({
+        status: "warn",
+        detail:
+          "Loaded: 12 cards from space FX, built 2026-03-01. Built before the latest card rules: rebuild this pack for the best answers.",
+      });
+      expect(result.fix).toMatch(/rebuild/);
     }
   });
 

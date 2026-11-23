@@ -17,7 +17,7 @@ in [security/ORG_POLICY.md](security/ORG_POLICY.md).
    ```
 
    ```bash
-   pnpm kb:pack --space JA --root 1496711169 --version 5.x --sign-key ~/apty-kb-signing-key/kb-signing-key-<keyId>.pem
+   pnpm kb:pack --space A5PKH --root 1496711169 --sign-key ~/apty-kb-signing-key/kb-signing-key-<keyId>.pem
    ```
 
 3. Read the builder's summary: card counts, "N routing left out", skipped

@@ -16,6 +16,7 @@ import {
   launchBrowser,
   openSidePanel,
   sendChat,
+  shownCaseId,
   startMockModel,
   startPageServer,
 } from "./harness.mjs";
@@ -48,9 +49,7 @@ describe("the support bundle (KB-RAG K25, L2)", () => {
       panel,
       "My workflow 'Take a tour' is not visible in the widget",
     );
-    const id = panel.getByTestId("case-id").filter({ visible: true });
-    await id.waitFor({ timeout: 60_000 });
-    const caseId = await id.innerText();
+    const caseId = await shownCaseId(panel, 60_000);
     await panel.close();
     await app.close();
 

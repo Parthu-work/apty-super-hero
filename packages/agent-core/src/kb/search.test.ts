@@ -570,6 +570,41 @@ describe("stub and routing cards (schema v2)", () => {
     }
   });
 
+  it("never returns a pack's four-layer start-here card either, built before the routing rule (KB-RAG K29, P3)", () => {
+    const old = createKbIndex(
+      syntheticPack(
+        [
+          ...USER_WORDS,
+          {
+            pageId: "19",
+            title: "Start here: FIXTURE panel and badge questions",
+            symptom: "Which FIXTURE panel or badge card to read first.",
+            layers: [
+              "- Read the FIXTURE panel card or the FIXTURE badge card first.",
+              "- FIXTURE panel and badge questions start here.",
+              "- FIXTURE panel and badge network data.",
+              "- Send support: the FIXTURE panel and badge versions.",
+            ],
+          },
+        ],
+        {},
+        V2,
+      ),
+    );
+    for (const query of [
+      "which panel or badge card to read first",
+      "panel",
+      "badge",
+      "start here",
+    ]) {
+      const result = old.search(query, { onePerCard: true, topK: 20 });
+      expect(result.hits.map((hit) => hit.chunk.pageId)).not.toContain("19");
+      expect(result.card?.pageId).not.toBe("19");
+    }
+    expect(old.cardChunks("19")).toEqual([]);
+    expect(old.card("19")?.status).toBe("routing");
+  });
+
   it("answers from a full card when it, not the stub, covers the question", () => {
     const result = index.search("badge flickers on hover", {
       onePerCard: true,

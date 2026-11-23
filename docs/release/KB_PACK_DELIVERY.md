@@ -23,7 +23,7 @@ Who does what:
 | 1. The CI signing key | KB owner (makes it), IT (stores it) |
 | 2. The pack host and its token | IT |
 | 3. The policy | IT |
-| 4. The first run | KB owner |
+| 4. The first run, then the switch (`KB_PACKS_ENABLED`) | KB owner |
 | 5. Revoking a key | IT and the KB owner |
 
 ## What the job checks before it publishes (D-DEL8)
@@ -164,6 +164,20 @@ To try the job without a pack host or Confluence (on a fork, for example),
 set the repository variable `KB_PUBLISH_DRY_RUN` to `1`: the job builds the
 demo packs, checks them and uploads nothing.
 
+### The switch: `KB_PACKS_ENABLED` (KB-RAG K29, P1)
+
+The schedules of `kb-packs.yml` and `kb-pack-health.yml` wait for the
+repository variable `KB_PACKS_ENABLED`. Until it is `1`, a scheduled run
+ends at its first step with the notice "KB packs are not set up yet; set
+KB_PACKS_ENABLED to 1 after the steps in KB_PACK_DELIVERY.md" and succeeds,
+opening no issue. A run by hand always checks its inputs and fails with the
+names (never the values) of any missing secret or variable. Once steps 1 to
+3 are done and a run by hand is green, set `KB_PACKS_ENABLED` to `1`
+(Settings → Secrets and variables → Actions → Variables); from then on a
+missing secret or variable fails the scheduled run and raises the
+`kb-pipeline` issue. The check itself is
+`tooling/scripts/kb/pipeline-inputs.mjs`.
+
 ## Watching the pipeline (KB-RAG K28, A3)
 
 Two signals tell the KB owner the packs stopped moving, without anyone
@@ -173,8 +187,10 @@ reading the Actions page:
   GitHub issue labelled `kb-pipeline` ("KB pipeline failing"), or comments
   on the one already open, with the run link and the names of the failing
   steps (never card text). It uses the workflow's own `GITHUB_TOKEN` with
-  `issues: write`; no secret is involved. Close the issue once a run is
-  green again; the next failure opens a new one.
+  `issues: write`; no secret is involved. The first green run of the same
+  workflow comments "Green again: <run link>" and closes it (KB-RAG K29,
+  P1); the next failure opens a new one. While another workflow's failure
+  is the latest on the issue, it stays open.
 - **Pack age.** `.github/workflows/kb-pack-health.yml` runs every day at
   13:20 UTC (and by hand). It reads each published pack (the
   `KB_PUBLISH_URL_4X` and `KB_PUBLISH_URL_5X` variables, with

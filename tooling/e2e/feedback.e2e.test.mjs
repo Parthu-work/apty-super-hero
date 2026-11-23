@@ -14,9 +14,11 @@ import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
 import {
   axeInBothThemes,
+  caseChip,
   describeViolations,
   extensionPage,
   launchBrowser,
+  openCaseMenu,
   openSidePanel,
   ROOT,
   runAxe,
@@ -64,18 +66,18 @@ describe("wrong-card feedback (KB-RAG K25, L3)", () => {
     await card.getByRole("button", { name: "Save" }).click();
     await card.getByText("Recorded. Thank you.").waitFor();
 
-    const strip = panel.getByTestId("case-strip").filter({ visible: true });
-    await strip.getByRole("button", { name: "Close case" }).click();
-    const form = strip.getByTestId("close-case-form");
+    const menu = await openCaseMenu(panel);
+    await menu.getByRole("menuitem", { name: "Close case…" }).click();
+    const form = panel.getByTestId("close-case-form");
     await form.getByLabel("Resolved", { exact: true }).check();
     const formViolations = await axeInBothThemes(panel);
     assert.deepEqual(formViolations, [], describeViolations(formViolations));
     await form.getByLabel("No", { exact: true }).check();
     await form.getByLabel(/Which card was right/).fill("101");
     await form.getByRole("button", { name: "Close", exact: true }).click();
-    await strip.getByTestId("case-outcome").waitFor();
+    await caseChip(panel).getByTestId("case-outcome").waitFor();
     assert.equal(
-      await strip.getByTestId("case-outcome").innerText(),
+      await caseChip(panel).getByTestId("case-outcome").innerText(),
       "Resolved",
     );
     assert.equal(model.requests.length, 0);

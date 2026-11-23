@@ -301,6 +301,7 @@ function ChatApp() {
               ),
             afterMessages: () => (
               <>
+                <InvestigationSummaryBar />
                 <InterventionUI mode={interventionMode} />
                 <ChatImagesListener />
               </>
@@ -315,7 +316,6 @@ function ChatApp() {
               <>
                 <RedactionOffBanner mode={settings.redactionMode} />
                 <ApprovalPrompt />
-                <InvestigationSummaryBar />
                 <BrowserContextLoader />
               </>
             ),

@@ -159,6 +159,7 @@
       "calibrated": "已校准",
       "uncalibrated": "未校准：使用默认覆盖设置",
       "stale": "此包构建于 {{days}} 天前。请向知识库负责人索取更新的包并导入。",
+      "rebuild": "此包构建于最新卡片规则之前：请重新构建此包以获得最佳答案。它仍在使用中。",
       "import": "导入包…",
       "remove": "移除",
       "fileLabel": "KB 包文件",
@@ -1255,6 +1256,8 @@
         "notLoadedFix": "在 设置 → 通用 → 知识库 中导入知识库负责人共享的 KB 包。",
         "stale": "已加载：来自空间 {{space}} 的 {{count}} 张卡片，构建于 {{date}}，{{days}} 天前。",
         "staleFix": "请向知识库负责人索取更新的包，并在 设置 → 通用 → 知识库 中导入。",
+        "rebuild": "已加载：来自空间 {{space}} 的 {{count}} 张卡片，构建于 {{date}}。此包构建于最新卡片规则之前：请重新构建此包以获得最佳答案。",
+        "rebuildFix": "此包仍在使用中。请知识库负责人使用当前的 pnpm kb:pack 重新构建。",
         "expiring": "已加载：来自空间 {{space}} 的 {{count}} 张卡片，构建于 {{date}}；将在 {{days}} 天后到期。",
         "unusable": {
           "expired": "未使用：{{version}} 知识包已于 {{until}} 到期。",
@@ -1432,7 +1435,9 @@
     "kbCitation": "KB 卡片 {{pageId}}，第 {{layer}} 层",
     "moreQuestions": "更多问题（{{count}}）",
     "kbLocationTitle": "KB 没有说明它在哪里",
-    "kbLocation": "有一句话猜测了设置可能所在的位置；KB 并未这样说明。"
+    "kbLocation": "有一句话猜测了设置可能所在的位置；KB 并未这样说明。",
+    "newAnswers": "{{count}} 条新",
+    "scrollToBottomNew": "滚动到最新消息（{{count}} 条新）"
   },
   "investigation": {
     "componentHealth": "Apty 组件健康状况",
@@ -2925,7 +2930,6 @@
     "fromSite": "来自 {{site}}",
     "otherSiteNote": "这来自与当前标签页不同的站点。",
     "label": "案例",
-    "copyId": "复制案例编号 {{id}}",
     "continue": "继续 {{id}}",
     "continueText": "此站点上有一个过去 24 小时内仍未结束的案例：{{id}}。",
     "outcome": {
@@ -2957,7 +2961,15 @@
       "decisions": "回合",
       "none": "无",
       "close": "关闭详情"
-    }
+    },
+    "continueShort": "继续 {{id}}",
+    "dismissContinue": "不继续 {{id}}",
+    "copyCaseId": "复制案例编号",
+    "closeCaseMenu": "结束案例…",
+    "openInCases": "在“案例”中打开",
+    "chipName": "案例 {{id}}",
+    "closeDialogTitle": "结束 {{id}}",
+    "closeDialogDescription": "案例的结果如何？答案只保存在此设备上。"
   },
   "supportBundle": {
     "nothingYet": "暂无可打包内容：请先运行检查或打开 KB 卡片",
@@ -3046,7 +3058,8 @@
       "pack": "{{version}}：构建于 {{date}}。新的回答将使用它。",
       "gotIt": "知道了",
       "open": "打开知识库"
-    }
+    },
+    "status": "知识包"
   },
   "turnActions": {
     "runCheck": "运行检查",

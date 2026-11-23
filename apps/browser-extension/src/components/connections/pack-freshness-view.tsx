@@ -1,11 +1,31 @@
 /**
- * The header's "Packs:" line and the delivered-pack banner (KB-RAG K27,
- * E9). The banner floats over the top of the chat instead of pushing it
- * down, so a conversation being read never moves.
+ * The header's pack-status icon (KB-RAG K29, L1), its "Packs:" line, and
+ * the delivered-pack banner (KB-RAG K27, E9). The banner floats over the
+ * top of the chat instead of pushing it down, so a conversation being read
+ * never moves.
  */
 import { Button } from "@apty/ui/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@apty/ui/components/ui/tooltip";
 import { useTranslation } from "@apty/ui/i18n/context";
-import type { DeliveredPack, PackHeaderItem } from "./pack-freshness";
+import { cn } from "@apty/ui/lib/utils";
+import { PackageIcon } from "lucide-react";
+import {
+  type DeliveredPack,
+  type PackHeaderItem,
+  type PackStatusTone,
+  packStatusTone,
+} from "./pack-freshness";
+
+const TONE_CLASS: Record<PackStatusTone, string> = {
+  none: "text-muted-foreground",
+  ok: "text-muted-foreground",
+  warning: "text-warning",
+  danger: "text-destructive",
+};
 
 function useItemWords() {
   const { t } = useTranslation();
@@ -26,7 +46,13 @@ function useItemWords() {
   };
 }
 
-export function PacksLine({ items }: { items: PackHeaderItem[] | undefined }) {
+function PacksLine({
+  items,
+  className,
+}: {
+  items: PackHeaderItem[] | undefined;
+  className?: string;
+}) {
   const { t } = useTranslation();
   const words = useItemWords();
   const text =
@@ -36,13 +62,60 @@ export function PacksLine({ items }: { items: PackHeaderItem[] | undefined }) {
         ? t("packFreshness.none")
         : t("packFreshness.line", { list: items.map(words).join(", ") });
   return (
-    <p
-      className="min-h-4 truncate text-xs text-muted-foreground"
+    <span
+      className={cn(
+        "block min-h-4 truncate text-xs text-muted-foreground",
+        className,
+      )}
       data-testid="kb-packs-line"
-      title={text || undefined}
     >
       {text}
-    </p>
+    </span>
+  );
+}
+
+/**
+ * One small icon for every pack's state: its name is the "Packs:" line, its
+ * tooltip lists each version, and it opens Options' Knowledge base.
+ */
+export function PackStatusIcon({
+  items,
+  onOpen,
+}: {
+  items: PackHeaderItem[] | undefined;
+  onOpen: () => void;
+}) {
+  const { t } = useTranslation();
+  const words = useItemWords();
+  const tone = packStatusTone(items ?? []);
+  const list =
+    items === undefined
+      ? t("packFreshness.status")
+      : items.length === 0
+        ? t("packFreshness.none")
+        : items.map(words).join(", ");
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          data-testid="kb-pack-status"
+          data-tone={tone}
+          onClick={onOpen}
+        >
+          <PackageIcon aria-hidden="true" className={TONE_CLASS[tone]} />
+          {items === undefined ? (
+            <span className="sr-only">{t("packFreshness.status")}</span>
+          ) : (
+            <PacksLine items={items} className="sr-only" />
+          )}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" data-testid="kb-pack-status-tooltip">
+        {list}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
