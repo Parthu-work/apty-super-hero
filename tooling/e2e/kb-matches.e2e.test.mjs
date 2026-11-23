@@ -117,9 +117,10 @@ describe("KB matches card (KB-RAG K6)", () => {
         await link.first().getAttribute("href"),
         "https://fixture.atlassian.invalid/wiki/spaces/FX/pages/202",
       );
+      // K29, D2: the Verified on line is in the answer's one source line.
       await card
-        .getByText("Verified on: FIXTURE code, 2026-01-01.")
-        .first()
+        .getByTestId("kb-source-line")
+        .getByText(/verified on FIXTURE code, 2026-01-01$/)
         .waitFor();
       assert.equal(model.requests.length, 0, "no model request");
       assert.equal(await panel.getByText("Connect an AI provider").count(), 0);
@@ -210,6 +211,8 @@ describe("KB matches from a non-demo pack (KB-RAG K22, D-SEC1)", () => {
     // Whichever layer the card shows, it is card 202's text, in the panel.
     const card202 = /Double Trigger|anchor element must be unique|triggerCount/;
     await card.getByText(card202).first().waitFor();
+    // K29, D2: the egress line is in the source line's (i).
+    await card.getByRole("button", { name: "About this source" }).click();
     await card
       .getByText("Shown here only; not sent to the AI model.")
       .waitFor();

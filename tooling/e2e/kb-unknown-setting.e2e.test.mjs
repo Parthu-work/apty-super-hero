@@ -86,17 +86,29 @@ describe("a setting no KB card has (KB-RAG K27, F2)", () => {
       JSON.stringify(system?.content ?? "").includes(INSTRUCTION),
       "the fixed instruction is in the system prompt",
     );
-    await panel.getByTestId("not-from-kb").last().waitFor();
-    await panel
-      .getByText(/Not found in the KB: Admin Portal → Applications → Settings/)
-      .waitFor({ timeout: 10_000 });
+    const aiLine = panel.getByTestId("not-from-kb").last();
+    await aiLine.waitFor();
     assert.equal(
-      await panel
-        .getByText(/^Not found in the KB:/)
-        .last()
-        .innerText(),
-      "Not found in the KB: Admin Portal → Applications → Settings",
-      "product names are not flagged",
+      (await aiLine.innerText()).trim(),
+      "AI answer, not from the KB or a check",
+    );
+    // K29, D5: each flagged phrase is underlined with a tooltip, and one
+    // line counts them; product and role names are never flagged.
+    await panel
+      .locator("[data-kb-ungrounded]", {
+        hasText: "Admin Portal → Applications → Settings",
+      })
+      .waitFor({ timeout: 10_000 });
+    const flagged = await panel
+      .locator("[data-kb-ungrounded]")
+      .evaluateAll((marks) =>
+        marks.map((mark) => [mark.textContent, mark.getAttribute("title")]),
+      );
+    assert.ok(
+      flagged.every(
+        ([text, title]) => title && !/^Apty|^KB owner$|^Confluence$/.test(text),
+      ),
+      `product names are not flagged: ${JSON.stringify(flagged)}`,
     );
     assert.ok(
       JSON.stringify(system?.content ?? "").includes(
@@ -104,7 +116,10 @@ describe("a setting no KB card has (KB-RAG K27, F2)", () => {
       ),
       "the KB's outcome is a fact in the system prompt",
     );
-    await panel.getByTestId("kb-location-guess").last().waitFor();
+    assert.equal(
+      (await panel.getByTestId("kb-ungrounded-line").last().innerText()).trim(),
+      `${flagged.length} phrases are not in the KB`,
+    );
     const guess = panel.locator("[data-kb-ungrounded]", {
       hasText: "The switch may be in the application settings area.",
     });

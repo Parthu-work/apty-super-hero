@@ -1,5 +1,5 @@
 import type { TurnDecision } from "@apty/agent-core";
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "../../../i18n/context";
 import { copyText } from "../../../lib/clipboard";
 import { decisionDetails, kbOutcomeLine } from "../../../lib/turn-decision";
@@ -66,24 +66,103 @@ export function TurnDecisionDetails({ decision }: { decision: TurnDecision }) {
   );
 }
 
+/**
+ * "Why this answer" as a small panel (K29, D2), opened from a KB answer's
+ * or a verdict's ⋯ menu: the record's lines, with its own Copy and Close.
+ */
+export function WhyThisAnswerPanel({
+  decision,
+  onClose,
+}: {
+  decision: TurnDecision;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const id = useId();
+  const heading = useRef<HTMLHeadingElement>(null);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => heading.current?.focus({ preventScroll: true }), []);
+  return (
+    <section
+      aria-labelledby={id}
+      className="space-y-1 rounded-md border border-border bg-popover p-2 text-small shadow-sm"
+      data-testid="turn-decision-popover"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") onClose();
+      }}
+    >
+      <h4
+        id={id}
+        ref={heading}
+        tabIndex={-1}
+        className="font-medium text-foreground outline-none"
+      >
+        {t("turnDecision.why")}
+      </h4>
+      <ul className="space-y-0.5 text-muted-foreground">
+        {decisionDetails(decision, t).map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          className="rounded-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          aria-label={t("turnDecision.copy")}
+          onClick={() => {
+            void copyText(decisionText(decision, t)).then(
+              (ok) => ok && setCopied(true),
+            );
+          }}
+        >
+          {t(copied ? "common.copied" : "common.copy")}
+        </button>
+        <button
+          type="button"
+          className="rounded-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          onClick={onClose}
+        >
+          {t("common.close")}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 const DAY_MS = 86_400_000;
+
+/** How long the turn's soonest-expiring pack has left (K29, D2: in the KB source line's (i)). */
+export function packExpiryText(
+  decision: TurnDecision,
+  t: ReturnType<typeof useTranslation>["t"],
+  now = Date.now(),
+): string | undefined {
+  const expiries = decision.packs
+    .map((pack) => (pack.expiresAt ? Date.parse(pack.expiresAt) : Number.NaN))
+    .filter((at) => Number.isFinite(at));
+  if (expiries.length === 0) return undefined;
+  const days = Math.ceil((Math.min(...expiries) - now) / DAY_MS);
+  return days > 1
+    ? t("turnDecision.chip.packExpiresIn", { count: days })
+    : days === 1
+      ? t("turnDecision.chip.packExpiresInOne", { count: days })
+      : t("turnDecision.chip.packExpired");
+}
 
 /**
  * Where a reply came from, on top of it (KB-RAG K27, E1): Check, KB card or
- * Model; the Apty version and how it was decided; and how long the pack it
- * used has left. Ids, numbers and codes only.
+ * Model, and the Apty version and how it was decided. The pack's expiry is
+ * in the header (K29, L1, D2). Ids, numbers and codes only.
  */
 export function TurnSourceChips({
   decision,
   kbCardsReturned,
   explains = false,
-  now = Date.now(),
 }: {
   decision: TurnDecision;
   kbCardsReturned: boolean;
   /** The model explained the checks and cards earlier in the chat (K27, E6). */
   explains?: boolean;
-  now?: number;
 }) {
   const { t } = useTranslation();
   const source =
@@ -105,32 +184,13 @@ export function TurnSourceChips({
               : "turnDecision.chip.versionFiles",
           { version: decision.version },
         );
-  const expiries = decision.packs
-    .map((pack) => (pack.expiresAt ? Date.parse(pack.expiresAt) : Number.NaN))
-    .filter((at) => Number.isFinite(at));
-  const soonest = expiries.length > 0 ? Math.min(...expiries) : undefined;
-  const days =
-    soonest === undefined ? undefined : Math.ceil((soonest - now) / DAY_MS);
-  const chips = [
-    source,
-    version,
-    ...(days === undefined
-      ? []
-      : [
-          days > 1
-            ? t("turnDecision.chip.packExpiresIn", { count: days })
-            : days === 1
-              ? t("turnDecision.chip.packExpiresInOne", { count: days })
-              : t("turnDecision.chip.packExpired"),
-        ]),
-  ];
   return (
     <ul
       className="flex flex-wrap gap-1"
       aria-label={t("turnDecision.chip.label")}
       data-testid="turn-source-chips"
     >
-      {chips.map((chip) => (
+      {[source, version].map((chip) => (
         <li
           key={chip}
           className="rounded-sm border border-border px-1.5 py-0.5 text-xs text-muted-foreground"

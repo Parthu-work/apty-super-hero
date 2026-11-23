@@ -35,14 +35,14 @@ const verdict = (nextCheck?: string) => {
 };
 
 describe("the turn's action row (KB-RAG K27, E1)", () => {
-  it("offers Prepare support bundle for KB cards and for a verdict whose card does not", () => {
+  it("leaves Prepare support bundle to the ⋯ menu of a KB answer (K29, D2) and of a verdict (K29, D4)", () => {
     expect(
       turnActions([
         tool("search_kb", { status: "ok", cards: [{ pageId: "101" }] }),
       ]).supportBundle,
-    ).toBe(true);
+    ).toBe(false);
     expect(turnActions([tool("run_diagnosis", verdict())]).supportBundle).toBe(
-      true,
+      false,
     );
   });
 
@@ -94,7 +94,7 @@ describe("from the card to the check (KB-RAG K27, E5)", () => {
 
   it("offers Run the check under a KB card a check pack covers, and runs that check on the SE's question", () => {
     expect(turnActions([kbTool(KB_FOR_CHECK)])).toEqual({
-      supportBundle: true,
+      supportBundle: false,
       runCheck: { packId: "content-not-visible", kind: "workflow" },
       markFinding: false,
     });
@@ -118,11 +118,11 @@ describe("from the card to the check (KB-RAG K27, E5)", () => {
     ).toBeDisabled();
   });
 
-  it("after a confirmed cause, offers the bundle and a right-or-wrong mark the SE can change until the case closes", async () => {
+  it("after a confirmed cause, offers a right-or-wrong mark the SE can change until the case closes (the bundle is in the verdict's ⋯ menu)", async () => {
     const found = verdict();
     expect(found.verdict.status).toBe("cause_found");
     expect(turnActions([tool("run_diagnosis", found)])).toEqual({
-      supportBundle: true,
+      supportBundle: false,
       markFinding: true,
     });
     expect(

@@ -1367,10 +1367,8 @@
   },
   "chat": {
     "showEarlier": "显示更早的消息",
-    "notFromKb": "并非来自 KB 或检查",
     "explainsEvidence": "解释上方的检查和 KB 卡片",
     "kbNotFoundTitle": "在 KB 中未找到",
-    "kbNotFound": "在 KB 中未找到：{{phrases}}",
     "copy": "复制",
     "saveAsSkill": "保存为技能",
     "retry": "重试",
@@ -1431,13 +1429,14 @@
     "summarizing": "正在总结...",
     "kbUnknownCitation": "未知引用",
     "kbUngroundedTitle": "在引用的 KB 卡片中未找到",
-    "kbUngrounded": "在引用的 KB 卡片中未找到：{{phrases}}",
     "kbCitation": "KB 卡片 {{pageId}}，第 {{layer}} 层",
     "moreQuestions": "更多问题（{{count}}）",
-    "kbLocationTitle": "KB 没有说明它在哪里",
-    "kbLocation": "有一句话猜测了设置可能所在的位置；KB 并未这样说明。",
     "newAnswers": "{{count}} 条新",
-    "scrollToBottomNew": "滚动到最新消息（{{count}} 条新）"
+    "scrollToBottomNew": "滚动到最新消息（{{count}} 条新）",
+    "kbLocationTitle": "KB 没有说明它在哪里",
+    "aiAnswer": "AI 回答，并非来自 KB 或检查",
+    "kbFlaggedOne": "有 1 处说法不在 KB 中",
+    "kbFlagged": "有 {{count}} 处说法不在 KB 中"
   },
   "investigation": {
     "componentHealth": "Apty 组件健康状况",
@@ -2025,8 +2024,10 @@
     },
     "summary": {
       "candidates": "文件中没有发现阻碍。剩下的需要由浏览器判断。",
-      "no_cause_in_data": "文件中未发现原因。",
-      "out_of_scope": "未得出结论。"
+      "no_cause_in_data": "在文件中未发现原因。",
+      "out_of_scope": "未得出结论。",
+      "no_data": "暂无数据：{{reason}}",
+      "noDataBare": "暂无数据。"
     },
     "gate": {
       "data": "已读取的文件",
@@ -2622,7 +2623,10 @@
       "noFiles": "此 HAR 中没有 Apty 内容文件。请重新加载页面后，在开启“保留日志”的情况下，从 Client 的 service worker 重新保存。",
       "versionHint": "Apty 4.x：由客户端的 Service Worker 读取文件，请在那里保存 HAR。Apty 5.x：由页面读取文件，请在此标签页重新加载时进行捕获。"
     },
-    "captureNoneFiveX": "页面没有发出 Apty 内容请求。请在 Apty 加载后重新加载页面，然后再次获取证据。"
+    "captureNoneFiveX": "页面没有发出 Apty 内容请求。请在 Apty 加载后重新加载页面，然后再次获取证据。",
+    "whatToDo": "怎么做",
+    "details": "详细信息",
+    "fromCheck": "来自检查"
   },
   "harCheck": {
     "intro": "当无法连接客户的 Apty Client 时，对客户录制的 HAR 文件运行可见性检查。",
@@ -2671,7 +2675,11 @@
   "kbVersion": {
     "label": "Apty 版本",
     "notSure": "不确定",
-    "fromCheck": "Apty 版本：{{version}}，来自检查读取的文件。"
+    "fromCheck": "Apty 版本：{{version}}，来自检查读取的文件。",
+    "question": "{{host}} 运行的是哪个 Apty 版本？",
+    "chipName": "{{host}} 的 Apty 版本：{{state}}",
+    "notKnown": "未知",
+    "menuLabel": "{{host}} 的 Apty 版本"
   },
   "kbMatches": {
     "whichOne": "是以下哪一种？",
@@ -2682,17 +2690,15 @@
       "3": "网络数据",
       "4": "联系支持"
     },
-    "layerTitled": "第 {{layer}} 层：{{name}}",
-    "layerButtonName": "第 {{layer}} 层，{{name}}",
     "nextLayer": "下一步：{{name}}",
     "versionChip": {
       "client": "{{version}}，来自 Client 的文件",
       "evidence": "{{version}}，来自检查的文件",
       "user": "{{version}}，你的选择",
-      "question": "{{version}}，来自你问题中的文件名"
+      "question": "{{version}}，来自你问题中的文件名",
+      "unknown": "Apty 版本？"
     },
     "layers": "卡片层",
-    "layerButton": "L{{layer}}",
     "layerMissing": "已加载的包中没有这一层。",
     "unknownSetting": "KB 中没有名为“{{phrase}}”的设置。",
     "closestCards": "最接近的卡片，可能未提及该设置：",
@@ -2702,9 +2708,8 @@
     "layer": "卡片的第 {{layer}} 层",
     "stub": "KB 中有这张卡片，但其 {{version}} 版本的内容尚未编写。",
     "nonEnglish": "KB 卡片是英文的。请用英文提问，或把问题发送给模型。",
-    "mixedVersions": "这些卡片属于不同的 Apty 版本；此租户运行的是哪个版本？",
     "noneForVersion": "KB 中没有覆盖 Apty {{version}} 此问题的卡片。",
-    "provenance": "来自选项中加载的 KB 包。每个标题都会打开其 Confluence 卡片。",
+    "provenance": "每个标题都会在 Confluence 中打开对应的卡片。",
     "notSent": "仅在此处显示；不会发送给 AI 模型。",
     "sentTo": "也会发送给位于 {{destination}} 的 AI 模型。",
     "askForNewPack": "请向 KB 负责人索取新的知识包。",
@@ -2716,7 +2721,23 @@
       "workflowSteps": "工作流的步骤文件",
       "segments": "分段列表",
       "rules": "规则列表"
-    }
+    },
+    "layerTab": {
+      "1": "设置",
+      "2": "控制台",
+      "3": "网络",
+      "4": "支持"
+    },
+    "layerDescription": "L{{layer}}，{{name}}",
+    "otherCards": "其他 {{count}} 张可能的卡片",
+    "otherCardsOne": "其他 1 张可能的卡片",
+    "notVerifiedStatement": "未验证的说法",
+    "fromKb": "来自 KB",
+    "verifiedOnShort": "已在 {{what}} 上验证",
+    "aboutSource": "关于此来源",
+    "moreActions": "此回答的更多操作",
+    "copyAnswer": "复制回答",
+    "openInConfluence": "在 Confluence 中打开"
   },
   "orgPolicy": {
     "setByOrg": "由您的组织设置",

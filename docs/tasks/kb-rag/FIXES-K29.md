@@ -9,7 +9,9 @@
 B5, B6, B7, B8) on `claude/kb-rag-k29-behaviour` (#131); Part L (L1 to L5)
 on `claude/kb-rag-k29-layout` (#132); Part D (D1, D2 and D3 in one commit,
 D4, D5) on `claude/kb-rag-k29-delivery` (#134, on top of L, merging B for
-B1's store). Merge order: P, L, B, D.
+B1's store). Merged in order on 23 Nov 2026: P, L and B; D merges last.
+D2 has a follow-up commit (`d44fdbb`): "Also sent to the AI model" stays
+visible when card text leaves the device (the full E2E run's one failure).
 
 Partial, with what finishes each:
 

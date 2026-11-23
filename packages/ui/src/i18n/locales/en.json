@@ -1367,10 +1367,8 @@
   },
   "chat": {
     "showEarlier": "Show earlier messages",
-    "notFromKb": "Not from the KB or a check",
     "explainsEvidence": "Explains the checks and KB cards above",
     "kbNotFoundTitle": "Not found in the KB",
-    "kbNotFound": "Not found in the KB: {{phrases}}",
     "copy": "Copy",
     "saveAsSkill": "Save as skill",
     "retry": "Retry",
@@ -1431,13 +1429,14 @@
     "summarizing": "Summarizing...",
     "kbUnknownCitation": "unknown citation",
     "kbUngroundedTitle": "Not found in the cited KB cards",
-    "kbUngrounded": "Not found in the cited KB cards: {{phrases}}",
     "kbCitation": "KB card {{pageId}}, layer {{layer}}",
     "moreQuestions": "More questions ({{count}})",
-    "kbLocationTitle": "The KB does not say where this is",
-    "kbLocation": "A sentence guesses where a setting might be; the KB does not say so.",
     "newAnswers": "{{count}} new",
-    "scrollToBottomNew": "Scroll to the latest message ({{count}} new)"
+    "scrollToBottomNew": "Scroll to the latest message ({{count}} new)",
+    "kbLocationTitle": "The KB does not say where this is",
+    "aiAnswer": "AI answer, not from the KB or a check",
+    "kbFlaggedOne": "1 phrase is not in the KB",
+    "kbFlagged": "{{count}} phrases are not in the KB"
   },
   "investigation": {
     "componentHealth": "Apty component health",
@@ -2025,8 +2024,10 @@
     },
     "summary": {
       "candidates": "The files show no blocker. What is left is decided in the browser.",
-      "no_cause_in_data": "The files show no cause.",
-      "out_of_scope": "Nothing was concluded."
+      "no_cause_in_data": "No cause found in the files.",
+      "out_of_scope": "Nothing was concluded.",
+      "no_data": "No data yet: {{reason}}",
+      "noDataBare": "No data yet."
     },
     "gate": {
       "data": "Files read",
@@ -2622,7 +2623,10 @@
       "noFiles": "This HAR holds no Apty content file. Save it again from the Client's service worker with Preserve log on, after reloading the page.",
       "versionHint": "Apty 4.x: the Client's service worker reads the files, so save a HAR there. Apty 5.x: the page reads them, so capture this tab while it reloads."
     },
-    "captureNoneFiveX": "The page made no Apty content call. Reload the page once Apty has loaded, then get the evidence again."
+    "captureNoneFiveX": "The page made no Apty content call. Reload the page once Apty has loaded, then get the evidence again.",
+    "whatToDo": "What to do",
+    "details": "Details",
+    "fromCheck": "From a check"
   },
   "harCheck": {
     "intro": "Run the visibility checks on a HAR file a customer recorded, when their Apty Client cannot be connected.",
@@ -2671,7 +2675,11 @@
   "kbVersion": {
     "label": "Apty version",
     "notSure": "Not sure",
-    "fromCheck": "Apty version: {{version}}, from the check's files."
+    "fromCheck": "Apty version: {{version}}, from the check's files.",
+    "question": "Which Apty version does {{host}} run?",
+    "chipName": "Apty version for {{host}}: {{state}}",
+    "notKnown": "not known",
+    "menuLabel": "Apty version for {{host}}"
   },
   "kbMatches": {
     "whichOne": "Which of these is it?",
@@ -2682,17 +2690,15 @@
       "3": "Network data",
       "4": "Contact support"
     },
-    "layerTitled": "Layer {{layer}}: {{name}}",
-    "layerButtonName": "Layer {{layer}}, {{name}}",
     "nextLayer": "Next: {{name}}",
     "versionChip": {
       "client": "{{version}}, from the Client's files",
       "evidence": "{{version}}, from a check's files",
       "user": "{{version}}, your choice",
-      "question": "{{version}}, from a file name in your question"
+      "question": "{{version}}, from a file name in your question",
+      "unknown": "Apty version?"
     },
     "layers": "Card layers",
-    "layerButton": "L{{layer}}",
     "layerMissing": "This layer is not in the loaded pack.",
     "unknownSetting": "The KB has no setting called \"{{phrase}}\".",
     "closestCards": "Closest cards, they may not mention it:",
@@ -2702,9 +2708,8 @@
     "layer": "Layer {{layer}} of the card",
     "stub": "The KB has a card for this, but its {{version}} text is not written yet.",
     "nonEnglish": "The KB cards are in English. Ask in English, or send the question to the model.",
-    "mixedVersions": "These cards are for different Apty versions; which does this tenant run?",
     "noneForVersion": "The KB has no card that covers this for Apty {{version}}.",
-    "provenance": "From the KB pack loaded in Options. Each title opens its Confluence card.",
+    "provenance": "Each title opens its card in Confluence.",
     "notSent": "Shown here only; not sent to the AI model.",
     "sentTo": "Also sent to the AI model at {{destination}}.",
     "askForNewPack": "Ask the KB owner for a new one.",
@@ -2716,7 +2721,23 @@
       "workflowSteps": "workflow's steps file",
       "segments": "segment list",
       "rules": "rule list"
-    }
+    },
+    "layerTab": {
+      "1": "Settings",
+      "2": "Console",
+      "3": "Network",
+      "4": "Support"
+    },
+    "layerDescription": "L{{layer}}, {{name}}",
+    "otherCards": "{{count}} other possible cards",
+    "otherCardsOne": "1 other possible card",
+    "notVerifiedStatement": "Not verified statement",
+    "fromKb": "From the KB",
+    "verifiedOnShort": "verified on {{what}}",
+    "aboutSource": "About this source",
+    "moreActions": "More actions for this answer",
+    "copyAnswer": "Copy answer",
+    "openInConfluence": "Open in Confluence"
   },
   "orgPolicy": {
     "setByOrg": "Set by your organization",
@@ -3029,8 +3050,8 @@
     "pickerNone": "No card title matches.",
     "pickerCount": "{{count}} cards match. Use the arrow keys to choose, Enter to pick.",
     "picked": "Right card: {{title}} ({{pageId}})",
-    "helped": "This helped",
-    "helpedFor": "This helped: {{pageId}}",
+    "helped": "Helpful",
+    "helpedFor": "Helpful: {{pageId}}",
     "helpedRecorded": "Marked as helpful. Thank you.",
     "exportSynonyms": "Export proposed synonyms",
     "synonymsLabel": "Proposed synonyms",

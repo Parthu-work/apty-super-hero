@@ -11,8 +11,16 @@ import { diagnoseWidgetNotVisible } from "@apty/browser-runtime/apty/diagnosis/w
 import { diagnoseWidgetNotVisible4x } from "@apty/browser-runtime/apty/diagnosis/widget-not-visible-4x";
 import { I18nProvider } from "@apty/ui/i18n/context";
 import type { UIToolPart } from "@apty/ui/types";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+
+// The card's steps come from a loaded pack; here, where they are placed.
+vi.mock("./no-cause-card-layers", () => ({
+  NoCauseCardLayers: ({ pageId }: { pageId: string }) => (
+    <div data-testid="no-cause-card">{pageId}</div>
+  ),
+}));
+
 import { AptyToolDisplay } from "./apty-tool-display";
 import { CheckResultCard } from "./check-result-card";
 
@@ -661,5 +669,140 @@ describe("the verdict's support step (KB-RAG K25, L2)", () => {
     expect(
       screen.queryByRole("button", { name: "Prepare support bundle" }),
     ).toBeNull();
+  });
+});
+
+describe("a verdict that leads with what to do (KB-RAG K29, D4)", () => {
+  /** Whether `a` comes before `b` in the document. */
+  const before = (a: Element, b: Element) =>
+    Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+  function parts(name: string | RegExp) {
+    const card = screen.getByRole("region", { name });
+    const result = within(card).getByTestId("verdict-result");
+    const todo = within(card).getByTestId("verdict-what-to-do");
+    const details = within(card).getByTestId("verdict-details");
+    expect(before(result, todo)).toBe(true);
+    expect(before(todo, details)).toBe(true);
+    expect(details.tagName).toBe("DETAILS");
+    expect(details).not.toHaveAttribute("open");
+    return { card, result, todo, details };
+  }
+
+  it("a cause: the cause in one sentence, then its fix, the checks folded under Details", () => {
+    render(<CheckResultCard tool={tool(check("Take a tour"))} />);
+    const { result, todo, details } = parts(
+      "Why “Take a tour” may not be visible",
+    );
+    expect(result).toHaveTextContent(
+      "“Hide from widget” is on for “Take a tour”.",
+    );
+    expect(
+      within(todo).getByRole("heading", { name: "What to do" }),
+    ).toBeInTheDocument();
+    expect(todo).toHaveTextContent(
+      "In Studio, clear “Hide from widget” in its settings and publish.",
+    );
+    expect(
+      within(details).getByText("workflow.json: hideFromWidget = true"),
+    ).toBeInTheDocument();
+    expect(within(details).getByText("Checks")).toBeInTheDocument();
+    expect(within(todo).queryByText("Checks")).toBeNull();
+  });
+
+  it("no cause: says so in one sentence, then the card's steps under What to do", () => {
+    const found = check("Take a tour");
+    const clean = {
+      ...found,
+      verdict: {
+        ...found.verdict,
+        status: "no_cause_in_data" as const,
+        causes: [],
+      },
+    };
+    render(<CheckResultCard tool={tool(clean)} />);
+    const { result, todo } = parts("Why “Take a tour” may not be visible");
+    expect(result).toHaveTextContent("No cause found in the files.");
+    expect(found.cardPageId).toBeTruthy();
+    expect(within(todo).getByTestId("no-cause-card")).toBeInTheDocument();
+  });
+
+  it("no data: says so in one sentence with what is missing, then the card's steps and the evidence route under What to do", () => {
+    const unreachable: ClientEvidence = {
+      connection: {
+        ok: false,
+        failure: "no_receiver",
+        message: "Chrome found nothing listening.",
+      },
+      observedNames: [],
+      files: {},
+    };
+    const noData = check("x", unreachable);
+    render(<CheckResultCard tool={tool(noData)} />);
+    const { result, todo } = parts(/may not be visible$/);
+    expect(result).toHaveTextContent(
+      "No data yet: Could not reach the Apty Client: Chrome found nothing listening.",
+    );
+    expect(todo).toHaveTextContent(
+      "Fix the connection to the Apty Client first; this says nothing about the content.",
+    );
+    if (noData.cardPageId) {
+      expect(within(todo).getByTestId("no-cause-card")).toBeInTheDocument();
+    }
+  });
+
+  it("carries the same source line and action row as a KB answer, the support bundle in its ⋯ menu", async () => {
+    const { ChatContext, TurnContext } = await import(
+      "@apty/ui/components/chatbot"
+    );
+    const result = check("Take a tour");
+    render(
+      <ChatContext.Provider
+        value={
+          { status: "idle", sessionId: "s-1", sendMessage: vi.fn() } as never
+        }
+      >
+        <TurnContext.Provider
+          value={{
+            decision: {
+              route: "check",
+              version: "5.x",
+              versionSource: "files",
+              packs: [],
+            },
+            message: {} as never,
+          }}
+        >
+          <CheckResultCard tool={tool(result)} />
+        </TurnContext.Provider>
+      </ChatContext.Provider>,
+    );
+    const card = screen.getByRole("region", {
+      name: "Why “Take a tour” may not be visible",
+    });
+    expect(within(card).getByTestId("kb-source-line")).toHaveTextContent(
+      /^From a check · 5\.x/,
+    );
+    const info = within(card).getByRole("button", {
+      name: "About this source",
+    });
+    expect(info.getAttribute("aria-describedby")).toBeTruthy();
+    fireEvent.keyDown(
+      within(card).getByRole("button", {
+        name: "More actions for this answer",
+      }),
+      { key: "Enter" },
+    );
+    const menu = screen.getByRole("menu");
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual([
+      "Copy answer",
+      "Why this answer",
+      "Prepare support bundle",
+      "Open in Confluence",
+    ]);
   });
 });

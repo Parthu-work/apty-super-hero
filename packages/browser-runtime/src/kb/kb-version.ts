@@ -42,7 +42,12 @@ export const KB_VERSIONS_KEY = "apty_kb_site_versions";
 export const KB_VERSION_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
 const MAX_SITES = 500;
 
+/** @internal the storage key of the sites whose version question was answered (K29, D3), for tests. */
+export const KB_VERSION_QUESTIONS_KEY = "apty_kb_version_questions";
+
 const known = new Map<string, KbSiteVersion>();
+/** Sites whose version question the SE answered, even with Not sure: host → when. */
+const questioned = new Map<string, number>();
 const listeners = new Set<() => void>();
 
 function storageArea(): chrome.storage.LocalStorageArea | undefined {
@@ -72,6 +77,23 @@ function parse(raw: unknown, now: number): Map<string, KbSiteVersion> {
     }
   }
   return sites;
+}
+
+function parseQuestioned(raw: unknown, now: number): Map<string, number> {
+  const sites = new Map<string, number>();
+  if (typeof raw !== "object" || raw === null) return sites;
+  for (const [host, at] of Object.entries(raw)) {
+    if (typeof at === "number" && now - at < KB_VERSION_MAX_AGE_MS) {
+      sites.set(host, at);
+    }
+  }
+  return sites;
+}
+
+function replaceQuestioned(next: Map<string, number>) {
+  questioned.clear();
+  for (const [host, at] of next) questioned.set(host, at);
+  notify();
 }
 
 function replaceKnown(next: Map<string, KbSiteVersion>) {
@@ -107,13 +129,30 @@ export function whenKbVersionsLoaded(): Promise<void> {
       const stored = parse(items?.[KB_VERSIONS_KEY], Date.now());
       for (const [host, entry] of known) stored.set(host, entry);
       replaceKnown(stored);
+      const answers = await area.get(KB_VERSION_QUESTIONS_KEY);
+      const answered = parseQuestioned(
+        answers?.[KB_VERSION_QUESTIONS_KEY],
+        Date.now(),
+      );
+      for (const [host, at] of questioned) answered.set(host, at);
+      replaceQuestioned(answered);
     } catch {
       // Unreadable storage: the session starts with nothing known.
     }
     try {
       chrome.storage.onChanged?.addListener((changes, areaName) => {
-        if (areaName !== "local" || !(KB_VERSIONS_KEY in changes)) return;
-        replaceKnown(parse(changes[KB_VERSIONS_KEY]?.newValue, Date.now()));
+        if (areaName !== "local") return;
+        if (KB_VERSIONS_KEY in changes) {
+          replaceKnown(parse(changes[KB_VERSIONS_KEY]?.newValue, Date.now()));
+        }
+        if (KB_VERSION_QUESTIONS_KEY in changes) {
+          replaceQuestioned(
+            parseQuestioned(
+              changes[KB_VERSION_QUESTIONS_KEY]?.newValue,
+              Date.now(),
+            ),
+          );
+        }
       });
     } catch {
       // No change events: this page keeps its own copy.
@@ -157,6 +196,31 @@ export function rememberKbVersion(
   known.set(host, { version, source, at: now });
   notify();
   void persist();
+}
+
+/**
+ * Whether the SE answered the site's version question (K29, D3), so an
+ * answer with cards of both versions asks it once per site per device.
+ */
+export function kbVersionQuestioned(host: string | undefined): boolean {
+  return host !== undefined && questioned.has(host);
+}
+
+/** Records that the SE answered the site's version question, Not sure included. */
+export function markKbVersionQuestioned(host: string | undefined): void {
+  if (!host) return;
+  questioned.set(host, Date.now());
+  notify();
+  const area = storageArea();
+  if (!area) return;
+  const now = Date.now();
+  const kept = [...questioned.entries()]
+    .filter(([, at]) => now - at < KB_VERSION_MAX_AGE_MS)
+    .sort(([, a], [, b]) => a - b)
+    .slice(-MAX_SITES);
+  area
+    .set({ [KB_VERSION_QUESTIONS_KEY]: Object.fromEntries(kept) })
+    .catch(() => undefined);
 }
 
 /** Marks the site's version as used now, so it is kept another 90 days. */
@@ -231,9 +295,11 @@ export function kbVersionForUrl(url: string | undefined): KbTabVersion {
 /** Options' Delete stored data now: forgets every site's version, here and on the device. */
 export async function clearKbVersions(): Promise<void> {
   asked.clear();
+  questioned.clear();
   replaceKnown(new Map());
   try {
     await storageArea()?.remove(KB_VERSIONS_KEY);
+    await storageArea()?.remove(KB_VERSION_QUESTIONS_KEY);
   } catch {
     // Nothing stored to remove.
   }
@@ -243,6 +309,7 @@ export async function clearKbVersions(): Promise<void> {
 export function forgetKbVersions(): void {
   known.clear();
   asked.clear();
+  questioned.clear();
 }
 
 /** @internal for tests: reads the device's store again. */
@@ -250,5 +317,6 @@ export function reloadKbVersionsForTests(): Promise<void> {
   loading = undefined;
   known.clear();
   asked.clear();
+  questioned.clear();
   return whenKbVersionsLoaded();
 }

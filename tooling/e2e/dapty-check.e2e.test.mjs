@@ -18,6 +18,7 @@ import {
   launchBrowser,
   openSidePanel,
   openToolPage,
+  openVerdictDetails,
   ROOT,
   runAxe,
   savedPeerId,
@@ -276,6 +277,7 @@ describe("Ask Dapty check, end to end", () => {
 
     const card = panel.getByRole("region", { name: "Ask Dapty chat check" });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     await card.getByText("Cause found").waitFor();
     await card.getByText("Rule DAP-06").waitFor();
     await card.getByText("Not published here: opens nothing").waitFor();
@@ -336,6 +338,7 @@ describe("Ask Dapty check, end to end", () => {
 
     const card = panel.getByRole("region", { name: "Ask Dapty chat check" });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     await card.getByText("Rule DAP-04").waitFor();
     await card.getByText("Rule DAP-02").waitFor();
     const text = await card.textContent();
@@ -362,6 +365,7 @@ describe("Ask Dapty check, end to end", () => {
       .getByRole("region", { name: "Ask Dapty chat check" })
       .last();
     await first.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(first);
     await first
       .getByText("No answer to the last question was recorded.")
       .waitFor();
@@ -374,10 +378,12 @@ describe("Ask Dapty check, end to end", () => {
     await first.getByText(/^Recording this tab/).waitFor({ timeout: 30_000 });
 
     await page.evaluate(() => window.askDapty("Where do I export reports?"));
+    const checks = panel.getByRole("region", { name: "Ask Dapty chat check" });
+    const earlier = await checks.count();
     await sendChat(panel, "Dapty suggested a workflow but nothing opens");
-    const second = panel
-      .getByRole("region", { name: "Ask Dapty chat check" })
-      .last();
+    const second = checks.nth(earlier);
+    await second.getByTestId("verdict-result").waitFor({ timeout: 30_000 });
+    await openVerdictDetails(second);
     await second.getByText("Rule DAP-06").waitFor({ timeout: 30_000 });
     await second.getByText("Not published here: opens nothing").waitFor();
     await second.getByText(/^From the page's chat calls/).waitFor();
@@ -401,6 +407,7 @@ describe("Ask Dapty check with a KB pack loaded (KB-RAG K5)", () => {
     await sendChat(panel, "Dapty suggested a workflow but nothing opens");
     const card = panel.getByRole("region", { name: "Ask Dapty chat check" });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     await card.getByText("Rule DAP-06").waitFor();
     assert.equal(
       await card.getByRole("button", { name: /From the KB card/ }).count(),

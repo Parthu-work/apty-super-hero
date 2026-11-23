@@ -13,6 +13,7 @@ import {
   launchBrowser,
   openSidePanel,
   openToolPage,
+  openVerdictDetails,
   ROOT,
   runAxe,
   startMockModel,
@@ -102,6 +103,7 @@ describe("HAR file check, end to end", () => {
       name: "Why “Take a tour” may not be visible",
     });
     await card.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(card);
     await card.getByText("Cause found").waitFor();
     await card.getByText("workflow.json: hideFromWidget = true").waitFor();
     const violations = await runAxe(panel);
@@ -113,6 +115,7 @@ describe("HAR file check, end to end", () => {
       name: "Why the widget may not be visible",
     });
     await widget.waitFor({ timeout: 30_000 });
+    await openVerdictDetails(widget);
     await widget.getByText("Cause found").waitFor();
     const text = await widget.textContent();
     assert.ok(

@@ -1,5 +1,5 @@
 /**
- * "This helped" on a KB card (KB-RAG K27, E7): records the card and layer
+ * "Helpful" (K27, E7: "This helped") on a KB card: records the card and layer
  * shown as a feedback row on this device, beside Wrong card. The question
  * is not kept.
  */

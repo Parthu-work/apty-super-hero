@@ -31,9 +31,12 @@ import {
   clearKbVersions,
   forgetKbVersions,
   KB_VERSION_MAX_AGE_MS,
+  KB_VERSION_QUESTIONS_KEY,
   KB_VERSIONS_KEY,
   kbVersionForHost,
+  kbVersionQuestioned,
   kbVersionSourceForHost,
+  markKbVersionQuestioned,
   reloadKbVersionsForTests,
   rememberKbVersion,
   resolveKbVersionFromClient,
@@ -204,5 +207,41 @@ describe("each site's version kept on the device (KB-RAG K29, B1)", () => {
       );
     }
     expect(kbVersionForHost("acc.tenant.example")).toBe("4.x");
+  });
+});
+
+describe("the version question, asked once per site (KB-RAG K29, D3)", () => {
+  it("remembers that the SE answered Not sure for a new chat and after a panel reload", async () => {
+    expect(kbVersionQuestioned("acc.tenant.example")).toBe(false);
+    const changed = vi.fn();
+    const stop = subscribeKbVersions(changed);
+    markKbVersionQuestioned("acc.tenant.example");
+    stop();
+    expect(changed).toHaveBeenCalled();
+    await settle();
+    expect(
+      Object.keys(device.items[KB_VERSION_QUESTIONS_KEY] as object),
+    ).toEqual(["acc.tenant.example"]);
+    await reloadKbVersionsForTests();
+    expect(kbVersionQuestioned("acc.tenant.example")).toBe(true);
+    expect(kbVersionQuestioned("other.tenant.example")).toBe(false);
+    expect(kbVersionForHost("acc.tenant.example")).toBe("unknown");
+  });
+
+  it("forgets the answers with Delete stored data now, and after 90 days unused", async () => {
+    markKbVersionQuestioned("acc.tenant.example");
+    await settle();
+    await clearKbVersions();
+    expect(kbVersionQuestioned("acc.tenant.example")).toBe(false);
+    expect(device.items[KB_VERSION_QUESTIONS_KEY]).toBeUndefined();
+    device.items[KB_VERSION_QUESTIONS_KEY] = {
+      "old.example.com": Date.now() - KB_VERSION_MAX_AGE_MS - 1,
+      "new.example.com": Date.now(),
+      "bad.example.com": "yesterday",
+    };
+    await reloadKbVersionsForTests();
+    expect(kbVersionQuestioned("old.example.com")).toBe(false);
+    expect(kbVersionQuestioned("bad.example.com")).toBe(false);
+    expect(kbVersionQuestioned("new.example.com")).toBe(true);
   });
 });

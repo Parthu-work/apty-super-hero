@@ -1,5 +1,5 @@
 /**
- * The line under KB card text in the panel (KB-RAG K22, S4): whether the
+ * Whether KB card text shown in the panel (KB-RAG K22, S4): whether the
  * text also goes to the AI model, and where. Card text stays in the panel
  * unless the organization policy approves the destination, or only demo
  * packs are loaded (D-SEC1).
@@ -36,15 +36,15 @@ export function KbShownHereOnly() {
   );
 }
 
-/** For KB matches, which the session holds and the next request may carry. */
-export function KbEgressNote() {
+/**
+ * For KB matches, which the session holds and the next request may carry
+ * (K29, D2): "not sent" goes in the source's (i); "also sent to …" is shown
+ * under the source line, because card text leaving the device stays visible.
+ */
+export function useKbEgressLine(): { line: string; sent: boolean } {
   const { t } = useTranslation();
   const destination = useKbDestination();
-  return (
-    <p className="text-xs text-muted-foreground" data-testid="kb-egress-note">
-      {destination
-        ? t("kbMatches.sentTo", { destination })
-        : t("kbMatches.notSent")}
-    </p>
-  );
+  return destination
+    ? { line: t("kbMatches.sentTo", { destination }), sent: true }
+    : { line: t("kbMatches.notSent"), sent: false };
 }

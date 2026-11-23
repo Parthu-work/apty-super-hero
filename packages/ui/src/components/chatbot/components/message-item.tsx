@@ -50,6 +50,7 @@ import {
 } from "../../ai-elements/sources";
 import { useCopiedFlag } from "../../ui/copy-button";
 import { useComponentsContext } from "../context";
+import { TurnContext } from "../turn-context";
 import { ChatErrorNotice } from "./chat-error-notice";
 import { DefaultToolDisplay } from "./slots/tool-display";
 import {
@@ -101,8 +102,8 @@ function OneQuestionResponse({ text, fold }: { text: string; fold: boolean }) {
  */
 /**
  * An answer that rests on KB cards (K18): each setting-like phrase no
- * returned chunk holds is underlined, with a tooltip, and named under the
- * answer. The answer's text is never changed.
+ * returned chunk holds is underlined, with a tooltip, and one line under
+ * the answer counts them (K29, D5). The answer's text is never changed.
  */
 function GroundedResponse({
   text,
@@ -126,6 +127,8 @@ function GroundedResponse({
   );
   const placeTitle = t("chat.kbLocationTitle");
   const key = ungrounded.join("\n");
+  // K29, D5: the phrases stay underlined with a tooltip; one line counts them.
+  const flagged = ungrounded.length + locations.length;
   const placesKey = locations.join("\n");
   useEffect(() => {
     const root = ref.current;
@@ -146,19 +149,14 @@ function GroundedResponse({
       <div ref={ref}>
         <OneQuestionResponse text={text} fold={fold} />
       </div>
-      {ungrounded.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          {t(withoutCards ? "chat.kbNotFound" : "chat.kbUngrounded", {
-            phrases: ungrounded.join(", "),
-          })}
-        </p>
-      )}
-      {locations.length > 0 && (
+      {flagged > 0 && (
         <p
           className="text-xs text-muted-foreground"
-          data-testid="kb-location-guess"
+          data-testid="kb-ungrounded-line"
         >
-          {t("chat.kbLocation")}
+          {flagged === 1
+            ? t("chat.kbFlaggedOne")
+            : t("chat.kbFlagged", { count: flagged })}
         </p>
       )}
     </>
@@ -241,6 +239,15 @@ export function DefaultMessageItem({
     !explains &&
     kbCards.texts.length === 0;
 
+  // K29, D2, D4: a KB answer's card and a verdict carry their own source line and "Why this answer".
+  const cardCarriesSource = message.parts.some(
+    (part) =>
+      part.type === "tool" &&
+      ((decision?.route === "kb" && part.toolName === "search_kb") ||
+        (decision?.route === "check" && part.toolName === "run_diagnosis")),
+  );
+  const turn = { decision, message };
+
   // The user's chips and attachments sit under their words.
   const parts =
     message.role === "user"
@@ -251,286 +258,292 @@ export function DefaultMessageItem({
       : message.parts;
 
   return (
-    <div className={cn("group/message space-y-2", className)} {...props}>
-      {/* Sources */}
-      {message.role === "assistant" && sourceUrls.length > 0 && (
-        <Sources>
-          <SourcesTrigger count={sourceUrls.length} />
-          {sourceUrls.map((part, i) => (
-            <SourcesContent key={`${message.id}-source-${i}`}>
-              <Source href={part.url} title={part.url} />
-            </SourcesContent>
-          ))}
-        </Sources>
-      )}
+    <TurnContext.Provider value={turn}>
+      <div className={cn("group/message space-y-2", className)} {...props}>
+        {/* Sources */}
+        {message.role === "assistant" && sourceUrls.length > 0 && (
+          <Sources>
+            <SourcesTrigger count={sourceUrls.length} />
+            {sourceUrls.map((part, i) => (
+              <SourcesContent key={`${message.id}-source-${i}`}>
+                <Source href={part.url} title={part.url} />
+              </SourcesContent>
+            ))}
+          </Sources>
+        )}
 
-      {message.role === "assistant" && message.metadata?.decision && (
-        <TurnSourceChips
-          decision={message.metadata.decision}
-          kbCardsReturned={kbCards.texts.length > 0}
-          explains={explains}
-        />
-      )}
-      {message.role === "assistant" && message.metadata?.decision && (
-        <TurnDecisionLine decision={message.metadata.decision} />
-      )}
-      {explains && text.trim() && (
-        <p
-          className="text-small font-medium text-muted-foreground"
-          data-testid="explains-evidence"
-        >
-          {t("chat.explainsEvidence")}
-        </p>
-      )}
-      {withoutCards && text.trim() && (
-        <p
-          className="text-small font-medium text-muted-foreground"
-          data-testid="not-from-kb"
-        >
-          {t("chat.notFromKb")}
-        </p>
-      )}
+        {message.role === "assistant" &&
+          decision &&
+          !cardCarriesSource &&
+          !(withoutCards && text.trim()) && (
+            <TurnSourceChips
+              decision={decision}
+              kbCardsReturned={kbCards.texts.length > 0}
+              explains={explains}
+            />
+          )}
+        {message.role === "assistant" && message.metadata?.decision && (
+          <TurnDecisionLine decision={message.metadata.decision} />
+        )}
+        {explains && text.trim() && (
+          <p
+            className="text-small font-medium text-muted-foreground"
+            data-testid="explains-evidence"
+          >
+            {t("chat.explainsEvidence")}
+          </p>
+        )}
+        {withoutCards && text.trim() && (
+          <p
+            className="text-small font-medium text-muted-foreground"
+            data-testid="not-from-kb"
+          >
+            {t("chat.aiAnswer")}
+          </p>
+        )}
 
-      {/* Message parts */}
-      {parts.map((part, i) => {
-        const key = `${message.id}-${i}`;
+        {/* Message parts */}
+        {parts.map((part, i) => {
+          const key = `${message.id}-${i}`;
 
-        switch (part.type) {
-          case "text": {
-            // Transform [[screenshot:...]] placeholders to markdown images.
-            // First resolve to special URLs, then replace with actual
-            // base64 data URLs when available for inline rendering.
-            let processedText =
-              message.role === "assistant"
-                ? linkKbCitations(
-                    part.text,
-                    (pageId, layer) => t("chat.kbCitation", { pageId, layer }),
-                    (pageId) => kbCards.urls.get(pageId),
-                    () => t("chat.kbUnknownCitation"),
-                  )
-                : part.text;
-            if (screenshotUidList.length > 0) {
-              processedText = transformScreenshotPlaceholders(
-                processedText,
-                screenshotUidList,
-              );
-              processedText = resolveScreenshotUrls(
-                processedText,
-                screenshotDataMap,
+          switch (part.type) {
+            case "text": {
+              // Transform [[screenshot:...]] placeholders to markdown images.
+              // First resolve to special URLs, then replace with actual
+              // base64 data URLs when available for inline rendering.
+              let processedText =
+                message.role === "assistant"
+                  ? linkKbCitations(
+                      part.text,
+                      (pageId, layer) =>
+                        t("chat.kbCitation", { pageId, layer }),
+                      (pageId) => kbCards.urls.get(pageId),
+                      () => t("chat.kbUnknownCitation"),
+                    )
+                  : part.text;
+              if (screenshotUidList.length > 0) {
+                processedText = transformScreenshotPlaceholders(
+                  processedText,
+                  screenshotUidList,
+                );
+                processedText = resolveScreenshotUrls(
+                  processedText,
+                  screenshotDataMap,
+                );
+              }
+              return (
+                <Message
+                  key={key}
+                  from={message.role as "user" | "assistant" | "system"}
+                >
+                  <MessageContent>
+                    {message.role === "assistant" &&
+                    (kbCards.searched || withoutCards) ? (
+                      <GroundedResponse
+                        text={processedText}
+                        withoutCards={withoutCards}
+                        fold={!(isStreaming && isLast)}
+                        ungrounded={
+                          isStreaming && isLast
+                            ? []
+                            : ungroundedPhrases(part.text, kbCards.texts)
+                        }
+                        locations={
+                          isStreaming && isLast
+                            ? []
+                            : ungroundedLocations(part.text, kbCards.texts)
+                        }
+                      />
+                    ) : message.role === "assistant" ? (
+                      <OneQuestionResponse
+                        text={processedText}
+                        fold={!(isStreaming && isLast)}
+                      />
+                    ) : (
+                      <Response>{processedText}</Response>
+                    )}
+                  </MessageContent>
+                </Message>
               );
             }
-            return (
-              <Message
-                key={key}
-                from={message.role as "user" | "assistant" | "system"}
-              >
-                <MessageContent>
-                  {message.role === "assistant" &&
-                  (kbCards.searched || withoutCards) ? (
-                    <GroundedResponse
-                      text={processedText}
-                      withoutCards={withoutCards}
-                      fold={!(isStreaming && isLast)}
-                      ungrounded={
-                        isStreaming && isLast
-                          ? []
-                          : ungroundedPhrases(part.text, kbCards.texts)
-                      }
-                      locations={
-                        isStreaming && isLast
-                          ? []
-                          : ungroundedLocations(part.text, kbCards.texts)
-                      }
-                    />
-                  ) : message.role === "assistant" ? (
-                    <OneQuestionResponse
-                      text={processedText}
-                      fold={!(isStreaming && isLast)}
-                    />
-                  ) : (
-                    <Response>{processedText}</Response>
+
+            case "file":
+              return (
+                <div
+                  key={key}
+                  className={cn(
+                    "flex w-full",
+                    message.role === "user" ? "justify-end" : "justify-start",
                   )}
-                </MessageContent>
-              </Message>
-            );
-          }
-
-          case "file":
-            return (
-              <div
-                key={key}
-                className={cn(
-                  "flex w-full",
-                  message.role === "user" ? "justify-end" : "justify-start",
-                )}
-              >
-                {part.mediaType.startsWith("image/") &&
-                isLocalImageUrl(part.url) ? (
-                  <figure className="max-w-[85%]">
-                    <img
-                      src={part.url}
-                      alt={part.filename || t("chat.attachedImage")}
-                      className="rounded-md border border-border"
-                    />
-                    {part.filename && (
-                      <figcaption className="mt-1 text-xs text-muted-foreground">
-                        {part.filename}
-                      </figcaption>
-                    )}
-                  </figure>
-                ) : (
-                  <div className="flex max-w-[85%] items-center gap-2 rounded-md border border-border bg-card px-3 py-2">
-                    <PaperclipIcon
-                      aria-hidden="true"
-                      className="size-4 shrink-0 text-muted-foreground"
-                    />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm">
-                        {part.filename || t("chat.attachedFile")}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {part.mediaType}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-
-          case "tool":
-            // Check for custom tool display slot
-            return (
-              <Fragment key={key}>
-                {slots.toolDisplay ? (
-                  slots.toolDisplay({ tool: part })
-                ) : (
-                  <DefaultToolDisplay tool={part} />
-                )}
-                {slots.toolFooter?.({ tool: part })}
-              </Fragment>
-            );
-
-          case "reasoning":
-            return (
-              <Reasoning
-                key={key}
-                className="w-full"
-                isStreaming={isStreaming && isLast}
-              >
-                <ReasoningTrigger />
-                <ReasoningContent>{part.text}</ReasoningContent>
-              </Reasoning>
-            );
-
-          case "context": {
-            const ContextIcon = getContextIcon(part.contextType);
-            return (
-              <div
-                key={key}
-                className={cn(
-                  "flex w-full",
-                  message.role === "user" ? "justify-end" : "justify-start",
-                )}
-              >
-                <div className="flex min-w-0 max-w-[85%] items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-small">
-                  <ContextIcon
-                    aria-hidden="true"
-                    className="size-3.5 shrink-0 text-muted-foreground"
-                  />
-                  <span className="truncate font-medium text-foreground">
-                    {part.label}
-                  </span>
-                  {Boolean(part.metadata?.["url"]) && (
-                    <span className="truncate text-xs text-muted-foreground">
-                      {String(part.metadata?.["url"])}
-                    </span>
-                  )}
-                  <span className="shrink-0 rounded-sm bg-muted px-1.5 text-xs text-muted-foreground">
-                    {part.contextType}
-                  </span>
-                </div>
-              </div>
-            );
-          }
-
-          case "source-url":
-            // Already handled above
-            return null;
-
-          default:
-            return null;
-        }
-      })}
-      {closestPageIds.length > 0 &&
-        slots.kbClosest?.({ pageIds: closestPageIds })}
-      {message.role === "assistant" &&
-        message.metadata?.decision &&
-        slots.turnActions?.({ message, parts: message.parts })}
-      {message.role === "assistant" && message.metadata?.decision && (
-        <TurnDecisionDetails decision={message.metadata.decision} />
-      )}
-      {message.metadata?.error && (
-        <ChatErrorNotice
-          error={message.metadata.error}
-          onRetry={isLast ? onRegenerate : undefined}
-          onOpenSettings={onOpenProviderSettings}
-        />
-      )}
-      {message.role === "assistant" && text && !(isLast && isStreaming) && (
-        <div
-          className={cn(
-            !isLast &&
-              "opacity-0 transition-opacity duration-200 group-focus-within/message:opacity-100 group-hover/message:opacity-100 motion-reduce:transition-none",
-          )}
-        >
-          {slots.messageActions ? (
-            slots.messageActions({
-              message,
-              isLast,
-              onRegenerate: isLast ? onRegenerate : undefined,
-              onCopy: copyWithRecord,
-            })
-          ) : (
-            <Actions>
-              {isLast && onRegenerate && (
-                <Action onClick={onRegenerate} tooltip={t("chat.retry")}>
-                  <RefreshCcwIcon aria-hidden="true" />
-                </Action>
-              )}
-              {onCopy && (
-                <Action
-                  onClick={async () => {
-                    const result = await onCopy(withRecord(text));
-                    if (result === undefined || result) flashCopied();
-                  }}
-                  tooltip={t(copied ? "common.copied" : "common.copy")}
                 >
-                  {copied ? (
-                    <CheckIcon aria-hidden="true" />
+                  {part.mediaType.startsWith("image/") &&
+                  isLocalImageUrl(part.url) ? (
+                    <figure className="max-w-[85%]">
+                      <img
+                        src={part.url}
+                        alt={part.filename || t("chat.attachedImage")}
+                        className="rounded-md border border-border"
+                      />
+                      {part.filename && (
+                        <figcaption className="mt-1 text-xs text-muted-foreground">
+                          {part.filename}
+                        </figcaption>
+                      )}
+                    </figure>
                   ) : (
-                    <CopyIcon aria-hidden="true" />
+                    <div className="flex max-w-[85%] items-center gap-2 rounded-md border border-border bg-card px-3 py-2">
+                      <PaperclipIcon
+                        aria-hidden="true"
+                        className="size-4 shrink-0 text-muted-foreground"
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm">
+                          {part.filename || t("chat.attachedFile")}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {part.mediaType}
+                        </p>
+                      </div>
+                    </div>
                   )}
+                </div>
+              );
+
+            case "tool":
+              // Check for custom tool display slot
+              return (
+                <Fragment key={key}>
+                  {slots.toolDisplay ? (
+                    slots.toolDisplay({ tool: part })
+                  ) : (
+                    <DefaultToolDisplay tool={part} />
+                  )}
+                  {slots.toolFooter?.({ tool: part })}
+                </Fragment>
+              );
+
+            case "reasoning":
+              return (
+                <Reasoning
+                  key={key}
+                  className="w-full"
+                  isStreaming={isStreaming && isLast}
+                >
+                  <ReasoningTrigger />
+                  <ReasoningContent>{part.text}</ReasoningContent>
+                </Reasoning>
+              );
+
+            case "context": {
+              const ContextIcon = getContextIcon(part.contextType);
+              return (
+                <div
+                  key={key}
+                  className={cn(
+                    "flex w-full",
+                    message.role === "user" ? "justify-end" : "justify-start",
+                  )}
+                >
+                  <div className="flex min-w-0 max-w-[85%] items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-small">
+                    <ContextIcon
+                      aria-hidden="true"
+                      className="size-3.5 shrink-0 text-muted-foreground"
+                    />
+                    <span className="truncate font-medium text-foreground">
+                      {part.label}
+                    </span>
+                    {Boolean(part.metadata?.["url"]) && (
+                      <span className="truncate text-xs text-muted-foreground">
+                        {String(part.metadata?.["url"])}
+                      </span>
+                    )}
+                    <span className="shrink-0 rounded-sm bg-muted px-1.5 text-xs text-muted-foreground">
+                      {part.contextType}
+                    </span>
+                  </div>
+                </div>
+              );
+            }
+
+            case "source-url":
+              // Already handled above
+              return null;
+
+            default:
+              return null;
+          }
+        })}
+        {closestPageIds.length > 0 &&
+          slots.kbClosest?.({ pageIds: closestPageIds })}
+        {message.role === "assistant" &&
+          message.metadata?.decision &&
+          slots.turnActions?.({ message, parts: message.parts })}
+        {message.role === "assistant" && decision && !cardCarriesSource && (
+          <TurnDecisionDetails decision={decision} />
+        )}
+        {message.metadata?.error && (
+          <ChatErrorNotice
+            error={message.metadata.error}
+            onRetry={isLast ? onRegenerate : undefined}
+            onOpenSettings={onOpenProviderSettings}
+          />
+        )}
+        {message.role === "assistant" && text && !(isLast && isStreaming) && (
+          <div
+            className={cn(
+              !isLast &&
+                "opacity-0 transition-opacity duration-200 group-focus-within/message:opacity-100 group-hover/message:opacity-100 motion-reduce:transition-none",
+            )}
+          >
+            {slots.messageActions ? (
+              slots.messageActions({
+                message,
+                isLast,
+                onRegenerate: isLast ? onRegenerate : undefined,
+                onCopy: copyWithRecord,
+              })
+            ) : (
+              <Actions>
+                {isLast && onRegenerate && (
+                  <Action onClick={onRegenerate} tooltip={t("chat.retry")}>
+                    <RefreshCcwIcon aria-hidden="true" />
+                  </Action>
+                )}
+                {onCopy && (
+                  <Action
+                    onClick={async () => {
+                      const result = await onCopy(withRecord(text));
+                      if (result === undefined || result) flashCopied();
+                    }}
+                    tooltip={t(copied ? "common.copied" : "common.copy")}
+                  >
+                    {copied ? (
+                      <CheckIcon aria-hidden="true" />
+                    ) : (
+                      <CopyIcon aria-hidden="true" />
+                    )}
+                  </Action>
+                )}
+                <Action
+                  onClick={() =>
+                    downloadText(
+                      timestampedFilename("message", "md"),
+                      formatExport
+                        ? formatExport(withRecord(text))
+                        : withRecord(text),
+                      "text/markdown",
+                    )
+                  }
+                  tooltip={t("common.download")}
+                >
+                  <DownloadIcon aria-hidden="true" />
                 </Action>
-              )}
-              <Action
-                onClick={() =>
-                  downloadText(
-                    timestampedFilename("message", "md"),
-                    formatExport
-                      ? formatExport(withRecord(text))
-                      : withRecord(text),
-                    "text/markdown",
-                  )
-                }
-                tooltip={t("common.download")}
-              >
-                <DownloadIcon aria-hidden="true" />
-              </Action>
-            </Actions>
-          )}
-        </div>
-      )}
-    </div>
+              </Actions>
+            )}
+          </div>
+        )}
+      </div>
+    </TurnContext.Provider>
   );
 }
 
