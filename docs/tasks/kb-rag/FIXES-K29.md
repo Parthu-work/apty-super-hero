@@ -4,33 +4,38 @@
 
 ## Status
 
-**DONE, with partial steps.** Four PRs: Part P (P1 to P4) on
-`claude/kb-rag-k29-pipeline` (#130, fixes #129); Part B (B4, B1, B3, B2,
-B5, B6, B7, B8) on `claude/kb-rag-k29-behaviour` (#131); Part L (L1 to L5)
-on `claude/kb-rag-k29-layout` (#132); Part D (D1, D2 and D3 in one commit,
-D4, D5) on `claude/kb-rag-k29-delivery` (#134, on top of L, merging B for
-B1's store). Merged in order on 23 Nov 2026: P, L and B; D merges last.
-D2 has a follow-up commit (`d44fdbb`): "Also sent to the AI model" stays
-visible when card text leaves the device (the full E2E run's one failure).
+**DONE.** Four PRs, merged in order on 23 Nov 2026: Part P (P1 to P4,
+#130, fixes #129), Part L (L1 to L5, #132), Part B (B4, B1, B3, B2, B5, B6,
+B7, B8, #131) and Part D (D1, D2 and D3 in one commit, D4, D5, #134). D2
+has a follow-up commit (`d44fdbb`): "Also sent to the AI model" stays
+visible when card text leaves the device.
 
-Partial, with what finishes each:
+Verified:
+
+- The release dry run with the full `npm run test:e2e` on a local merge of
+  all four parts: every step green except one E2E test (org-policy, 324 of
+  325), a D2 regression fixed in `d44fdbb` (the file then passed 4 of 4).
+  CI was green on each PR's head before it merged.
+- Issue #129: a manual KB packs run (#34, 23 Nov) failed at the inputs
+  check naming only the missing secrets and variables; the scheduled runs
+  (KB packs #35 on 23 Nov and #36 on 24 Nov, KB pack health #4 on 24 Nov)
+  ended at the gate with the "not set up yet" notice, skipped every other
+  job, succeeded and opened no issue.
+
+Handed over (outside this task):
 
 - The leak check against the two real packs (KB owner):
   `pnpm kb:check-leaks --pack <4.x pack> --pack <5.x pack>` (see How to
   test).
-- After merge, in GitHub: run KB packs by hand without the switch (it names
-  the missing inputs), and check that the next scheduled run succeeds
-  quietly.
-- Done: the release dry run with the full `npm run test:e2e` on a local
-  merge of all four parts. Every step passed except one E2E test
-  (org-policy, 324 of 325); that was a D2 regression, fixed on the delivery
-  branch (`d44fdbb`), and the file now passes 4 of 4.
-- The 22 Nov hand session in Chrome and its screen recording (needs a real
-  browser, both packs and an Anthropic key).
-- Not checked: whether Confluence redirects old JA links by page id, so 5.x
-  links in JA packs are always rewritten to A5PKH at load.
-- D2: a KB answer whose card a check pack reads also shows Run the check,
-  9 controls; the fixture answers have at most 8.
+- The 22 Nov session by hand in Chrome and its screen recording (needs a
+  real browser, both packs and an Anthropic key).
+- Setting up the pipeline (secrets, variables, `KB_PACKS_ENABLED`), per
+  `docs/release/KB_PACK_DELIVERY.md`.
+
+Known limits: whether Confluence redirects old JA links by page id was not
+checked, so 5.x links in JA packs are always rewritten to A5PKH at load; a
+KB answer whose card a check pack reads also shows Run the check, 9
+controls (the fixture answers have at most 8).
 
 ## How to run this prompt
 
