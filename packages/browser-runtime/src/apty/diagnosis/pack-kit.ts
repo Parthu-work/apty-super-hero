@@ -200,12 +200,13 @@ const isFourX = (name: string) =>
  * `cdn-api/src/types/feature-flags.ts` and `player/.../cdn/cdn.service.ts:933`,
  * Appendix A1 and A2 of the Ask Dapty brief); the 4.x player fetches them
  * per tenant (apty-assist `feature-flag.effects.ts`, A4). Files read from
- * the content CDN are always 5.x: only the 5.x Client is found that way.
+ * the content CDN are always 5.x: only the 5.x Client is found that way,
+ * unless they were replayed for a context pinned with its version.
  */
 export function playerVersionOf(
   evidence: ClientEvidence,
 ): "5.x" | "4.x" | "unknown" {
-  if (evidence.fromCdn) return "5.x";
+  if (evidence.fromCdn) return evidence.replayVersion ?? "5.x";
   const five = evidence.observedNames.some(isFiveX);
   const four = evidence.observedNames.some(isFourX);
   if (five === four) return "unknown";

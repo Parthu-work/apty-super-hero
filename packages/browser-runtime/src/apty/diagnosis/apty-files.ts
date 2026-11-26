@@ -7,6 +7,7 @@
  * or with the ID the page shows when that Client answers at all.
  */
 
+import type { AptyContentContext } from "@apty/agent-core";
 import { loadSettings } from "../../runtime/effective-settings.js";
 import {
   type CdnResourceSource,
@@ -16,6 +17,12 @@ import {
 } from "../apty-cdn-source.js";
 import { sendExternalMessageDetailed } from "../external-messaging.js";
 import { aptyContentCalls } from "../network-capture-session.js";
+import {
+  caseReplay,
+  pinnedContext,
+  replayResourceSource,
+} from "../replay/case-replay.js";
+import type { ReplaySource } from "../replay/content-source.js";
 import type { AptyObservedResource } from "../types.js";
 import type { ClientPing, DaptyTrace } from "./dapty-evidence.js";
 import {
@@ -54,6 +61,14 @@ export interface AptyFilesReaders {
     extensionId: string | undefined,
     names: readonly string[],
   ) => Promise<ClientEvidence>;
+  /**
+   * The Apty context the SE or a tool pinned for the case, with the case's
+   * replay source: the files are then fetched by the Agent for those IDs
+   * rather than for what the page shows.
+   */
+  replay?: (
+    runContext: unknown,
+  ) => { source: ReplaySource; context: AptyContentContext } | undefined;
   /** The Apty content calls the tab's page network capture saw (KB-RAG K15). */
   capture?: (tabId: number) => CapturedAptyCalls | undefined;
 }
@@ -75,6 +90,12 @@ export function captureSource(calls: CapturedAptyCalls): ResourceSource {
     },
   };
 }
+
+const conversationOf = (runContext: unknown) => {
+  const id = (runContext as { conversationId?: unknown } | undefined)
+    ?.conversationId;
+  return typeof id === "string" ? id : undefined;
+};
 
 export const tabOf = (runContext: unknown) => {
   const tabId = (runContext as { tabId?: unknown } | undefined)?.tabId;
@@ -212,6 +233,21 @@ export function createAptyFiles(readers: AptyFilesReaders) {
         return done({ ...fromCapture, fromCapture: true });
       }
     }
+    const pinned = readers.replay?.(runContext);
+    if (pinned) {
+      const fromReplay = await loadEvidenceFrom(
+        replayResourceSource(pinned.source, pinned.context, names),
+        names,
+      ).catch(() => undefined);
+      if (fromReplay?.connection.ok) {
+        return done({
+          ...fromReplay,
+          fromCdn: true,
+          fromReplay: true,
+          replayVersion: pinned.context.version,
+        });
+      }
+    }
     const cdn = await cdnFor(tab, names, storedChats);
     if (!cdn) return done(fromClient);
     const fromCdn = await loadEvidenceFrom(cdn, names).catch(() => undefined);
@@ -240,6 +276,16 @@ async function loadAptyCdnFallback(): Promise<boolean> {
 
 export const DEFAULT_APTY_FILES_READERS: AptyFilesReaders = {
   capture: aptyContentCalls,
+  replay: (runContext) => {
+    const conversationId = conversationOf(runContext);
+    const context = pinnedContext(conversationId);
+    return context
+      ? {
+          source: caseReplay(conversationId, tabOf(runContext)).source,
+          context,
+        }
+      : undefined;
+  },
   cdnFallback: loadAptyCdnFallback,
   detectClient: detectClientExtensionId,
   clientAnswers: async (extensionId) =>

@@ -2583,6 +2583,12 @@
       "noVerifiedLine": "The card has no “Verified on” line."
     },
     "filesFromCapture": "Read from the page's network capture.",
+    "filesFromReplay": "Content files fetched by the Agent from Apty's content host for the IDs given for this case: what is published now, not proof of what the Apty Client loaded.",
+    "source": {
+      "client": "Client record",
+      "agent": "published file, fetched by the Agent",
+      "capture": "page capture"
+    },
     "getFiles": "No Apty file could be read. A 4.x tenant's files can still be read:",
     "captureReload": "Capture and reload",
     "capturing": "Capturing the page's network while it reloads…",

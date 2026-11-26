@@ -356,6 +356,25 @@ describe("tool routes (KB-RAG K27, F1)", () => {
     }
   });
 
+  it("offers the published-content tools when the SE gives Apty IDs, within the file budget", () => {
+    const message =
+      "get tooltip.json for tenant id 0f00 and environment id 0e02";
+    const offered = names(selectRelevantTools(message));
+    expect(toolRouteOf(message)).toBe("file");
+    expect(offered.length).toBeLessThanOrEqual(TOOL_ROUTE_BUDGETS.file ?? 0);
+    expect(offered).toEqual(
+      expect.arrayContaining([
+        "resolve_apty_context",
+        "list_apty_files",
+        "fetch_apty_file",
+        "inspect_extension_network",
+      ]),
+    );
+    expect(
+      names(selectRelevantTools("what does flow.json mean")),
+    ).not.toContain("fetch_apty_file");
+  });
+
   it("offers a symptom question the investigation basics, 12 or fewer", () => {
     for (const message of [
       "the tooltip keeps flickering on this page",

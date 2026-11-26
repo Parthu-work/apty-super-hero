@@ -30,7 +30,7 @@ import {
   type ServedFile,
   served,
 } from "./diagnosis-test-utils";
-import { loadClientEvidence } from "./loader";
+import { loadClientEvidence, loadEvidenceFrom } from "./loader";
 
 /** A Client that lists `files` and answers body requests for them. */
 function serve(files: ServedFile[], lastError?: string) {
@@ -195,5 +195,39 @@ describe("loadClientEvidence", () => {
       message: "No Apty Client extension ID is saved.",
     });
     expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe("loadEvidenceFrom and the content host's not-found page", () => {
+  it("reads a 200 whose body is the CloudFront not-found page as a 404, not as a published file", async () => {
+    const url = "https://client.apty.example/tenant-t/app-a/env-e/tooltip.json";
+    const evidence = await loadEvidenceFrom(
+      {
+        listResources: async () => ({
+          ok: true,
+          resources: [
+            {
+              requestId: "1",
+              url,
+              method: "GET",
+              status: 200,
+              timestamp: 1,
+              hasBody: true,
+            },
+          ],
+        }),
+        getResourceBody: async () => ({
+          found: true,
+          body: JSON.stringify({ message: "No data found", status: 404 }),
+          base64Encoded: false,
+        }),
+      },
+      ["tooltip.json"],
+    );
+    expect(evidence.files["tooltip.json"]).toEqual({
+      name: "tooltip.json",
+      status: "http_error",
+      httpStatus: 404,
+    });
   });
 });

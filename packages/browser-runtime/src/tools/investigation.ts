@@ -16,6 +16,7 @@
  * confidence rating to the model, per the system prompt's
  * CONFIRMED/LIKELY/POSSIBLE/UNKNOWN discipline.
  */
+
 import { tool } from "@apty/agent-core";
 import { z } from "zod";
 import {
@@ -32,6 +33,7 @@ import {
   stopInvestigation,
   updateInvestigation,
 } from "../apty/investigation-session.js";
+import { forgetCase } from "../apty/replay/case-replay.js";
 import { shownEvidence } from "../apty/shown-url.js";
 import type { DiagnosticEvidence } from "../apty/types.js";
 import {
@@ -151,6 +153,7 @@ export const clearInvestigationEvidenceTool = tool({
     const conversationId = (context as ToolRunContext)?.context?.conversationId;
     const clearedCount = getEvidence(conversationId).length;
     clearEvidence(conversationId);
+    forgetCase(conversationId);
     return { cleared: true, clearedCount };
   },
 });

@@ -8,6 +8,7 @@ import {
   type GroupableCall,
 } from "../network-resource-groups.js";
 import { peerFailureMessage } from "../peers.js";
+import { isNotFoundBody } from "../replay/content-source.js";
 import { resourceNameFor } from "../resource-body-utils.js";
 import {
   ConfiguredServiceWorkerDiagnosticsProvider,
@@ -73,6 +74,9 @@ function toLoadedFile(
     return { ...base, status: "unparsable" };
   }
   if (read.status === "http_error") return { ...base, status: "http_error" };
+  if (isNotFoundBody(json)) {
+    return { ...base, httpStatus: 404, status: "http_error" };
+  }
   if (Array.isArray(json) && json.length === 0) {
     return { ...base, status: "empty", json };
   }

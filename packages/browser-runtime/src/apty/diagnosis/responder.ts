@@ -79,6 +79,8 @@ import type {
   ClientEvidence,
   ContentKind,
   DiagnosisResult,
+  FileSource,
+  GateId,
   LogEvidence,
   NextCheck,
   NotChecked,
@@ -209,6 +211,9 @@ function readFrom(result: DiagnosisResult, source: EvidenceSource): string {
   if (source === "har") return "the HAR file's Apty files";
   if (result.filesFromCapture) {
     return "the Apty files in the page's network capture";
+  }
+  if (result.filesFromReplay) {
+    return "the published content files, fetched by the Agent for the IDs given for this case";
   }
   return result.filesFromCdn ? CDN_FILES : "the Apty Client's files";
 }
@@ -354,13 +359,49 @@ async function contentEvidence(
   return { ...evidence, files: { ...evidence.files, ...steps.files } };
 }
 
-/** The result, saying when its files came from Apty's content CDN or the page's network capture. */
-const fromCdn = (result: DiagnosisResult, evidence: ClientEvidence) =>
-  evidence.fromCdn
-    ? { ...result, filesFromCdn: true }
-    : evidence.fromCapture
-      ? { ...result, filesFromCapture: true }
-      : result;
+/** The gates that read Apty's content files, as opposed to the page, the console or the chat. */
+const FILE_GATES: ReadonlySet<GateId> = new Set<GateId>([
+  "data",
+  "version",
+  "environment",
+  "published",
+  "flags",
+  "segments",
+  "segment-consistency",
+  "widget-audience",
+  "visibility-rule",
+  "language",
+  "environment-match",
+  "restriction",
+  "lookup",
+]);
+
+const sourceOf = (evidence: ClientEvidence): FileSource =>
+  evidence.fromCdn ? "agent" : evidence.fromCapture ? "capture" : "client";
+
+/**
+ * The result, saying where its files came from: each content-file gate
+ * names its source, and the result says when they came from Apty's content
+ * CDN (the IDs pinned for the case, or the page's) or the page's capture.
+ */
+const fromCdn = (
+  result: DiagnosisResult,
+  evidence: ClientEvidence,
+): DiagnosisResult => {
+  const source = sourceOf(evidence);
+  const gates = result.gates.map((gate) =>
+    FILE_GATES.has(gate.id) ? { ...gate, source } : gate,
+  );
+  return {
+    ...result,
+    gates,
+    ...(evidence.fromCdn ? { filesFromCdn: true } : {}),
+    ...(evidence.fromReplay ? { filesFromReplay: true } : {}),
+    ...(!evidence.fromCdn && evidence.fromCapture
+      ? { filesFromCapture: true }
+      : {}),
+  };
+};
 
 /**
  * Runs the routed pack on the Client's files, logs and calls, and the page.

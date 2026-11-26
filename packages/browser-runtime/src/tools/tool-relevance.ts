@@ -233,6 +233,20 @@ const GROUP_KEYWORDS: Record<BrowserToolGroupName, string[]> = {
     "get app.json",
     ".json",
   ],
+  aptyContent: [
+    "tenant id",
+    "tenant-",
+    "environment id",
+    "env id",
+    "env-",
+    "application id",
+    "app id",
+    "published file",
+    "is it published",
+    "content host",
+    "content url",
+    "content cdn",
+  ],
 };
 
 // Cheap, deterministic context every investigative request benefits from,
@@ -387,7 +401,7 @@ type ToolRoute = "file" | "symptom" | "investigation" | "other";
  * @internal
  */
 export const TOOL_ROUTE_BUDGETS: Readonly<Record<ToolRoute, number | null>> = {
-  file: 8,
+  file: 11,
   symptom: 12,
   investigation: null,
   other: null,
@@ -400,6 +414,7 @@ const APTY_GROUPS: ReadonlySet<BrowserToolGroupName> = new Set([
   "devtools",
   "networkCapture",
   "extensionNetwork",
+  "aptyContent",
   "diagnosis",
   "selector",
   "kb",
@@ -410,10 +425,12 @@ const TRIMMED_FOR_SYMPTOM: ReadonlySet<BrowserToolGroupName> = new Set([
   "apty",
   "investigation",
   "extensionNetwork",
+  "aptyContent",
 ]);
 
 const FILE_ROUTE_GROUPS: ReadonlySet<BrowserToolGroupName> = new Set([
   "extensionNetwork",
+  "aptyContent",
   "kb",
 ]);
 

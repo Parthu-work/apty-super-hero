@@ -23,6 +23,7 @@ const FULL = {
     "http://localhost:11434",
   ],
   allowedModels: ["gpt-5"],
+  aptyContentOrigins: ["https://Content.Example.com/"],
   preset: {
     aiProvider: "azure",
     aiHost: "https://tenant.openai.azure.com/openai/v1",
@@ -47,6 +48,7 @@ describe("parseOrgPolicy", () => {
           "https://ai-gateway.example.com",
           "http://localhost:11434",
         ],
+        aptyContentOrigins: ["https://content.example.com"],
       },
     });
   });
@@ -61,6 +63,14 @@ describe("parseOrgPolicy", () => {
     [{ allowedOrigins: ["https://u:p@ai.example.com"] }, /user info/],
     [{ allowedOrigins: ["not a url"] }, /not a URL/],
     [{ allowedModels: [1] }, /string list/],
+    [
+      { aptyContentOrigins: ["http://content.example.com"] },
+      /aptyContentOrigins: .*not https/,
+    ],
+    [
+      { aptyContentOrigins: ["https://content.example.com/tenant-1"] },
+      /has a path/,
+    ],
     [{ preset: [] }, /preset must be an object/],
     [{ preset: { aiColour: "red" } }, /preset.aiColour/],
     [{ preset: { aiHost: "http://ai.example.com" } }, /https/],

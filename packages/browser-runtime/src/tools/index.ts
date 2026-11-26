@@ -3,6 +3,7 @@ import type { z } from "zod";
 import { applyResultPrivacy } from "../runtime/result-privacy.js";
 import { currentValuePolicy } from "../runtime/value-policy.js";
 import { aptyTools } from "./apty";
+import { aptyContentTools } from "./apty-content.js";
 import { computerTool } from "./computer";
 import { devToolsTools } from "./devtools.js";
 import { diagnosisTools } from "./diagnosis.js";
@@ -54,10 +55,11 @@ import { uploadFileToInputTool } from "./tools/upload-file";
 
 /**
  * All browser tools registered for AI use
- * Total: 67 tools — 7 tab + 8 UI + 4 page + 3 screenshot + 2 download +
+ * Total: 70 tools — 7 tab + 8 UI + 4 page + 3 screenshot + 2 download +
  * 4 intervention + 6 skill + 3 devtools + 2 DOM Health + 6 apty +
  * 9 investigation + 1 selector + 3 investigation-aware network capture +
- * 7 Apty Client extension network inspection + 1 diagnosis (check packs) +
+ * 7 Apty Client extension network inspection + 3 Apty published content
+ * (replay) + 1 diagnosis (check packs) +
  * 1 KB pack search.
  * Recompute this from the arrays below
  * rather than trusting this comment when auditing — it has gone stale
@@ -186,6 +188,11 @@ const extensionNetworkToolGroup: BrowserFunctionTool[] = privateGroup(
   extensionNetworkTools as unknown as BrowserFunctionTool[],
 );
 
+// Apty's published content, fetched by the Agent for a tenant, application and environment (3 tools)
+const aptyContentToolGroup: BrowserFunctionTool[] = privateGroup(
+  aptyContentTools as unknown as BrowserFunctionTool[],
+);
+
 // Deterministic check packs over the Apty Client's content files (1 tool)
 const diagnosisToolGroup: BrowserFunctionTool[] = privateGroup(
   diagnosisTools as unknown as BrowserFunctionTool[],
@@ -211,6 +218,7 @@ const browserFunctionTools: BrowserFunctionTool[] = [
   ...selectorToolGroup,
   ...networkCaptureToolGroup,
   ...extensionNetworkToolGroup,
+  ...aptyContentToolGroup,
   ...diagnosisToolGroup,
   ...kbToolGroup,
 ] as const;
@@ -240,6 +248,7 @@ export const browserToolGroups = {
   selector: selectorToolGroup,
   networkCapture: networkCaptureToolGroup,
   extensionNetwork: extensionNetworkToolGroup,
+  aptyContent: aptyContentToolGroup,
   diagnosis: diagnosisToolGroup,
   kb: kbToolGroup,
 } as const;

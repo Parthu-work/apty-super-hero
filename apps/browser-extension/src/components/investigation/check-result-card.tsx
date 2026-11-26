@@ -636,6 +636,12 @@ function GateRow({ gate }: { gate: GateResult }) {
           ({t(`checkPack.gateStatus.${gate.status}`)})
         </span>
         <span className="text-muted-foreground"> {gateText(t, gate)}</span>
+        {gate.source && (
+          <span className="text-xs text-muted-foreground">
+            {" "}
+            ({t(`checkPack.source.${gate.source}`)})
+          </span>
+        )}
       </span>
     </li>
   );
@@ -986,7 +992,11 @@ export function CheckResultCard(props: ToolDisplaySlotProps) {
 
           {result.filesFromCdn && (
             <p className="text-xs text-muted-foreground">
-              {t("checkPack.filesFromCdn")}
+              {t(
+                result.filesFromReplay
+                  ? "checkPack.filesFromReplay"
+                  : "checkPack.filesFromCdn",
+              )}
             </p>
           )}
           {result.filesFromCapture && (

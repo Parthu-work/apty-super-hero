@@ -27,6 +27,8 @@ export interface OrgPolicy {
   /** Normalized origins: lower-case host, no default port, no path. */
   allowedOrigins?: string[];
   allowedModels?: string[];
+  /** Apty content hosts the Agent may read published files from besides the page's own content URL (replay); normalized origins. */
+  aptyContentOrigins?: string[];
   preset?: OrgPolicyPreset;
   redactionFloor?: Exclude<RedactionModeSetting, "off">;
   allowCustomModels?: boolean;
@@ -260,15 +262,16 @@ export function parseOrgPolicy(
         }
         policy.allowedProviders = value as AIProviderKey[];
         break;
-      case "allowedOrigins": {
+      case "allowedOrigins":
+      case "aptyContentOrigins": {
         if (!isStringArray(value)) return fail(`${key} must be a string list`);
         const origins: string[] = [];
         for (const entry of value) {
           const parsed = parseOrigin(entry);
-          if ("error" in parsed) return fail(`allowedOrigins: ${parsed.error}`);
+          if ("error" in parsed) return fail(`${key}: ${parsed.error}`);
           origins.push(parsed.origin);
         }
-        policy.allowedOrigins = origins;
+        policy[key] = origins;
         break;
       }
       case "allowedModels":

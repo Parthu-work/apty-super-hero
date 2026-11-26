@@ -94,6 +94,10 @@ export interface ClientEvidence {
   environments?: number;
   /** Read from Apty's content CDN, because the Client does not report its calls. */
   fromCdn?: boolean;
+  /** Fetched by the Agent for the IDs pinned for the case (replay), not for what the page shows. */
+  fromReplay?: boolean;
+  /** The Apty version of the context pinned for a replay. */
+  replayVersion?: "4.x" | "5.x";
 }
 
 export type RuleId =
@@ -457,7 +461,11 @@ export interface GateResult {
   detail: string;
   evidence: string[];
   cardPageId: string;
+  /** Where a content-file gate read its files: the Client's record, the page's capture, or the Agent's own fetch of the published file. */
+  source?: FileSource;
 }
+
+export type FileSource = "client" | "capture" | "agent";
 
 export interface Cause {
   ruleId: RuleId;
@@ -554,6 +562,8 @@ export interface DiagnosisResult {
   filesFromCdn?: boolean;
   /** The content files were read from the page's network capture (KB-RAG K15). */
   filesFromCapture?: boolean;
+  /** The content files were fetched by the Agent for IDs pinned for the case. */
+  filesFromReplay?: boolean;
   /**
    * Ask Dapty only, when the chat answered it without the model: how each
    * source was read, as counts and reasons, for the evidence bundle. Never

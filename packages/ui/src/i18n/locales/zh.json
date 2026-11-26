@@ -2583,6 +2583,12 @@
       "noVerifiedLine": "该卡片没有“验证于”行。"
     },
     "filesFromCapture": "从页面的网络捕获中读取。",
+    "filesFromReplay": "内容文件由 Agent 按本案例给定的 ID 从 Apty 内容主机获取：这是当前已发布的内容，不能证明 Apty Client 实际加载了它。",
+    "source": {
+      "client": "Client 记录",
+      "agent": "已发布文件，由 Agent 获取",
+      "capture": "页面捕获"
+    },
     "getFiles": "无法读取任何 Apty 文件。仍可读取 4.x 租户的文件：",
     "captureReload": "捕获并重新加载",
     "capturing": "正在页面重新加载时捕获其网络…",
