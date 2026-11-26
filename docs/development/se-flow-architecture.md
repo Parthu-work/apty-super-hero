@@ -439,3 +439,101 @@ The old probed-CDN path merges into replay (§6, step 2).
 | 7 | Whether the Client's content-script console reaches `Runtime.consoleAPICalled` on the tab (NOT VERIFIED) | A spike in step 2. If not, logs-and-errors in Extension mode covers the page only. |
 | 8 | Removing the Client record loses "loaded by the Client" | Rows say "published now". In Injected mode, page capture keeps real observation. |
 | 9 | Loopback and DNS-to-private page content hosts (replay doc §3.3) | Trust only policy and known Apty origins once `aptyContentOrigins` is set. |
+
+## 8. Both versions: 4.x (apty-assist) and 5.x (apty-dap)
+
+Every step of the flow works for both versions. Only five things differ
+between them, and each one is a field of a per-version **adapter**. The
+adapter is a plain object, not a class. The orchestrator, the checks'
+loader, the result card, Ask Dapty and Ask AI anyway are shared.
+4.x paths are under `apty-assist:player3.0/` at `bbb4cbc`.
+
+### 8.1 What differs, and where the code says so
+
+| Step | 5.x (apty-dap) | 4.x (apty-assist) |
+|---|---|---|
+| **Find Apty on the page, Extension mode** | Page loads `chrome-extension://<id>/window-script.js`, so the Agent reads web-accessible `player-config.json` → `contentURL`, `tenantId` (`apps/player/wxt.config.ts:88-91`) | Page loads `chrome-extension://<id>/window.var.js` (`src/shared/helpers/react.element.helper.ts:7-19`; `src/main.bootstrap.ts:203-207`), so the Agent reads web-accessible `config.json` (`src/manifests/manifest.json:17-21`) → `contentURL`, `tenantKey`, `regExpUrlFlag`, `isSelfHosted` |
+| **Find Apty on the page, Injected mode** | `window.__APTY_PLAYER_CONFIG__` (`apps/player/src/config/config.ts:9-16`) | `#letznav-script` attributes: `data-instanceid`, `data-content-url`, `data-app-urls`, `data-reg-exp-url`, `data-self-hosted` (`src/shared/helpers/injected.helpers.ts:344-375`) |
+| **ID shapes** (to recognise IDs the SE gives) | tenant, app and env are UUIDs (`libs/shared/contracts/src/api.schema.ts:96-98`) | tenant key is a short string (`config/config.json:7`); app `id: number`; env numbers as keys (`src/shared/types/common-models.types.ts:1022-1031`) |
+| **Choose the application and environment** | `app-urls.json`: `[{id, environments:[{id, order, urls[]}]}]`. Take the first app with a match, then the lowest `order`, matching the pattern as a wildcard. Regex is never used: the flags are always off (`libs/client/tool-items-schema/src/helpers/active-application.helpers.ts:3-45`) | `app-urls.json`: `[{id, environments:{[n]:{url, hostedContentUrl?}}}]`. Take apps in order, env keys sorted numerically, first `url` match. Match as a wildcard, **or as a raw regex when `feature-flag.json` `regExpUrl` is on** (`src/shared/helpers/injected.helpers.ts:18-49`; `src/shared/helpers/app.helper.ts:81-99`; `src/main.bootstrap.ts:210,300`). No match means env 1 |
+| **Content URL** | The page config's `contentURL` | The same, but **self-hosted** switches to `{hostedContentUrl}/contents` of the matched env (`src/main.bootstrap.ts:138-150`) |
+| **Timestamp** | Walk the tenant `content-config.json` along `[app-{a}, env-{e}, file]`, keeping the nearest `latest` (`apps/player/src/main-content-script/cdn/file-timestamp.ts:4-27`) | Fetch the tenant **and** the app `content-config.json` and merge them (`src/main.bootstrap.ts:172-178`). Then `cc[app][env][file] \|\| cc.latest \|\| now` (`src/shared/content-config.helper.ts:5-29`). `app-urls.json` uses an ISO date; `most-used-content.json` uses local midnight |
+| **URL suffix** | `?timestamp=` | `?timestamp=…&token=`, always with an empty token (`src/shared/helpers/common-helpers.ts:90-95`) |
+| **Not published** | 200 with a `{status:404}` body, or a real 404 (`libs/shared/axios-client/src/axios-client.ts:45-54,84-88`) | A `status: 404` payload (`src/api/http.ts:278-284`). The same detector works |
+| **Content files** | `tooltip`, `workflow`, `segment`, `rule`, … `.json` at env scope; `workflow-{id}.json` | `tooltip`, `flow`, `launcher`, … at env scope; `segments`, `rules`, `langs` at **app** scope; `feature-flag.json` at tenant scope; `flow-{id}.json` (`src/shared/helpers/cdn-helpers.ts:5-36`; `src/api/backend.ts:266-290`) |
+| **Checks** | `content-not-visible`, `widget-not-visible`, `element-not-found`, `dapty-conversation` | `content-not-visible-4x` (`flow`, `segments`, `rules`, `feature-flag`, `flow-{id}`) and `widget-not-visible-4x` (`app-urls`, `app-data`, `feature-flag`, `segments`); these already exist in `apty/diagnosis/` |
+| **Ask Dapty in the player** | The widget chat exists | None: no `widget/chat` or `ai-service` call anywhere in `player3.0/src`. The `dapty-conversation` check does not apply |
+
+### 8.2 The adapter
+
+```ts
+// @apty/agent-core: pure, testable; one object per version
+interface AptyVersionAdapter {
+  version: "4.x" | "5.x";
+  files: readonly AptyFileSpec[];                                  // built: FILES_4X, FILES_5X
+  looksLikeIds(ids: GivenIds): boolean;                            // UUIDs vs short key + numbers
+  filePath(ctx, file, extra): PathResult;                          // built (shared builder)
+  urlSuffix: "" | "&token=";                                       // built
+  contentConfigFiles(ctx): readonly string[];                      // 5.x: tenant; 4.x: tenant + app
+  timestamp(ctx, file, contentConfigs, now): string;               // 5.x built; 4.x merge + lookup
+  matchEnvironment(appUrls, pageUrl, regexOn): Match | undefined;  // 5.x built; 4.x numeric keys + regex
+  regexFlag(ctx, files): boolean;                                  // 5.x false; 4.x feature-flag.json
+  contentURLFor(ctx, match): string;                               // 4.x self-hosted hostedContentUrl
+  packs: Record<Symptom, PackId>;                                  // routes a symptom to the right pack
+}
+
+// @apty/browser-runtime: Chrome, one probe per version and mode
+probe5x(tab): window-script.js + player-config.json | __APTY_PLAYER_CONFIG__
+probe4x(tab): window.var.js + config.json           | #letznav-script attributes
+```
+
+**Choosing the adapter:**
+
+1. If the SE names the version, use it.
+2. Otherwise use the probe that found Apty on the page.
+3. Otherwise infer from the IDs' shape. A UUID tenant means 5.x; a short key, numeric app and env numbers mean 4.x.
+4. If none of these settles it, ask the SE.
+
+The version is pinned with the context, so the checks pick the right
+packs. `replayVersion` (built) already carries it into `playerVersionOf`.
+
+### 8.3 What else changes for both
+
+- **Ask Dapty** answers 4.x and 5.x questions from the same ai-service.
+  Retrieval filters on `applicationId` or tenant-wide documents
+  (`apps/ai-service/src/vector-store/vector-store.service.ts:175-185`).
+  So the KB tenant holds **one application per version**: `askDapty.kbApplicationIds: { "4.x", "5.x" }`.
+  Common documents are loaded tenant-wide, and each version's documents
+  under its own application. The Agent calls with the case's version. This
+  matches the Agent's own KB packs, which are already keyed `4.x | 5.x | common`.
+- **Cards** are already per version (`packages/browser-runtime/src/kb/kb-version.ts`).
+- **Hosts.** A 4.x self-hosted `hostedContentUrl` comes from a file on an
+  allowed host, but it names another host. It is used only when its origin
+  is in `aptyContentOrigins`; otherwise the row says
+  `host_not_allowed` and names the host to add. (Open decision 10.)
+- **Ask AI anyway** gets the version in its context, and the quality check
+  rejects a claim cited only from the other version's cards.
+
+### 8.4 State on the branch and remaining work
+
+| Piece | 5.x | 4.x |
+|---|---|---|
+| File catalogue and paths | built | built (with `app/content-config.json` for the app-level one) |
+| URL suffix | built | built (`&token=`) |
+| Not-published detection | built | built (same detector) |
+| Given IDs → fetch | built | built (needs app and env) |
+| Page probe | built | **to do**: `window.var.js` + `config.json`; `#letznav-script` |
+| Environment matching | built | **to do**: numeric keys, regex flag from `feature-flag.json` |
+| Timestamp | built | **to do**: merge the tenant and app content-config |
+| Self-hosted content URL | n/a | **to do**, behind `aptyContentOrigins` |
+| Checks on replayed files | built and tested | the packs exist; to do: E2E on replayed 4.x files |
+| Version inference from IDs | **to do** | **to do** |
+
+This becomes step 2 of the build plan (§6), split into
+2a (the adapter, with 5.x moved onto it unchanged) and 2b (4.x probe,
+matching, timestamp, self-hosted, E2E).
+
+| # | Open decision | Proposal |
+|---|---|---|
+| 10 | 4.x self-hosted `hostedContentUrl` names a host the policy may not list | Allow it only when it is in `aptyContentOrigins`; the row names the host to add |
+| 11 | The 4.x Extension-mode Client's `config.json` also carries keys such as `segmentIOKey` (`config/config.json:5`) | The probe returns only `contentURL`, `tenantKey`, `regExpUrlFlag` and `isSelfHosted`; nothing else leaves the page |
