@@ -281,6 +281,12 @@ describe("resolveContext", () => {
       "https://172.20.0.1",
       "https://169.254.169.254",
       "https://[fd00::1]",
+      "https://[::ffff:10.0.0.5]",
+      "https://[64:ff9b::a00:5]",
+      "https://[fec0::1]",
+      "https://[::1]",
+      "https://0xa000005",
+      "https://167772165",
     ]) {
       const { replay, calls } = source({}, { page: onPage({ contentURL }) });
       expect(await replay.resolveContext(GIVEN)).toMatchObject({

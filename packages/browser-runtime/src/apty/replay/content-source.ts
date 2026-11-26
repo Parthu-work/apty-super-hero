@@ -80,30 +80,32 @@ export function usableBase(url: string): string | undefined {
 }
 
 /**
- * A private or link-local IP literal: a page may name its content URL, but
- * not to turn the Agent's fetches at the user's network (SSRF). Loopback
+ * A host a page may not name as its content URL (SSRF): a private,
+ * link-local or shared IPv4 literal, or any IPv6 literal. Apty's content
+ * hosts are never IPv6 literals, and embedded IPv4 forms (`::ffff:a00:5`)
+ * would otherwise slip past a range check, so IPv6 fails closed. IPv4 is
+ * read after the URL parser normalizes decimal and hex forms. Loopback
  * stays allowed, as for the existing content-CDN fallback (and its tests).
  */
 export function isPrivateNetworkHost(url: string): boolean {
   let host: string;
   try {
-    host = new URL(url).hostname.toLowerCase().replace(/^\[|\]$/g, "");
+    host = new URL(url).hostname.toLowerCase();
   } catch {
     return true;
   }
+  if (host.startsWith("[")) return true;
   const v4 = /^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(host);
-  if (v4) {
-    const [a, b] = [Number(v4[1]), Number(v4[2])];
-    return (
-      a === 10 ||
-      a === 0 ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) ||
-      (a === 169 && b === 254) ||
-      (a === 100 && b >= 64 && b <= 127)
-    );
-  }
-  return /^(?:f[cd][0-9a-f]{2}|fe[89ab][0-9a-f]):/.test(host);
+  if (!v4) return false;
+  const [a, b] = [Number(v4[1]), Number(v4[2])];
+  return (
+    a === 10 ||
+    a === 0 ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 169 && b === 254) ||
+    (a === 100 && b >= 64 && b <= 127)
+  );
 }
 
 const originOf = (url: string) => {
