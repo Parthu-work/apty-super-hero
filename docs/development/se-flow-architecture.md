@@ -537,3 +537,91 @@ matching, timestamp, self-hosted, E2E).
 |---|---|---|
 | 10 | 4.x self-hosted `hostedContentUrl` names a host the policy may not list | Allow it only when it is in `aptyContentOrigins`; the row names the host to add |
 | 11 | The 4.x Extension-mode Client's `config.json` also carries keys such as `segmentIOKey` (`config/config.json:5`) | The probe returns only `contentURL`, `tenantKey`, `regExpUrlFlag` and `isSelfHosted`; nothing else leaves the page |
+
+## 9. Final decisions (supersede earlier sections where they differ)
+
+These were confirmed with the owner after §1–§8. The page version, with
+every diagram, is the architecture artifact linked from the case notes.
+
+**No widget script and no Client ID**
+
+- The Agent never messages the Apty Client. The script in the Client's
+  `background.js` (`docs/integrations/apty/CLIENT-PATCH.md`,
+  `TEST-RECORDER.md`) is not needed.
+- No Client extension ID is saved or typed. The probe reads the Client's ID
+  from the page (`window-script.js` for 5.x, `window.var.js` for 4.x), but
+  only to open the Client's public config file.
+- `aptyClientRecord` is `off` by default. When it is off:
+  - the Client ID screens (`entrypoints/options/apty-client-panel.tsx`,
+    `client-network-calls-panel.tsx`) are hidden;
+  - the first-run "client" row (`components/connections/first-run.ts:86-95`)
+    becomes an info row showing which Apty was found on the page.
+
+**IDs**
+
+- The tenant, application and environment are read from the page by
+  default.
+- The SE is asked for them only when one of these holds:
+  - the page has no readable Apty;
+  - the page is 4.x and no application matched, so the Client never adds
+    `window.var.js` (`player3.0/src/main.bootstrap.ts:162-170`, before
+    `:203-207`);
+  - the SE wants another environment.
+- The KB tenant and its per-version application IDs for Ask Dapty are fixed
+  in the org policy (`askDapty.kbApplicationIds`). They never come from the
+  page or the chat.
+
+**The checklist shows every step the Agent takes**
+
+- Context rows:
+  - Apty found (version and mode);
+  - environment matched.
+- Knowledge rows:
+  - Ask Dapty asked, with its class;
+  - cards searched, or not needed.
+- Check rows: one per file, one per gate, and the "not checked" items.
+- Each row carries its status (pass, fail, could not decide, information)
+  and its source: page, published file, Ask Dapty, cards, or not checked.
+
+**Accuracy**
+
+The promise is that every root cause shown is backed by evidence and is
+correct. Finding every cause cannot be promised: segment membership, rule
+results, the Client's own network outcome and what the Client actually
+loaded exist only at runtime. The guards that back the promise:
+
+| Guard | State |
+|---|---|
+| Evidence or nothing for every cause | exists |
+| "?" / "not checked" when something cannot be decided | exists |
+| The player's own files, paths, timestamp and matching | 5.x built; 4.x is step 2 |
+| The model never decides a cause | new |
+| Per-rule tests against fixtures from Apty's code, re-run on each Apty release | new |
+| A real-tenant smoke test per version | new |
+| An SE "correct / wrong" mark per issue, with correctness tracked per rule | new |
+
+**Build plan (replaces §6)**
+
+1. Done: 5.x replay, the three tools, row sources, hardening, and the
+   200-not-found fix.
+2. Both versions, with no Client:
+   - the 5.x adapter;
+   - the 4.x adapter: probe, matching, timestamp and self-hosted support;
+   - stored chats on replay;
+   - `aptyClientRecord`, and hiding the Client ID screens;
+   - `inspect_extension_network` on replay.
+3. Live checklist: `LocalAnswer.progress` and `tool_call_progress`, with
+   context, knowledge and not-checked rows.
+4. Case run: every matching check in parallel, one result, Re-check.
+5. Ask Dapty: the policy key, the SSE client, the classifier, guidance, and
+   the cards after a give-up.
+6. Ask AI anyway: `modelA`, the A-then-B chain, the quality check, and
+   "Not enough evidence".
+7. Accuracy guards: per-rule tests against Apty code, smoke tests, and the
+   correct/wrong mark.
+8. End-to-end tests:
+   - a fake ai-service;
+   - fake 4.x and 5.x content hosts;
+   - mock models A and B: 401, 429 and a quality failure.
+
+   No Client extension in any of them.
