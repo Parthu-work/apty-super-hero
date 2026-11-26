@@ -79,6 +79,33 @@ export function usableBase(url: string): string | undefined {
   }
 }
 
+/**
+ * A private or link-local IP literal: a page may name its content URL, but
+ * not to turn the Agent's fetches at the user's network (SSRF). Loopback
+ * stays allowed, as for the existing content-CDN fallback (and its tests).
+ */
+export function isPrivateNetworkHost(url: string): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  } catch {
+    return true;
+  }
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(host);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    return (
+      a === 10 ||
+      a === 0 ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 169 && b === 254) ||
+      (a === 100 && b >= 64 && b <= 127)
+    );
+  }
+  return /^(?:f[cd][0-9a-f]{2}|fe[89ab][0-9a-f]):/.test(host);
+}
+
 const originOf = (url: string) => {
   try {
     return new URL(url).origin;
@@ -368,7 +395,21 @@ export function createReplaySource({
           "That content host is not the page's Apty content URL nor in the organization policy's aptyContentOrigins.",
       };
     }
-    if (pageBase) return { ok: true, base: pageBase };
+    if (pageBase) {
+      const origin = originOf(pageBase)?.toLowerCase();
+      if (
+        isPrivateNetworkHost(pageBase) &&
+        !(origin && allowed.includes(origin))
+      ) {
+        return {
+          ok: false,
+          failure: "host_not_allowed",
+          detail:
+            "The page names a content URL on a private network address; it is used only if the organization policy's aptyContentOrigins lists it.",
+        };
+      }
+      return { ok: true, base: pageBase };
+    }
     const [only, ...more] = allowed;
     if (only && more.length === 0) return { ok: true, base: only };
     return {

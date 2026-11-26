@@ -274,6 +274,40 @@ describe("resolveContext", () => {
     ).toMatchObject({ ok: false, failure: "host_not_allowed" });
   });
 
+  it("refuses a page-named content URL on a private network address unless the policy lists it", async () => {
+    for (const contentURL of [
+      "https://10.0.0.5",
+      "https://192.168.1.10/apty",
+      "https://172.20.0.1",
+      "https://169.254.169.254",
+      "https://[fd00::1]",
+    ]) {
+      const { replay, calls } = source({}, { page: onPage({ contentURL }) });
+      expect(await replay.resolveContext(GIVEN)).toMatchObject({
+        ok: false,
+        failure: "host_not_allowed",
+      });
+      expect(calls).toHaveLength(0);
+    }
+    const listed = source(
+      {},
+      {
+        page: onPage({ contentURL: "https://10.0.0.5" }),
+        policyOrigins: async () => ["https://10.0.0.5"],
+      },
+    );
+    expect(await resolved(listed.replay, GIVEN)).toMatchObject({
+      contentURL: "https://10.0.0.5",
+    });
+    expect(
+      await resolved(
+        source({}, { page: onPage({ contentURL: "https://172.32.0.1" }) })
+          .replay,
+        GIVEN,
+      ),
+    ).toMatchObject({ contentURL: "https://172.32.0.1" });
+  });
+
   it("asks for both IDs on 4.x", async () => {
     const { replay } = source({});
     expect(
