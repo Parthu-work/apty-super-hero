@@ -946,10 +946,32 @@ source the Agent can read, and say why for every source it can't.
    | S-PAGE | Page readiness | The existing DOM Health pack |
 
    An ambiguous message runs the union of the plausible symptoms' groups.
-2. **Item resolution** uses the existing `lookup.ts`: exact name first,
+2. **A bare how-to makes no content-file requests.**
+   - **Bare how-to:** `isBareHowTo` in
+     `packages/browser-runtime/src/kb/kb-intent.ts:62-74`. The message
+     starts with "how do I", "how to", "can I", "where is the setting for"
+     and similar, and `hasSymptomWord` (`:54-60`) finds no symptom word.
+   - **Its route:** context resolution only. It reads the version from the
+     page config or the SE's words, with no content request. Then it goes
+     to Ask Dapty, using that version's KB application, or the common
+     tenant-wide documents when the version is unknown. Its reply is the
+     answer, shown as guidance.
+   - **No cards:** KB cards answer symptoms, not how-tos (owner decision
+     D-KB1).
+   - **Ask AI anyway** is offered only if Ask Dapty gives up, errors or
+     isn't configured.
+   - **A "Run checks" button** on the answer (reuse `runCheck`,
+     `apty/diagnosis/responder.ts:688-698`) lets the SE start the symptom
+     checks if there is in fact a problem.
+   - **Symptom wording wins:** a how-to that contains a symptom word ("how
+     do I fix the tooltip that doesn't show") runs the checks.
+   - **Prove it:** a router test that a bare how-to yields no check route.
+     An E2E test where the fake content host receives **zero** requests for
+     a bare how-to, and the fake ai-service receives exactly one.
+3. **Item resolution** uses the existing `lookup.ts`: exact name first,
    then the sourceId or id, then part of the name. Several matches give
    **one** question listing the candidates' names and environments.
-3. **Intake: ask only what is missing, once, in one card.**
+4. **Intake: ask only what is missing, once, in one card.**
    - IDs come from the message. Detect a UUID (5.x) and a 4.x key or
      numbers, e.g. "tenant 0f…, env 0e…".
    - The page comes from the bound tab. When the symptom needs it and
@@ -967,7 +989,7 @@ source the Agent can read, and say why for every source it can't.
    - IDs the SE gives are pinned with `pinContext`. A pinned context whose
      tenant differs from the page's tenant shows a confirm step: "Use
      tenant … instead of this page's tenant?"
-4. **UI: the intake card.** It shows the fields with values filled in
+5. **UI: the intake card.** It shows the fields with values filled in
    from the page, marked "from page". Each field is editable. One button:
    **Run checks**. Validation messages are specific, e.g. "An application
    ID is a UUID in 5.x".
