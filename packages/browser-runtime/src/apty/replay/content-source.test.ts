@@ -500,6 +500,26 @@ describe("fetchFile", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("asks once for a file several checks need at the same moment, content-config.json included", async () => {
+    const { replay, context, calls } = await ready({
+      [`${T}/content-config.json`]: { latest: 5 },
+      [`${E}/segment.json`]: [{ id: "g", isActive: true }],
+      [`${E}/rule.json`]: [],
+    });
+    const results = await Promise.all([
+      replay.fetchFile(context, "segment.json"),
+      replay.fetchFile(context, "segment.json"),
+      replay.fetchFile(context, "rule.json"),
+    ]);
+    expect(results.every((r) => r.ok)).toBe(true);
+    const paths = calls.map((c) => c.url.replace(/\?.*$/, ""));
+    expect(
+      paths.filter((p) => p.endsWith("/content-config.json")),
+    ).toHaveLength(1);
+    expect(paths.filter((p) => p.endsWith("/segment.json"))).toHaveLength(1);
+    expect(paths).toHaveLength(3);
+  });
+
   it("keeps the case's copy, and asks again conditionally when told to", async () => {
     const files: Record<string, Served> = {
       [`${T}/app-urls.json`]: {

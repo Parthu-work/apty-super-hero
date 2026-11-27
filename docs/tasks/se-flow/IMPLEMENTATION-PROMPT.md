@@ -1859,8 +1859,9 @@ Also run the a11y and chat-scroll suites (400 and 480).
 
 ## 9. Optimisation checklist
 
-- One replay source per case (built). One `apty-files` per case run;
-  dedupe in-flight fetches by path.
+- One replay source per case (built). Concurrent requests for the same
+  file share one fetch (built: `inFlight` in `apty/replay/content-source.ts`).
+  One `apty-files` per case run.
 - Conditional requests on Re-check (built). Cache `not_published` per
   case (built).
 - The page probe and MAIN-world reads are batched into **one**

@@ -176,6 +176,8 @@ export function createReplaySource({
   const cache = new Map<string, CacheEntry>();
   /** Paths the host said hold nothing, for the case: not asked again until `fresh`. */
   const unpublished = new Map<string, AptyFileResult>();
+  /** Requests under way: a second caller for the same file waits for the first instead of asking again. */
+  const inFlight = new Map<string, Promise<AptyFileResult>>();
   /** Bases a context was resolved for: the only hosts `fetchFile` calls. */
   const allowedBases = new Set<string>();
 
@@ -221,11 +223,38 @@ export function createReplaySource({
     return fileTimestamp(json, keys, now);
   }
 
-  async function fetchFile(
+  function fetchFile(
     context: AptyContentContext,
     file: string,
     extra: AptyFileExtra = {},
-    { fresh = false }: ReplayFetchOptions = {},
+    options: ReplayFetchOptions = {},
+  ): Promise<AptyFileResult> {
+    const key = JSON.stringify([
+      context.version,
+      context.contentURL,
+      context.tenantId,
+      context.applicationId,
+      context.environmentId,
+      file,
+      extra.userId,
+      extra.chatId,
+      extra.workflowId,
+      options.fresh === true,
+    ]);
+    const pending = inFlight.get(key);
+    if (pending) return pending;
+    const started = fetchFileOnce(context, file, extra, options).finally(() =>
+      inFlight.delete(key),
+    );
+    inFlight.set(key, started);
+    return started;
+  }
+
+  async function fetchFileOnce(
+    context: AptyContentContext,
+    file: string,
+    extra: AptyFileExtra,
+    { fresh = false }: ReplayFetchOptions,
   ): Promise<AptyFileResult> {
     const base = usableBase(context.contentURL);
     if (!base || !allowedBases.has(base)) {
