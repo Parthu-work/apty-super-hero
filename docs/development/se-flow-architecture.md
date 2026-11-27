@@ -625,3 +625,86 @@ loaded exist only at runtime. The guards that back the promise:
    - mock models A and B: 401, 429 and a quality failure.
 
    No Client extension in any of them.
+
+## 10. Coverage of every case (supersedes the build plan in §9)
+
+[se-flow-coverage.md](se-flow-coverage.md) holds the full inventory. It
+lists every condition the 4.x and 5.x players check, per symptom, with
+`repo:path:line`, how the Agent decides it, and the checklist row it
+becomes. This section records what the inventory changes in the design.
+
+**What the SE does.** The SE says what is wrong. They give tenant,
+application and environment IDs only when the Agent cannot read them
+from the page. The Agent asks for a user identifier only when a
+user-dependent row needs one and the page does not show it.
+
+**New engines in the Agent:**
+
+1. **A 5.x rule and segment evaluator** in agent-core: pure code, kept in
+   line with the player by parity tests. A page-input reader feeds it from
+   the MAIN world: window, storage, `document.cookie`, URL, date, device
+   and `aptyAugmentation`.
+
+   Segment and visibility-rule rows change from "?" to ✓ or ✗ for every
+   rule built from those sources, and each row names the deciding
+   condition. Three kinds stay "?": custom scripts (open decision O-4),
+   `lastActivityTime`, and element rules until the probe's parity with
+   Apty's element identification is proven.
+2. **4.x segment evaluation** over the page-computable metadata. 4.x rule
+   trees and element selection need read access to `@apty/rules-engine`
+   and `@apty/extension-core`, which is open decision O-3.
+3. **Schema-drop mirrors.** For each file, the Agent mirrors the player's
+   per-item and whole-file validation, so "silently dropped by the player
+   because field X …" becomes a cause.
+
+**New check groups:**
+
+- Auto-trigger.
+- Launch, from each source.
+- Steps file and step play.
+- Launcher target.
+- Validators.
+- Announcement schedule and recurrence.
+- Checklist items.
+- Locale.
+- Widget list grouping and search.
+- For 4.x only: onboarding and frames.
+
+The router maps one symptom to every group it needs (inventory §2).
+
+**Corrections to earlier sections:**
+
+- **5.x auto-trigger** reads `stepsAutoTrigger[]` on each workflow. The
+  workflow-level `autoTriggerRuleId`, `autoTriggerFrequency` and
+  `autoTriggerDelay` fields are not read by the player (inventory W5-26).
+- **5.x widget display** is per environment (`widgetDisplayConfig`, where
+  missing means None), since apty-dap `9b2eef11` (2026-11-16). The Agent's
+  existing widget check reads the app-level fields and must be fixed
+  first (W5-08, O-6).
+
+**Build plan (replaces §9's)**
+
+1. Done: 5.x replay, the three tools, row sources, the hardening fixes,
+   and the 200 not-found fix.
+2. Fix the existing checks so they match the current player:
+   - the 5.x widget display per environment;
+   - the coverage manifest;
+   - the drift script (inventory §7).
+3. Both versions with no Client:
+   - the 5.x and 4.x adapters;
+   - `aptyClientRecord`, hiding the Client ID screens;
+   - stored chats moved onto replay.
+4. Schema-drop mirrors for both versions.
+5. The 5.x rule and segment evaluator, its page-input reader and parity
+   tests; 4.x segment evaluation.
+6. Symptom router, intake (ask only what is missing), and the live
+   checklist (`tool_call_progress`).
+7. New 5.x check groups, per inventory §4.
+8. New 4.x check groups, per inventory §5.
+9. Case run: every group in parallel, one result, Re-check. Then Ask
+   Dapty and the cards.
+10. Ask AI anyway: Model A, then B, with the quality check.
+11. Accuracy:
+    - the SE's correct/wrong mark and the metrics (inventory §8);
+    - a real-tenant smoke test per version.
+12. End-to-end tests: one per symptom per version, with no Client.
