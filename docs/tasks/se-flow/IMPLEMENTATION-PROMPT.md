@@ -1,5 +1,17 @@
 # Master prompt: build the SE debugging flow end to end in apty-super-hero
 
+**Version 2.** It changes version 1 in these ways:
+
+- It reads the consolidated design `docs/development/se-flow-design.md`
+  first.
+- It adds the network-call policy as testable acceptance (§3.2, WP10 and
+  WP15).
+- It states the how-to route (WP6) and why the checks run in parallel
+  (§3.1).
+- It adds decisions D-ASKFIRST and D-DAPTY-WHEN.
+- It adds the external dependencies (§3.3).
+- It records that `inFlight` de-duplication is built (`c38343b`).
+
 You are a coding agent working in **Parthu-work/apty-super-hero**. This is
 a pnpm monorepo for the Chrome/Edge MV3 extension "Apty Agent", which Apty
 Solution Engineers (SEs) use to find why Apty content does not work on a
@@ -20,12 +32,15 @@ proven. Read it end to end before you change anything.
    1. `CLAUDE.md` and `AGENTS.md`: package rules, test conventions, code
       style.
    2. `docs/STATUS.md`.
-   3. `docs/development/se-flow-architecture.md`: the design. §9 and §10
-      are the final decisions.
+   3. **`docs/development/se-flow-design.md`: the final design and the
+      single source of truth.** Where any other document differs, this
+      one wins.
    4. `docs/development/se-flow-coverage.md`: every player condition, with
-      IDs such as W5-08 or F4-21.
+      IDs such as W5-08 or F4-21, and its citation.
    5. `docs/development/replay-network-source.md`: the request catalogue
       and the replay design, already built.
+   6. `docs/development/se-flow-architecture.md`: the design history and
+      its citations. Read it for background only.
 3. **Keep `docs/STATUS.md` current.** Give each work package (WP) a row:
    not started, in progress, done or partial, with the commit and what is
    missing.
@@ -196,7 +211,9 @@ The branch has these commits on top of `main` `7d6e9ef`:
 |---|---|
 | `4753e7a` | **Replay, 5.x.** <ul><li>The `AptyContentSource` interface (`packages/agent-core/src/apty/content-source.ts`, with named failures `not_published`, `http_<code>`, `network`, `timeout`, `schema_mismatch`, `host_not_allowed`, `ids_missing`, `body_denied`, `too_large`, `unparsable`, `unknown_file`).</li><li>`aptyContentOrigins` in the org policy and `apps/browser-extension/managed-schema.json`.</li><li>`packages/browser-runtime/src/apty/replay/`: `catalogue.ts` (4.x and 5.x file catalogue and `filePath`), `schemas.ts` (minimal loose schemas), `content-source.ts` (`createReplaySource`, which includes the player timestamp and the 200 not-found detection), and `case-replay.ts` (per-case registry, `pinContext`, `replayResourceSource`).</li><li>The tools `resolve_apty_context`, `list_apty_files` and `fetch_apty_file` (`tools/apty-content.ts`, group `aptyContent`, file-route budget 11).</li><li>Per-gate `source` (`client`, `capture` or `agent`), with the card suffix and `filesFromReplay`.</li><li>A loader fix: a 200 `{status:404}` body is read as HTTP 404.</li><li>`replayVersion` on evidence.</li><li>`tooling/e2e/replay-source.e2e.test.mjs`.</li></ul> |
 | `e973337`, `7119848` | A page-named content URL on a private-network or IPv6 literal host is refused unless the policy lists it |
-| `7487016`, `5831beb`, `752de41`, `af4c7a6`, `d77fa34` | Design documents (§0) |
+| `7487016`, `5831beb`, `752de41`, `af4c7a6`, `d77fa34`, `a91a063` | Design documents and this prompt (§0) |
+| `c38343b` | **`inFlight` de-duplication:** concurrent `fetchFile` calls for the same file share one request, `content-config.json` included (`apty/replay/content-source.ts`, with its test) |
+| (this version) | `docs/development/se-flow-design.md`, the consolidated final design |
 
 **Current flow (to change).**
 
@@ -280,6 +297,59 @@ SE question
   value that would decide it, never as a guess.
 - **Ask AI anyway** uses Model A, then Model B, behind a deterministic
   quality check.
+- **A bare how-to makes no content-file requests** (WP6 item 2).
+- **Only necessary requests** (§3.2).
+
+### 3.1 Why the checks run in parallel with Ask Dapty
+
+- **The checks never read Ask Dapty's answer.** The symptom router
+  chooses the checks from the SE's message, and Ask Dapty's text is
+  guidance only.
+- **Speed.** Rows appear within about a second. The result appears when
+  the slower of the two finishes; Ask Dapty streams for several seconds
+  and times out at 20 s.
+- **Resilience.** An Ask Dapty error, timeout, give-up or missing setup
+  never blocks the root cause.
+- **Accuracy.** An unverifiable answer must not suppress the checks: Ask
+  Dapty gives no sources, and a web answer cannot be detected.
+- **Only the cards wait for Ask Dapty.**
+- **Do not make the checks wait for Ask Dapty**, unless the owner picks
+  D-DAPTY-WHEN = "only when the checks find nothing". In that case Ask
+  Dapty starts after the checks, and only if they found no cause.
+
+### 3.2 Network-call policy (acceptance criteria, asserted in WP10 and WP15)
+
+| Situation | Content-file requests allowed | Ask Dapty |
+|---|---|---|
+| Bare how-to | **0** | 1 |
+| All three IDs given | No `app-urls.json` lookup | — |
+| Only some IDs, or IDs from the page | `app-urls.json` exactly once | — |
+| A symptom | Only the files its check groups declare (each group exports its file list), each **at most once per case**, plus `content-config.json` once for the version stamp | 1, in parallel |
+| A user-specific check | `users/{id}.json`, only when such a check runs and the ID is known | — |
+| Element, page, rule and segment checks | **0** (local page reads) | — |
+| A follow-up question in the same case | **0** new requests; answered from the case cache | Only if the question changed |
+| Re-check | One **conditional** request per file (`If-None-Match` / `If-Modified-Since`) | Only if the question changed |
+| Limits | At most 6 concurrent and 40 per case; 5 MB per file and 25 MB per case | — |
+
+Built already:
+
+- the per-case cache, including `not_published`;
+- `inFlight` de-duplication;
+- conditional requests;
+- the catalogue-only paths and host allow-list.
+
+No AI model request is made on the check path.
+
+### 3.3 External dependencies (none needs Apty to act per case)
+
+| Dependency | Handling |
+|---|---|
+| Apty's public file paths and formats stay stable | Coverage manifest and `audit:apty-coverage` (WP1) |
+| The real content host serves without authentication | Real-tenant smoke test (WP13). Until it runs, mark this "not run" |
+| An Ask Dapty KB tenant with documents, and the route staying public | D-KB. Without it, the checks and cards still work |
+| Org policy set once by IT | WP3, WP11, WP12; document the defaults (WP14) |
+| `aptyInc/apty-extension-core` and `rules-engine-package` | O-3; until then, those 4.x rows are "?" |
+| The SE's network reaches the content host | The row shows the exact `network` or `timeout` error |
 
 ---
 
@@ -408,6 +478,8 @@ that don't depend on them. A default applies only if the owner replies
 | D-KB | Who owns the KB tenant: its documents, with one application each for 4.x and 5.x plus tenant-wide common documents? | Owner names one. Until set, `askDapty` is absent and no call is made |
 | D-CLIENT | Delete the Client-record code, or keep it behind `aptyClientRecord: optional`? | Keep it, off by default |
 | D-SELFHOSTED | 4.x self-hosted `hostedContentUrl` names a host the policy may not list | Use it only when it is in `aptyContentOrigins`; otherwise the row is `host_not_allowed` and names the host to add |
+| D-ASKFIRST | Always confirm the tenant, application and environment in the intake card before the first content request, even when they were read from the page? | No. Read them from the page and ask only for what is missing. Implement the mode behind a setting (WP6), off by default |
+| D-DAPTY-WHEN | Call Ask Dapty in parallel with the checks, or only when the checks find nothing? | In parallel. Implement the alternative behind a setting (WP11) |
 
 ---
 
@@ -971,7 +1043,13 @@ source the Agent can read, and say why for every source it can't.
 3. **Item resolution** uses the existing `lookup.ts`: exact name first,
    then the sourceId or id, then part of the name. Several matches give
    **one** question listing the candidates' names and environments.
-4. **Intake: ask only what is missing, once, in one card.**
+4. **Ask-first mode (D-ASKFIRST).** A setting, off by default, and
+   lockable by policy. When it is on, the intake card always shows the IDs
+   that will be used, including those read from the page, and **no
+   content request is made until the SE presses Run checks**. Prove it
+   with an E2E test: with the mode on, the fake content host receives
+   zero requests until the click.
+5. **Intake: ask only what is missing, once, in one card.**
    - IDs come from the message. Detect a UUID (5.x) and a 4.x key or
      numbers, e.g. "tenant 0f…, env 0e…".
    - The page comes from the bound tab. When the symptom needs it and
@@ -989,7 +1067,7 @@ source the Agent can read, and say why for every source it can't.
    - IDs the SE gives are pinned with `pinContext`. A pinned context whose
      tenant differs from the page's tenant shows a confirm step: "Use
      tenant … instead of this page's tenant?"
-5. **UI: the intake card.** It shows the fields with values filled in
+6. **UI: the intake card.** It shows the fields with values filled in
    from the page, marked "from page". Each field is editable. One button:
    **Run checks**. Validation messages are specific, e.g. "An application
    ID is a UUID in 5.x".
@@ -1494,6 +1572,12 @@ them).
       `Promise.allSettled`.
    3. All groups share **one** `apty-files` and replay per case, so each
       file is fetched once.
+      - **Each check group exports the files it reads**
+        (`files(version, symptom)`).
+      - The orchestrator fetches the **union** of those lists and nothing
+        else. That is what the §3.2 request-count assertions check
+        against.
+      - Fetch `content-config.json` first, then the rest.
    4. Run at most 6 requests at a time.
    5. Rows stream (WP7).
 2. **Aggregate:**
@@ -1571,6 +1655,10 @@ them).
    - If the stream does not open within 5 s, or answers 4xx before SSE
      headers, use the one-shot route once.
    - Abort with no event after 20 s.
+   - **D-DAPTY-WHEN.** The setting `askDaptyWhen: "parallel" | "nothing-found"`
+     defaults to `"parallel"` and can be locked by policy. With
+     `"nothing-found"`, the case run starts Ask Dapty only after the
+     checks finish with status `clear` or `no_data`.
 2. **Parse** `data:` frames. `done.reply` is authoritative. Keep the names
    of `tool_start` events.
 3. **Classify** (pure):
@@ -1814,6 +1902,15 @@ For **each symptom × version** that applies:
 5. No URL and no unmasked value in the card.
 6. `panel.consoleErrors` is empty.
 7. Re-check after a fixture change flips the row.
+8. **The request count matches §3.2.** The fake content host records
+   every path. Assert:
+   - exactly the symptom's declared files, each once, plus
+     `content-config.json` once;
+   - no `app-urls.json` when all three IDs were given;
+   - **zero** requests for a bare how-to;
+   - zero new requests for a follow-up question;
+   - on Re-check, every request carries `If-None-Match` or
+     `If-Modified-Since`.
 
 Also run the a11y and chat-scroll suites (400 and 480).
 
@@ -1885,13 +1982,15 @@ Also run the a11y and chat-scroll suites (400 and 480).
    versions in E2E.
 4. With no Client extension and no saved ID, every content check works,
    for both versions.
-5. No code path contacts the Apty Client by default. No request sends
+5. Requests follow the network-call policy (§3.2), asserted in WP15
+   item 8.
+6. No code path contacts the Apty Client by default. No request sends
    credentials. No customer script runs (unless O-4). No value reaches a
    model unredacted.
-6. The coverage manifest lists every implemented condition, and
+7. The coverage manifest lists every implemented condition, and
    `audit:apty-coverage` passes against apty-dap `3f3adba` and
    apty-assist `bbb4cbc`.
-7. The docs in WP14 are updated.
+8. The docs in WP14 are updated.
 
 ## 11. Hand-over
 

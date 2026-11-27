@@ -1,5 +1,7 @@
 # The SE flow, end to end: architecture and design
 
+> **Superseded for decisions by [se-flow-design.md](se-flow-design.md)**, the consolidated final design. This document is the design history; its citations still hold.
+
 Status: **design**. Nothing in this document is built yet, except where it
 says **exists** or **built**.
 
