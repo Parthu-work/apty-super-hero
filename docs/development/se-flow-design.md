@@ -622,5 +622,7 @@ Fixing that is build step 2.
 - `inFlight` de-duplication;
 - the E2E test `replay-source.e2e.test.mjs`.
 
-The work packages WP0–WP15 are in
-`docs/tasks/se-flow/IMPLEMENTATION-PROMPT.md`.
+The work packages WP0–WP17 are in
+`docs/tasks/se-flow/IMPLEMENTATION-PROMPT.md` (version 3). The design is
+also published in Confluence, space `aptysuperh`, page "Apty Agent: SE
+debugging flow — architecture and design".
