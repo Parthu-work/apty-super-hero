@@ -516,7 +516,62 @@ widget list, WP9 text) and **F4-22** (= F4-70).
 |---|---|---|
 | D-ACORN | Add `acorn@8.16.0` (the parser the 5.x Sval uses) as a direct `@apty/agent-core` dependency for script parse checks? | Yes. Without it, SCR-02 is "?" |
 | D-TESTS | Approve the assertion migration list (C1): the listed assertions in `visibility-check.e2e.test.mjs` and `dapty-cdn.e2e.test.mjs` are replaced by assertions of the new behaviour for the same inputs? | Yes, limited to those assertions, each recorded in the phase review |
-| D-RELEASES | Provide the 5.x player release ↔ commit mapping (at least which release first contains `9b2eef11`)? | Until given, version-gated rows are `candidate` and the version-unknown case is "?" |
+| D-RELEASES | Provide the 5.x player release ↔ commit mapping (at least which release first contains `9b2eef11`)? | **Partly answered by apty-dap `3ad61ef9` (§F1): per-environment widget display from 5.2.4.** Other rows stay `candidate` until the mapping is given |
 | D-MODELB | Model B is "the Agent's configured model, whatever its provider" (not only Anthropic)? | Yes. A missing key is `no_key` |
 | D-4XHEADERS | If the 4.x smoke test shows the CDN needs `AptyCustomHeaderKey`, may the Agent send that one header? | No until the smoke test shows it is needed; never `x-referer` |
 | D-HTTP-ONPREM | Allow plain-http 4.x on-prem content hosts when the policy lists them? | No |
+
+---
+
+## F. apty-dap after the pinned commit (`3f3adba` → `dc502c81`)
+
+apty-dap moved on by seven commits after the pin (to `dc502c81`,
+2026-11-27). Five do not touch the web player (server, Studio, mobile,
+automation). Two do, and they are binding:
+
+### F1. `3ad61ef9`: per-environment widget display applies from player 5.2.4
+
+`apps/core-service/src/accounts/application-config/application-config.service.ts`
+(`mirrorProductionWidgetDisplay`): "Players before 5.2.4 read who sees the
+widget from here, so it follows Production's; remove after 5.2.6". On
+every environment save, the server copies the **Production** environment's
+(`order === 1`) resolved `widgetDisplayConfig` into the application-level
+`widgetConfig.display` and `selectedSegments`.
+
+**So WNV-07 (A6) is:**
+
+- player **≥ 5.2.4**: per-environment `widgetDisplayConfig` of the matched
+  environment; missing means hidden (`segments.service.ts:64-80`);
+- player **< 5.2.4**: app-level `widgetConfig.display` / `selectedSegments`
+  (which the server now keeps equal to Production's). On a non-Production
+  environment, add an info row: "this player shows the widget by
+  Production's display setting, not this environment's". If the app-level
+  value differs from Production's resolved display, the mirror has not run
+  since the change (no environment saved yet): say so;
+- version unknown: "?" naming both rules.
+
+`minPlayerVersion: "5.2.4"` on the per-environment rule. Re-check the
+mirror's removal after 5.2.6.
+
+### F2. `a2d73e67`: step wait time comes from `workflowWaitTime`
+
+`libs/client/tool-items-schema/src/mappers/flow-step.mapper.ts`: a
+non-optional step now waits `applicationProperties.config.workflowWaitTime
+× 1000` ms when that property is set, else `WORKFLOW_STEP_TIMEOUT_MS`
+(5000). Optional steps still use `optionalTimeOut`. The same commit removes
+`FlowsFocusTrap.tsx` (focus lock moves to `enableFlowFocusLock` in
+`AttachedStep.tsx`).
+
+**So:** W5-45 / W5-46 (and D3's timing row) get a version split — players
+with `a2d73e67` use `workflowWaitTime`; older ones a fixed 5 s. C-18's
+`enableFocusLock` row is re-read at `a2d73e67` (`AttachedStep.tsx`,
+`libs/client/tool-items-schema/src/types/workflow.ts`). Until the release
+containing `a2d73e67` is known (D-RELEASES), show both values and mark the
+timing row `candidate`.
+
+### F3. Which commit to cite
+
+Keep citing `3f3adba` for everything else. For F1 and F2 cite the new
+commits; read them with `git show <commit>:<path>` and change nothing in
+apty-dap. Record in the phase review any other drift found between
+`3f3adba` and the newest commit.

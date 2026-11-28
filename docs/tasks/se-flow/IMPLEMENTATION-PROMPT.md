@@ -93,12 +93,16 @@ proven. Read it end to end before you change anything.
 
 ### 1.2 Git
 
-- Work on `claude/amazing-gauss-1q2tme`, branched from `main`. Commit one
-  WP at a time, with a message that names the WP.
+- **Start from the head of `claude/amazing-gauss-1q2tme`** (it holds the
+  replay work and these documents). Commit on the branch the owner or your
+  environment names; when that is a different branch, create it from that
+  head first. Commit one WP at a time, with a message that names the WP.
 - End each commit message with the attribution lines this environment
   gives you.
-- **Do not push, merge, force-push or open a pull request** unless the
-  owner asks in so many words.
+- Push **only** to your own working branch, and only when the owner or
+  your environment's instructions require it (an ephemeral container loses
+  unpushed work). **Never merge, force-push, push to another branch or open
+  a pull request** unless the owner asks in so many words.
 
 ### 1.3 Evidence over claims
 
@@ -2446,4 +2450,5 @@ an earlier hardening review; do not overwrite it):
 6. What is partial, and why.
 7. What was not run: a real tenant, Ask Dapty KB, real models.
 
-Do not push. Tell the owner the branch name and the head commit.
+Do not open a pull request. Tell the owner the branch name and the head
+commit (and whether it is pushed).

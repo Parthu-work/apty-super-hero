@@ -1,7 +1,8 @@
 # Phase 1 prompt: workflows, end to end, for 4.x and 5.x
 
-You are a coding agent working in **Parthu-work/apty-super-hero**, on
-branch `claude/amazing-gauss-1q2tme`. This prompt builds the SE debugging
+You are a coding agent working in **Parthu-work/apty-super-hero**,
+starting from the head of branch `claude/amazing-gauss-1q2tme` (see master
+§1.2 for the working branch and push rule). This prompt builds the SE debugging
 flow for **one tool first: workflows**. The owner reviews the result before
 the other tools (tooltips, launchers, validations, announcements,
 checklists, knowledge content and the rest) are built in later phases.
@@ -37,7 +38,8 @@ credentials, catalogue paths and allowed hosts only; nothing on disk;
 customer scripts never executed unless O-4; no new permission or runtime
 dependency unless a decision allows it; never weaken a test; fail-then-pass
 proof for each behaviour change; `npm run preflight` green per WP; do not
-push or open a pull request unless the owner asks.
+open a pull request unless the owner asks; push only to your own working
+branch, as master §1.2 says.
 
 ## 2. Ask the owner first
 
@@ -229,4 +231,5 @@ Write `docs/tasks/se-flow/PHASE-1-REVIEW.md` with:
 8. **what Phase 2 can reuse as is**, and anything the Phase 1 foundations
    would need to change for tooltips, launchers and validations.
 
-Do not push. Tell the owner the branch name and head commit.
+Do not open a pull request. Tell the owner the branch name and head commit
+(and whether it is pushed).
