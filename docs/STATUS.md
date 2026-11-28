@@ -306,6 +306,52 @@ extension (see [`tooling/e2e/README.md`](../tooling/e2e/README.md)).
 | W9 Audit items 10 (Chinese card), N5 (rejected selectors), 14 (language codes) | Merged | [#81](https://github.com/Parthu-work/apty-super-hero/pull/81) |
 | Follow-up: the flaky DOM Config crawl and DOM Health click-only E2E tests, which read a frame before its responder had loaded; the Agent now waits up to 2 s for it | Merged | [#89](https://github.com/Parthu-work/apty-super-hero/pull/89) |
 
+### SE debugging flow, Phase 1 (workflows, 4.x and 5.x)
+
+Scope: [`PHASE-1-WORKFLOWS.md`](tasks/se-flow/PHASE-1-WORKFLOWS.md), with
+[`IMPLEMENTATION-PROMPT.md`](tasks/se-flow/IMPLEMENTATION-PROMPT.md) and the
+binding [`AUDIT-CORRECTIONS.md`](tasks/se-flow/AUDIT-CORRECTIONS.md).
+Branch `claude/blissful-cannon-g8o8bz`, started from
+`claude/amazing-gauss-1q2tme` at `f6b682e`.
+
+Owner decisions (2026-11-28): every default in master §5 and audit §E, with
+D-RELEASES = player 5.2.4 for the per-environment widget display (§F1); the
+release containing `a2d73e67` (step wait time, §F2) is unknown, so those
+rows stay `candidate` and show both values. D-KB: not yet, so `askDapty`
+stays absent and no Ask Dapty call is made.
+
+| WP | State | Commit | Missing |
+|---|---|---|---|
+| WP0 Baseline | Done | (this commit) | — |
+| A1 + A2 Host gate on every path; fetch time and byte limits, abort (audit A15: first) | Not started | | |
+| WP1 Drift (WNV-07, version-gated) and coverage manifest | Not started | | |
+| WP2 Version adapters | Not started | | |
+| WP3 Remove the Client dependency | Not started | | |
+| WP4 Schema-drop mirrors (workflow files) | Not started | | |
+| WP5 Rule and segment evaluation, world parity | Not started | | |
+| WP6 Symptom router and intake (workflow symptoms) | Not started | | |
+| WP7 Live checklist | Not started | | |
+| WP8 5.x workflow check groups | Not started | | |
+| WP9 4.x flow check groups | Not started | | |
+| WP10 Case run | Not started | | |
+| WP11 Ask Dapty and the cards gate | Not started | | |
+| WP12 Ask AI anyway | Not started | | |
+| WP13 Accuracy and measurement (Phase 1 rules) | Not started | | |
+| WP14 Production readiness (Phase 1 code) | Not started | | |
+| WP15 End-to-end matrix (workflow symptoms) | Not started | | |
+| WP16 Customer scripts (workflow kinds) | Not started | | |
+| WP17 Platform rows (workflow scope) | Not started | | |
+
+WP0 baseline at `f6b682e`: `npm run preflight` green (unit tests:
+agent-core 724, browser-runtime 2,277, ui 535, browser-extension 790,
+dom-snapshot 468, apty-debug-contract 151, mcp-bridge 72, scripts 305);
+`npm run build` green; `replay-source.e2e.test.mjs` 3 of 3; every master
+§1.4 audit green except `lint:dependencies`, which reports nine exports of
+the replay slice used only by its tests (`catalogue.ts`, `content-source.ts`,
+`tools/apty-content.ts`); it passes on `main`. Fixed with A1 + A2, which
+rewrites those modules. `policy:check` passes on each file in
+`tooling/scripts/policy/fixtures/expected/`.
+
 ## Known limitations
 
 - None open from K25 and K26: the network-capture body preview and URLs in
