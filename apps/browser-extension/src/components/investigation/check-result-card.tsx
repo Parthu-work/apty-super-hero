@@ -205,6 +205,26 @@ const CAUSE_TEXT: Partial<Record<RuleId, CauseKeys>> = {
         summary: "checkPack.rule.WNV-07-noneChosen.summary",
         fix: "checkPack.rule.WNV-07-noneChosen.fix",
       },
+      displayNone: {
+        summary: "checkPack.rule.WNV-07-displayNone.summary",
+        fix: "checkPack.rule.WNV-07-displayNone.fix",
+      },
+      envDisplayNone: {
+        summary: "checkPack.rule.WNV-07-envDisplayNone.summary",
+        fix: "checkPack.rule.WNV-07-envDisplayNone.fix",
+      },
+      envNoneChosen: {
+        summary: "checkPack.rule.WNV-07-envNoneChosen.summary",
+        fix: "checkPack.rule.WNV-07-envNoneChosen.fix",
+      },
+      envNoActiveSegment: {
+        summary: "checkPack.rule.WNV-07-envNoActiveSegment.summary",
+        fix: "checkPack.rule.WNV-07-envNoActiveSegment.fix",
+      },
+      envNoSetting: {
+        summary: "checkPack.rule.WNV-07-envNoSetting.summary",
+        fix: "checkPack.rule.WNV-07-envNoSetting.fix",
+      },
     },
   },
   "LOG-01": {

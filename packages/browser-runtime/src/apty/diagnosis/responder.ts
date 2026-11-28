@@ -113,6 +113,8 @@ const NEXT_CHECK_TEXT: Record<NextCheck, string> = {
   whichOne: "Give the full name or the sourceId of the one that is missing.",
   testAsMember:
     "Test as a user known to match the segment, and confirm the widget shows for that user.",
+  askPlayerVersion:
+    "Find the Apty player's version (in its dev-mode panel, or on chrome://extensions for the Apty Client), then ask again with it.",
   openAppPage:
     "Open the application page where the widget is missing in this tab, then ask again.",
   comparePatterns:

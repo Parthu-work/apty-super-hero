@@ -2119,6 +2119,13 @@
       "widgetOtherUsers": "面向所选分段，也面向不在任何活动分段中的用户",
       "widgetNoActiveSegment": "小组件的分段在此永远不会生效：{{segments}}",
       "widgetNoSegmentChosen": "小组件设置为特定分段，但未选择任何分段",
+      "widgetDisplayNone": "小组件已关闭（显示设置为 {{display}}）",
+      "widgetEnvNoSetting": "{{env}} 没有保存小组件显示设置，因此小组件在那里被隐藏",
+      "widgetEnvUnknown": "不知道此页面使用哪个环境，因此未读取其小组件显示设置",
+      "widgetDisplayVersionGated": "5.2.4 及以上版本的播放器与更早的播放器在此处对小组件受众的判断不同；适用哪一种取决于 Apty 播放器的版本",
+      "widgetAppLevelIgnored": "应用级小组件受众设置在 5.2.4 及以上版本的播放器中不起作用",
+      "widgetFollowsProduction": "5.2.4 之前的播放器按 Production 的显示设置在 {{env}} 上显示小组件",
+      "widgetMirrorPending": "应用级小组件设置（{{app}}）与 Production 的设置（{{production}}）不同；5.2.4 之前的播放器仍使用旧设置",
       "widgetSegmentsMissing": "小组件的分段并非都在此处的 segment.json 中：{{segments}}",
       "restrictionPatterns": "设置了 {{count}} 个限制模式；它们可能隐藏整个小组件",
       "logsUnavailable": "无法读取 Apty Client 的日志：{{failureText}}",
@@ -2272,6 +2279,26 @@
       "WNV-07-noneChosen": {
         "summary": "小组件设置为仅向特定分段显示，但未选择任何分段，且“其他用户”选项已关闭：没有人能看到它。",
         "fix": "在 Admin 的“TARGET AUDIENCE”下，为小组件选择分段，或为所有用户启用小组件。发布并重新加载。"
+      },
+      "WNV-07-displayNone": {
+        "summary": "小组件已关闭（显示设置为 {{display}}）：没有人能看到它。",
+        "fix": "在 Admin 的“TARGET AUDIENCE”中，将小组件显示给所有用户或特定分段。发布后重新加载。"
+      },
+      "WNV-07-envDisplayNone": {
+        "summary": "小组件在 {{env}} 中已关闭（显示设置为 {{display}}）：那里没有人能看到它。",
+        "fix": "在 Admin 中打开 {{env}} 的小组件显示设置，选择“全部”或特定分段。发布后重新加载。"
+      },
+      "WNV-07-envNoneChosen": {
+        "summary": "{{env}} 的小组件显示设置为特定分段，但未选择任何分段：那里没有人能看到小组件。",
+        "fix": "在 Admin 中打开 {{env}} 的小组件显示设置并选择分段，或将小组件显示给所有用户。发布后重新加载。"
+      },
+      "WNV-07-envNoActiveSegment": {
+        "summary": "{{env}} 的小组件显示仅限于在此处永远不会激活的分段（{{segments}}）：那里没有人能看到小组件。",
+        "fix": "在 Admin 中启用 {{env}} 小组件显示设置中的某个分段或修复其规则，或将小组件显示给所有用户。发布后重新加载。"
+      },
+      "WNV-07-envNoSetting": {
+        "summary": "小组件在 {{env}} 中已关闭：该环境没有保存小组件显示设置，此时播放器会隐藏小组件。",
+        "fix": "在 Admin 中打开 {{env}} 的小组件显示设置，选择“全部”或特定分段并保存。发布后重新加载。"
       },
       "LOG-01": {
         "summary": "Apty 找不到 URL 模式匹配此页面的环境，因此那里不加载任何内容。",
@@ -2471,6 +2498,7 @@
       "nameItem": "说出缺失条目的名称，以便完整检查。",
       "whichOne": "是哪一个？请提供完整名称或 sourceId。",
       "testAsMember": "以已知匹配该分段的用户进行测试，并确认小组件对该用户显示。",
+      "askPlayerVersion": "查找 Apty 播放器的版本（在其开发者模式面板中，或在 chrome://extensions 中查看 Apty Client），然后带上版本再次提问。",
       "openItems": "然后查看下面待确认的检查；文件无法判断这些项。",
       "sendSupport": "向支持团队提供 Apty 版本、环境、sourceId、打开的小组件截图以及精简后的条目。",
       "openAppPage": "在此标签页中打开缺少小组件的应用页面，然后再问一次。",

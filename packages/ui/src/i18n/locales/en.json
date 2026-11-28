@@ -2119,6 +2119,13 @@
       "widgetOtherUsers": "For selected segments, and for users in no active segment too",
       "widgetNoActiveSegment": "The widget's segments can never be active here: {{segments}}",
       "widgetNoSegmentChosen": "The widget is set to specific segments, but none is chosen",
+      "widgetDisplayNone": "The widget is turned off (display {{display}})",
+      "widgetEnvNoSetting": "No widget display setting is saved for {{env}}, so the widget is hidden there",
+      "widgetEnvUnknown": "Which environment this page uses is not known, so its widget display setting was not read",
+      "widgetDisplayVersionGated": "Players from 5.2.4 and older players decide the widget's audience differently here; which applies depends on the Apty player's version",
+      "widgetAppLevelIgnored": "The application-level widget audience has no effect in players from 5.2.4",
+      "widgetFollowsProduction": "Players before 5.2.4 show the widget on {{env}} by Production's display setting",
+      "widgetMirrorPending": "The application-level widget setting ({{app}}) differs from Production's ({{production}}); players before 5.2.4 still use the older one",
       "widgetSegmentsMissing": "Not all of the widget's segments are in segment.json here: {{segments}}",
       "restrictionPatterns": "{{count}} restriction pattern(s) set; they can hide the whole widget",
       "logsUnavailable": "The Apty Client's logs could not be read: {{failureText}}",
@@ -2272,6 +2279,26 @@
       "WNV-07-noneChosen": {
         "summary": "The widget is set to show only to specific segments, but none is chosen, and the option for other users is off: nobody sees it.",
         "fix": "In Admin, under “TARGET AUDIENCE”, choose the widget's segments or enable the widget for all users. Publish and reload."
+      },
+      "WNV-07-displayNone": {
+        "summary": "The widget is turned off (display {{display}}): nobody sees it.",
+        "fix": "In Admin, under “TARGET AUDIENCE”, show the widget to all users or to specific segments. Publish and reload."
+      },
+      "WNV-07-envDisplayNone": {
+        "summary": "The widget is turned off for {{env}} (display {{display}}): nobody sees it there.",
+        "fix": "In Admin, open {{env}}'s widget display setting and choose All or specific segments. Publish and reload."
+      },
+      "WNV-07-envNoneChosen": {
+        "summary": "{{env}}'s widget display is set to specific segments, but none is chosen: nobody sees the widget there.",
+        "fix": "In Admin, open {{env}}'s widget display setting and choose its segments, or show the widget to all users. Publish and reload."
+      },
+      "WNV-07-envNoActiveSegment": {
+        "summary": "{{env}}'s widget display is limited to segments that can never be active here ({{segments}}): nobody sees the widget there.",
+        "fix": "In Admin, turn one of the segments in {{env}}'s widget display setting on or fix its rule, or show the widget to all users. Publish and reload."
+      },
+      "WNV-07-envNoSetting": {
+        "summary": "The widget is turned off for {{env}}: no widget display setting is saved for it, and the player hides the widget then.",
+        "fix": "In Admin, open {{env}}'s widget display setting, choose All or specific segments and save. Publish and reload."
       },
       "LOG-01": {
         "summary": "Apty found no environment whose URL pattern matches the page, so nothing loads there.",
@@ -2471,6 +2498,7 @@
       "nameItem": "Name the one that is missing to check it in full.",
       "whichOne": "Which one? Give the full name or the sourceId.",
       "testAsMember": "Test as a user known to match the segment, and confirm the widget shows for that user.",
+      "askPlayerVersion": "Find the Apty player's version (in its dev-mode panel, or on chrome://extensions for the Apty Client), then ask again with it.",
       "openItems": "Then look at the open checks below; the files cannot decide them.",
       "sendSupport": "Send support the Apty version, the environment, the sourceId, a screenshot of the open widget and the trimmed entry.",
       "openAppPage": "Open the application page where the widget is missing in this tab, then ask again.",

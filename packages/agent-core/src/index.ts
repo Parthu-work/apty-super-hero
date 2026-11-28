@@ -23,6 +23,10 @@ export {
 } from "./apty/content-source.js";
 export { type AptyIdKind, idShapeIssue } from "./apty/ids.js";
 export {
+  releaseAtLeast,
+  WIDGET_DISPLAY_PER_ENVIRONMENT_FROM,
+} from "./apty/releases.js";
+export {
   CASE_CONTINUE_HOURS,
   CASE_DOM_CONFIG_FILE_MAX,
   CASE_NOTE_MAX,

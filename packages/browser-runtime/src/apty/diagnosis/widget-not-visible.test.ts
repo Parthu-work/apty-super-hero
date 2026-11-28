@@ -10,11 +10,18 @@ type Rec = Record<string, unknown>;
 const UAT_PAGE = "https://uat.crm.example.com/leads/42";
 const PROD_PAGE = "https://crm.example.com/leads/42";
 
-function files(change?: (f: Record<string, Rec[] | Rec>) => void) {
+function files(
+  change?: (f: Record<string, Rec[] | Rec>) => void,
+  playerRelease?: string,
+) {
   const f = capture() as Record<string, Rec[] | Rec>;
   change?.(f);
-  return evidenceFrom(f);
+  const evidence = evidenceFrom(f);
+  return playerRelease ? { ...evidence, playerRelease } : evidence;
 }
+
+/** Players before 5.2.4 decide the widget's audience by the application-level setting these tests change. */
+const BEFORE_PER_ENV = "5.2.3";
 
 const envs = (f: Record<string, Rec[] | Rec>) =>
   ((f["app-urls.json"] as Rec[])[0] as Rec).environments as Rec[];
@@ -202,7 +209,7 @@ describe("widget-not-visible", () => {
     const result = diagnoseWidgetNotVisible(
       files((f) => {
         widgetConfig(f).selectedSegments = [];
-      }),
+      }, BEFORE_PER_ENV),
       UAT_PAGE,
     );
 
@@ -236,7 +243,7 @@ describe("widget-not-visible", () => {
     const forAll = diagnoseWidgetNotVisible(
       files((f) => {
         widgetConfig(f).display = "All";
-      }),
+      }, BEFORE_PER_ENV),
       UAT_PAGE,
     );
     expect(gateOf(forAll, "widgetForAll")?.status).toBe("pass");
@@ -244,7 +251,7 @@ describe("widget-not-visible", () => {
     const otherUsers = diagnoseWidgetNotVisible(
       files((f) => {
         widgetConfig(f).enabledForOtherUser = true;
-      }),
+      }, BEFORE_PER_ENV),
       UAT_PAGE,
     );
     expect(gateOf(otherUsers, "widgetOtherUsers")?.status).toBe("pass");
@@ -568,5 +575,206 @@ describe("widget-not-visible on 5.x, whose player never turns the regex URL flag
       ruleId: "WNV-08",
       reason: "envRegexOnly",
     });
+  });
+});
+
+describe("widget display per environment (WNV-07, AUDIT-CORRECTIONS A6 and F1)", () => {
+  const PER_ENV = "5.2.4";
+  const appEnvs = (f: Record<string, Rec[] | Rec>) =>
+    (f["app-data.json"] as Rec).environments as Rec[];
+  const uatDisplay = (f: Record<string, Rec[] | Rec>) =>
+    (appEnvs(f)[1] as Rec).widgetDisplayConfig as Rec;
+  const audience = (result: ReturnType<typeof diagnoseWidgetNotVisible>) =>
+    result.gates.filter((g) => g.id === "widget-audience");
+
+  it("hides the widget from 5.2.4 when the environment has no display setting, whatever the application-level one says", () => {
+    for (const change of [
+      (f: Record<string, Rec[] | Rec>) => {
+        delete (appEnvs(f)[1] as Rec).widgetDisplayConfig;
+      },
+      (f: Record<string, Rec[] | Rec>) => {
+        (appEnvs(f)[1] as Rec).widgetDisplayConfig = null;
+      },
+      (f: Record<string, Rec[] | Rec>) => {
+        (f["app-data.json"] as Rec).environments = [appEnvs(f)[0]];
+      },
+    ]) {
+      const result = diagnoseWidgetNotVisible(
+        files((f) => {
+          change(f);
+          widgetConfig(f).display = "All";
+        }, PER_ENV),
+        UAT_PAGE,
+      );
+      expect(result.verdict.causes[0]).toMatchObject({
+        ruleId: "WNV-07",
+        params: { variant: "envNoSetting", env: "UAT" },
+      });
+      expect(gateOf(result, "widgetEnvNoSetting")?.status).toBe("fail");
+    }
+  });
+
+  it("no longer lets the application-level setting decide on 5.2.4 and later", () => {
+    const appAllEnvNone = diagnoseWidgetNotVisible(
+      files((f) => {
+        widgetConfig(f).display = "All";
+        uatDisplay(f).display = "None";
+      }, PER_ENV),
+      UAT_PAGE,
+    );
+    expect(appAllEnvNone.verdict.causes[0]?.params).toMatchObject({
+      variant: "envDisplayNone",
+      env: "UAT",
+      display: "None",
+    });
+    expect(gateOf(appAllEnvNone, "widgetAppLevelIgnored")?.status).toBe("info");
+
+    const appNoneEnvAll = diagnoseWidgetNotVisible(
+      files((f) => {
+        widgetConfig(f).display = "None";
+        uatDisplay(f).display = "All";
+      }, PER_ENV),
+      UAT_PAGE,
+    );
+    expect(gateOf(appNoneEnvAll, "widgetForAll")?.status).toBe("pass");
+    expect(appNoneEnvAll.verdict.causes).toEqual([]);
+  });
+
+  it("ignores the other-users option from 5.2.4: segments that can never be active hide the widget", () => {
+    const result = diagnoseWidgetNotVisible(
+      files((f) => {
+        widgetConfig(f).enabledForOtherUser = true;
+        segment(f, "Sales team").isActive = false;
+        segment(f, "New hires").isActive = false;
+      }, PER_ENV),
+      UAT_PAGE,
+    );
+    expect(result.verdict.causes[0]).toMatchObject({
+      ruleId: "WNV-07",
+      params: { variant: "envNoActiveSegment", env: "UAT" },
+    });
+    expect(gateOf(result, "widgetOtherUsers")).toBeUndefined();
+  });
+
+  it("names an environment set to specific segments with none chosen, and leaves usable segments to the browser", () => {
+    const none = diagnoseWidgetNotVisible(
+      files((f) => {
+        uatDisplay(f).selectedSegments = [];
+      }, PER_ENV),
+      UAT_PAGE,
+    );
+    expect(none.verdict.causes[0]?.params).toMatchObject({
+      variant: "envNoneChosen",
+      env: "UAT",
+    });
+
+    const usable = diagnoseWidgetNotVisible(
+      files(undefined, PER_ENV),
+      UAT_PAGE,
+    );
+    expect(gateOf(usable, "widgetLimited")?.status).toBe("unknown");
+    expect(usable.verdict.causes).toEqual([]);
+  });
+
+  it("reads the environment the content files were read for when no page is open", () => {
+    const evidence = files((f) => {
+      uatDisplay(f).display = "None";
+    }, PER_ENV);
+    const result = diagnoseWidgetNotVisible({
+      ...evidence,
+      envId: "env-0e000000-0000-7000-8000-000000000002",
+    });
+    expect(result.verdict.causes[0]?.params).toMatchObject({
+      variant: "envDisplayNone",
+      env: "UAT",
+    });
+  });
+
+  it("keeps the application-level rule before 5.2.4, says it follows Production's setting, and spots a mirror not yet run", () => {
+    const result = diagnoseWidgetNotVisible(
+      files((f) => {
+        widgetConfig(f).display = "All";
+        uatDisplay(f).display = "None";
+      }, BEFORE_PER_ENV),
+      UAT_PAGE,
+    );
+    expect(gateOf(result, "widgetForAll")?.status).toBe("pass");
+    expect(gateOf(result, "widgetFollowsProduction")).toMatchObject({
+      status: "info",
+      params: { env: "UAT" },
+    });
+    expect(gateOf(result, "widgetMirrorPending")).toMatchObject({
+      status: "info",
+      params: { app: "All", production: "Specific" },
+    });
+
+    const onProduction = diagnoseWidgetNotVisible(
+      files(undefined, BEFORE_PER_ENV),
+      PROD_PAGE,
+    );
+    expect(gateOf(onProduction, "widgetFollowsProduction")).toBeUndefined();
+    expect(gateOf(onProduction, "widgetMirrorPending")).toBeUndefined();
+  });
+
+  it("hides the widget before 5.2.4 when the application-level display is None (it used to pass)", () => {
+    const result = diagnoseWidgetNotVisible(
+      files((f) => {
+        widgetConfig(f).display = "None";
+      }, BEFORE_PER_ENV),
+      UAT_PAGE,
+    );
+    expect(result.verdict.causes[0]).toMatchObject({
+      ruleId: "WNV-07",
+      params: { variant: "displayNone", display: "None" },
+    });
+  });
+
+  it("decides without the player's version when both rules agree", () => {
+    const pass = diagnoseWidgetNotVisible(
+      files((f) => {
+        widgetConfig(f).display = "All";
+        uatDisplay(f).display = "All";
+      }),
+      UAT_PAGE,
+    );
+    expect(audience(pass).map((g) => g.reason)).toEqual(["widgetForAll"]);
+    expect(pass.verdict.nextCheck).not.toBe("askPlayerVersion");
+
+    const fail = diagnoseWidgetNotVisible(
+      files((f) => {
+        widgetConfig(f).display = "None";
+        uatDisplay(f).display = "None";
+      }),
+      UAT_PAGE,
+    );
+    expect(fail.verdict.causes[0]?.params).toMatchObject({
+      variant: "envDisplayNone",
+    });
+    expect(fail.verdict.causes[0]?.evidence).toContain(
+      "players before 5.2.4: The widget is turned off (display None): nobody sees it.",
+    );
+  });
+
+  it("leaves the audience open, naming both rules, when they disagree and the version is unknown", () => {
+    const result = diagnoseWidgetNotVisible(
+      files((f) => {
+        widgetConfig(f).display = "All";
+        uatDisplay(f).display = "None";
+      }),
+      UAT_PAGE,
+    );
+    expect(result.verdict.causes).toEqual([]);
+    const gated = gateOf(result, "widgetDisplayVersionGated");
+    expect(gated).toMatchObject({
+      status: "unknown",
+      params: { now: "fail", before: "pass" },
+    });
+    expect(gated?.evidence).toEqual(
+      expect.arrayContaining([
+        "app-data.json: environment UAT.widgetDisplayConfig.display = None",
+        "app-data.json: widgetConfig.display = All",
+      ]),
+    );
+    expect(result.verdict.nextCheck).toBe("askPlayerVersion");
   });
 });

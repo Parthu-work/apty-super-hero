@@ -11,7 +11,8 @@ Branch `claude/blissful-cannon-g8o8bz`, started from
 | WP | Commit | Summary |
 |---|---|---|
 | WP0 | `5f8fdaa` | Baseline and status rows |
-| A1 + A2 | (this commit) | One host gate for every path; fetch time and byte limits; abort on case close |
+| A1 + A2 | `bd40106` | One host gate for every path; fetch time and byte limits; abort on case close |
+| WP1 part 1 | (this commit) | WNV-07 per environment from player 5.2.4, version-gated; the coverage-manifest checker |
 
 ## 2. Test output
 
@@ -62,6 +63,15 @@ them
 
 With the change, all pass.
 
+### WP1 part 1
+
+The nine new WNV-07 tests (`widget display per environment`) were run
+against the previous `widget-not-visible.ts`: 9 failed; with the change all
+pass. Among them: "no longer lets the application-level setting decide on
+5.2.4 and later", "hides the widget before 5.2.4 when the application-level
+display is None (it used to pass)", "leaves the audience open, naming both
+rules, when they disagree and the version is unknown".
+
 ## 4. Owner decisions as answered (2026-11-28)
 
 Every default in master §5 and AUDIT-CORRECTIONS §E, with:
@@ -100,9 +110,16 @@ were moved onto valid ones. Assertions are unchanged except where noted.
 | `browser-runtime/src/apty/replay/case-replay.test.ts`, `src/tools/apty-content.test.ts`, `src/apty/apty-cdn-source.test.ts` | Hosts onto `*.apty.ai`; IDs onto UUIDs |
 | `browser-runtime/src/apty/diagnosis/dapty-evidence.test.ts` | Host `client.apty.example` → `client.apty.ai`; the "no host in the Strict bundle" list follows the rename, so the assertion still checks the host |
 | `tooling/e2e/replay-source.e2e.test.mjs`, `dapty-cdn.e2e.test.mjs` | Run on the E2E policy build with `aptyContentOrigins` = the fake loopback content host |
+| `browser-runtime/src/apty/diagnosis/widget-not-visible.test.ts` (3 tests), `apps/browser-extension/src/components/investigation/check-result-card.test.tsx` (1 test) | These tests change only the application-level widget audience, which decides only for players before 5.2.4; their setup now gives the player release `5.2.3`. Assertions unchanged |
+| `browser-runtime/src/apty/diagnosis/fixtures/content-5x/app-data.json` | Each environment gets the `widgetDisplayConfig` Apty's migration copied from the application-level setting (AUDIT-CORRECTIONS B6), so every existing 5.x test and E2E sees the same audience under both rules |
 | `tooling/e2e/get-evidence.e2e.test.mjs` | Same, for the fake 5.x Client's content URL (`http://127.0.0.1:1`). Without it the Ask-for-evidence card no longer learns "5.x" from a CDN read and offers the 4.x HAR; that card should take the version from the page probe instead (WP2 probes give it), noted for WP2 |
 
 ## 7. Partial, and why
+
+- WNV-07 has no source for the player's release yet (`playerRelease` on the
+  evidence is filled by WP17 C-1). Until then it decides only where the
+  per-environment and application-level rules agree, and otherwise leaves
+  the audience open naming both.
 
 - A2's per-case `AbortSignal` reaches `fetchFile` (case close, conversation
   delete, an optional caller signal). The Ask Dapty client and page reads

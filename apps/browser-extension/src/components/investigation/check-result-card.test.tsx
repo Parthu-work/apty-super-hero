@@ -263,8 +263,9 @@ describe("CheckResultCard", () => {
     };
     appData.config.widgetConfig.enabledForOtherUser = false;
     appData.config.widgetConfig.selectedSegments = [];
+    // The application-level audience decides only for players before 5.2.4.
     const result = diagnoseWidgetNotVisible(
-      evidenceFrom(files),
+      { ...evidenceFrom(files), playerRelease: "5.2.3" },
       "https://uat.crm.example.com/leads/42",
     );
 
@@ -276,6 +277,31 @@ describe("CheckResultCard", () => {
       ).length,
     ).toBeGreaterThan(0);
     expect(screen.queryByText(/\(\)/)).toBeNull();
+  });
+
+  it("words an environment with no widget display setting, from player 5.2.4", () => {
+    const files = capture() as Record<string, unknown>;
+    const appData = files["app-data.json"] as {
+      environments: Array<Record<string, unknown>>;
+    };
+    delete appData.environments[1]?.widgetDisplayConfig;
+    const result = diagnoseWidgetNotVisible(
+      { ...evidenceFrom(files), playerRelease: "5.2.4" },
+      "https://uat.crm.example.com/leads/42",
+    );
+
+    render(<CheckResultCard tool={tool(result)} />);
+
+    expect(
+      screen.getAllByText(
+        "The widget is turned off for UAT: no widget display setting is saved for it, and the player hides the widget then.",
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(
+        "In Admin, open UAT's widget display setting, choose All or specific segments and save. Publish and reload.",
+      ).length,
+    ).toBeGreaterThan(0);
   });
 
   it("lists the open widget checks when the files show no blocker", () => {

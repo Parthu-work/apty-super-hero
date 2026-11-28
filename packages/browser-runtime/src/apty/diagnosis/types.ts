@@ -98,6 +98,8 @@ export interface ClientEvidence {
   fromReplay?: boolean;
   /** The Apty version of the context pinned for a replay. */
   replayVersion?: "4.x" | "5.x";
+  /** The 5.x player's release (e.g. "5.4.1"), when the page or the SE gives it (WP17 C-1). */
+  playerRelease?: string;
 }
 
 export type RuleId =
@@ -283,6 +285,13 @@ export type GateReason =
   | "widgetOtherUsers"
   | "widgetNoActiveSegment"
   | "widgetNoSegmentChosen"
+  | "widgetDisplayNone"
+  | "widgetEnvNoSetting"
+  | "widgetEnvUnknown"
+  | "widgetDisplayVersionGated"
+  | "widgetAppLevelIgnored"
+  | "widgetFollowsProduction"
+  | "widgetMirrorPending"
   | "ambiguousSelectors"
   | "framePathOther"
   | "jquerySyntax"
@@ -382,6 +391,7 @@ export type NextCheck =
   | "nameItem"
   | "whichOne"
   | "testAsMember"
+  | "askPlayerVersion"
   | "openAppPage"
   | "comparePatterns"
   | "askRegexFlag"

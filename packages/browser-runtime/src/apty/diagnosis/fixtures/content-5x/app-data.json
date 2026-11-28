@@ -2,7 +2,32 @@
   "name": "Example CRM",
   "code": "GENERIC",
   "applicationLaunchURL": "https://crm.example.com/",
-  "environments": [],
+  "environments": [
+    {
+      "id": "0e000000-0000-7000-8000-000000000001",
+      "order": 1,
+      "name": "Production",
+      "widgetDisplayConfig": {
+        "display": "Specific",
+        "selectedSegments": [
+          "05000000-0000-7000-8000-000000000001",
+          "05000000-0000-7000-8000-000000000002"
+        ]
+      }
+    },
+    {
+      "id": "0e000000-0000-7000-8000-000000000002",
+      "order": 2,
+      "name": "UAT",
+      "widgetDisplayConfig": {
+        "display": "Specific",
+        "selectedSegments": [
+          "05000000-0000-7000-8000-000000000001",
+          "05000000-0000-7000-8000-000000000002"
+        ]
+      }
+    }
+  ],
   "config": {
     "widgetConfig": {
       "ssoConfig": null,
