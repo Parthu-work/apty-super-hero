@@ -43,6 +43,8 @@
     "audit:any": "node tooling/scripts/check-any-baseline.mjs",
     "audit:i18n": "node tooling/scripts/check-i18n-baseline.mjs",
     "audit:docs-links": "node tooling/scripts/check-docs-links.mjs",
+    "audit:apty-coverage": "node tooling/scripts/check-apty-coverage.mjs --phase 1 --pinned",
+    "audit:apty-drift": "node tooling/scripts/check-apty-coverage.mjs",
     "audit:extension-ids": "node tooling/scripts/check-extension-id.mjs --docs",
     "validate:extension": "node tooling/scripts/validate-manifest.mjs",
     "check:tailwind-sources": "node tooling/scripts/check-tailwind-sources.mjs",

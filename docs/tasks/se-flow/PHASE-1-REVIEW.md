@@ -12,7 +12,8 @@ Branch `claude/blissful-cannon-g8o8bz`, started from
 |---|---|---|
 | WP0 | `5f8fdaa` | Baseline and status rows |
 | A1 + A2 | `bd40106` | One host gate for every path; fetch time and byte limits; abort on case close |
-| WP1 part 1 | (this commit) | WNV-07 per environment from player 5.2.4, version-gated; the coverage-manifest checker |
+| WP1 part 1 | `fe59fa4` | WNV-07 per environment from player 5.2.4, version-gated; the coverage-manifest checker |
+| WP1 part 2 | (this commit) | `docs/development/coverage-manifest.json` (218 conditions, 768 cited ranges, hashed); `audit:apty-coverage`, `audit:apty-drift` |
 
 ## 2. Test output
 
@@ -41,6 +42,33 @@ Branch `claude/blissful-cannon-g8o8bz`, started from
   legacy page-probe path also reported "no Apty config", hiding a 5.x
   player that is on the page; it now keeps the probe and withholds only
   the files.
+
+### WP1 part 2: the coverage manifest
+
+- **How it was seeded.** Every Phase 1 condition (§5.1 plus AUDIT-CORRECTIONS
+  §D) was resolved to full `repo:path:line@commit` ranges by 11 agents, one
+  per condition group, each opening every file it cited at the pinned
+  commit; 11 further agents then tried to refute each citation
+  independently. They flagged 24 entries (41 problems). Every problem was
+  reviewed by hand: 20 ranges were tightened or replaced with ranges the
+  verifier had opened, 7 supporting ranges were added, 5 ranges the merge
+  had dropped although the verifier accepted them were restored, 4
+  statuses were lowered to `inferred`, and 10 condition texts were reworded
+  to match the code (W5-01, P5-01, W5-70, C-18, P4-18, SCR-13/4x, SCR-14/4x,
+  D-05, D-26, D-28). Cross-references between conditions that each have an
+  entry were removed from the alias lists.
+- **Result.** 218 conditions (99 for 5.x, 119 for 4.x), 768 ranges: 162
+  `verified`, 36 `corrected` (the inventory's lines were off), 20
+  `inferred`, none `not_found`. Every Phase 1 condition ID has an entry
+  (`--phase 1`).
+- `npm run audit:apty-coverage` (at the pins `3f3adba` / `bbb4cbc`): green.
+  `npm run audit:apty-drift` (at the checkouts' HEAD, apty-dap `dc502c81`):
+  green after re-verifying the 7 ranges `a2d73e67` moved (below). 63 player
+  files under the visibility directories are listed as unmapped (they hold
+  no Phase 1 condition: tooltips, launchers, announcements and the like).
+- Without both checkouts the command checks the manifest's shape and the
+  phase list, prints "line check skipped: reference checkouts not found"
+  and exits 0, so preflight and CI never depend on them.
 
 ## 3. Fail-then-pass proofs
 
@@ -96,6 +124,17 @@ Every default in master §5 and AUDIT-CORRECTIONS §E, with:
 - 4.x `host_permissions` also include `http://*.apty.io/*`
   (`manifests/manifest.json:11`); with D-HTTP-ONPREM = no, the Agent
   refuses plain http there unless the policy lists the origin.
+
+- Drift between the pin and apty-dap `dc502c81`, found by
+  `audit:apty-drift`, all from `a2d73e67` (§F2): five ranges in
+  `flow-step.mapper.ts` and `AttachedStep.tsx` moved by 2 to 6 lines with
+  the same text (W5-40, W5-48 ×2, W5-51, W5-63), now cited at `a2d73e67`
+  with the old range kept as history; W5-45's fixed 5 s wait changed (the
+  `a2d73e67` range already covers it); `FlowsFocusTrap.tsx` (C-18) was
+  removed. No other cited line changed.
+- The coverage inventory's citations were off for 36 conditions (wrong
+  lines or file); the manifest holds the corrected ranges, and each
+  entry's `note` says what changed.
 
 ## 6. Test changes (setup only, and one migrated assertion)
 

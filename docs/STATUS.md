@@ -324,7 +324,7 @@ stays absent and no Ask Dapty call is made.
 |---|---|---|---|
 | WP0 Baseline | Done | `5f8fdaa` | — |
 | A1 + A2 Host gate on every path; fetch time and byte limits, abort (audit A15: first) | Done | `bd40106` | The signal reaches the Ask Dapty client and page reads when WP11 and WP5 build them |
-| WP1 Drift (WNV-07, version-gated) and coverage manifest | In progress | Part 1: WNV-07 and the manifest checker | The manifest seed (citations being verified) and the `audit:apty-coverage` script |
+| WP1 Drift (WNV-07, version-gated) and coverage manifest | Done | `fe59fa4` (part 1), part 2 commit | Rule IDs are added to each manifest entry as later WPs implement it; WNV-07 decides by player version once WP2 reads the version |
 | WP2 Version adapters | Not started | | |
 | WP3 Remove the Client dependency | Not started | | |
 | WP4 Schema-drop mirrors (workflow files) | Not started | | |

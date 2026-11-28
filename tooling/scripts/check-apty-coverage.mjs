@@ -10,8 +10,10 @@
  * unmapped.
  *
  * The manifest's shape (and, with --phase, that every condition the phase
- * lists has an entry) is checked with or without the checkouts; without
- * them the hash check prints "skipped: no checkout" and passes.
+ * lists has an entry) is always checked. Cited lines are compared only when
+ * both reference checkouts are found (git work trees); otherwise the
+ * command prints "skipped: reference checkouts not found" and passes, so
+ * preflight and CI never depend on them.
  *
  * Ranges are read with `git show <ref>:<path>`, so the checkouts are never
  * changed. The ref is each checkout's HEAD, or the manifest's pinned commit
@@ -253,8 +255,14 @@ function parseArgs(argv) {
 
 function checkoutDirs(options) {
   const pick = (given, env, sibling) => {
-    const dir = given ?? process.env[env] ?? join(ROOT, "..", sibling);
-    return existsSync(dir) ? dir : undefined;
+    const dir = given || process.env[env] || join(ROOT, "..", sibling);
+    if (!existsSync(dir)) return undefined;
+    try {
+      git(dir, ["rev-parse", "--git-dir"]);
+      return dir;
+    } catch {
+      return undefined;
+    }
   };
   return {
     "apty-dap": pick(options.dap, "APTY_DAP_DIR", "apty-dap"),
@@ -293,9 +301,10 @@ function main() {
     );
     process.exit(problems.length === 0 ? 0 : 1);
   }
-  if (!dirs["apty-dap"] && !dirs["apty-assist"]) {
+  if (!dirs["apty-dap"] || !dirs["apty-assist"]) {
+    const absent = REPOS.filter((repo) => !dirs[repo]).join(", ");
     console.log(
-      `✓ ${manifest.conditions.length} conditions well formed; hash check skipped: no checkout`,
+      `✓ ${manifest.conditions.length} conditions well formed; line check skipped: reference checkouts not found (${absent})`,
     );
     return;
   }
@@ -307,10 +316,6 @@ function main() {
   );
   const findings = checkRanges(manifest, dirs, refs, GIT_IO);
   for (const repo of REPOS) {
-    if (!dirs[repo]) {
-      console.log(`  ${repo}: skipped, no checkout`);
-      continue;
-    }
     let files = [];
     try {
       files = GIT_IO.files(dirs[repo], refs[repo]);

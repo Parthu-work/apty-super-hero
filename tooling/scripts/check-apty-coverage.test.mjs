@@ -183,7 +183,7 @@ test("lists files under the player's visibility directories that no range cites"
   );
 });
 
-test("the command fails on drift, passes at the pin, and skips without checkouts", () => {
+test("the command fails on drift, passes at the pin, and skips the line check unless both checkouts are found", () => {
   const { dir, first } = fakeDap();
   const manifestFile = join(
     mkdtempSync(join(tmpdir(), "apty-manifest-")),
@@ -215,14 +215,23 @@ test("the command fails on drift, passes at the pin, and skips without checkouts
     }
   };
   const missingDir = join(tmpdir(), "no-such-checkout");
-  const none = run("--dap", missingDir, "--assist", missingDir, "--phase", "1");
-  assert.equal(none.code, 0);
-  assert.match(none.out, /skipped: no checkout/);
+  const notGit = mkdtempSync(join(tmpdir(), "apty-not-git-"));
+  for (const [dap, assist] of [
+    [missingDir, missingDir],
+    [dir, missingDir],
+    [dir, notGit],
+  ]) {
+    const skipped = run("--dap", dap, "--assist", assist, "--phase", "1");
+    assert.equal(skipped.code, 0, skipped.out);
+    assert.match(skipped.out, /skipped: reference checkouts not found/);
+    assert.doesNotMatch(skipped.out, /changed:/);
+  }
 
-  const drift = run("--dap", dir, "--assist", missingDir);
+  const assistCheckout = fakeDap().dir;
+  const drift = run("--dap", dir, "--assist", assistCheckout);
   assert.equal(drift.code, 1);
   assert.match(drift.out, /changed: W5-08 \(rules WNV-07\)/);
 
-  const pinned = run("--dap", dir, "--assist", missingDir, "--pinned");
+  const pinned = run("--dap", dir, "--assist", assistCheckout, "--pinned");
   assert.equal(pinned.code, 0, pinned.out);
 });
