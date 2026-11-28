@@ -22,7 +22,11 @@ prompt wins, except on scope.
    already exists (§2), the design and network-call policy (§3), facts
    (§4), owner decisions (§5), target architecture (§6).
 3. `docs/development/se-flow-design.md` (the design; source of truth).
-4. `docs/development/se-flow-coverage.md`: the workflow condition IDs
+4. **`docs/tasks/se-flow/AUDIT-CORRECTIONS.md` (binding).** The final
+   audit's design changes, prerequisites, resolved contradictions, new
+   conditions (W5-62…W5-77, F4-64…F4-85) and corrected statements. It
+   overrides this file and the master prompt where they differ.
+5. `docs/development/se-flow-coverage.md`: the workflow condition IDs
    (W5-xx for 5.x workflows and widget gates, F4-xx for 4.x flows, plus
    the P4, G5, G4, R4 rows named below).
 
@@ -38,7 +42,9 @@ push or open a pull request unless the owner asks.
 ## 2. Ask the owner first
 
 Ask the §5 owner decisions in one message (O-3, O-4, O-5, O-6, D-UA,
-D-WIN, D-KB, D-CLIENT, D-SELFHOSTED, D-ASKFIRST, D-DAPTY-WHEN). Start the
+D-WIN, D-KB, D-CLIENT, D-SELFHOSTED, D-ASKFIRST, D-DAPTY-WHEN), plus the
+audit's D-ACORN, D-TESTS, D-RELEASES, D-MODELB, D-4XHEADERS and
+D-HTTP-ONPREM (`AUDIT-CORRECTIONS.md` §E). Start the
 WPs that do not depend on them meanwhile. A default applies only if the
 owner replies "use defaults".
 
@@ -84,7 +90,7 @@ items listed. **Later** = do not build in Phase 1.
 | WP1 Drift and coverage manifest | **Full** | Fix WNV-07 (5.x widget display per environment; it decides whether a workflow can be listed at all). Build the coverage manifest and `audit:apty-coverage`, populated with every condition implemented in Phase 1 |
 | WP2 Version adapters | **Full** | Both versions: probes, ID shapes, URL matching, version stamps, paths, `&token=` |
 | WP3 Remove the Client dependency | **Full** | |
-| WP4 Schema-drop mirrors | **Workflow** | `app-urls.json`, `app-data.json`, `content-config.json`, `workflow.json`, `workflow-steps-{id}.json`, `rule.json`, `segment.json`, `users/{id}.json`, locale files (5.x); `app-urls.json`, `app-data.json`, `feature-flag.json`, `flow.json`, `flow-{id}.json`, `segments.json`, `rules.json`, `form.json` (4.x). Other files later |
+| WP4 Schema-drop mirrors | **Workflow** | `app-urls.json`, `app-data.json`, `content-config.json`, `workflow.json`, `workflow-{workflowId}.json`, `rule.json`, `segment.json`, `users/{id}.json`, locale files (5.x); `app-urls.json`, `app-data.json`, `feature-flag.json`, `flow.json`, `flow-{id}.json`, `segments.json`, `rules.json`, `form.json` (4.x). Other files later |
 | WP5 Rule and segment evaluation | **Full** | Including world parity (WP16 item 3's table) |
 | WP6 Symptom router and intake | **Workflow** | The router returns all routes; implement S-LIST (workflow items), S-AUTO, S-LAUNCH, S-STEP and the bare how-to route. The intake card in full (IDs, version, user ID, dev-mode User ID read first, `pinContext`, tenant-mismatch confirm, D-ASKFIRST setting). All other symptoms fall through to the existing router |
 | WP7 Live checklist | **Full** | |
@@ -139,6 +145,9 @@ One left out makes Phase 1 partial; say which and why.
 - **5.x steps and run:** W5-43, W5-44, W5-45, W5-46, W5-48, W5-49,
   W5-50, W5-51, W5-53, W5-54, W5-56, W5-57.
 - **5.x user history:** W5-59, W5-60 / W5-61, G5-22.
+- **5.x found by the final audit:** W5-62 … W5-77, the labels rule K5-07,
+  and checklist-item launch (C5-02 / C5-03 as W5-72), with the corrected
+  semantics in `AUDIT-CORRECTIONS.md` §D2–D3.
 - **5.x scripts and platform:** SCR rows from §4 WP16; C-1…C-10, C-14,
   C-15, C-16, C-17, C-18.
 - **4.x load and widget:** P4-01, P4-02, P4-04, P4-05, P4-06, P4-07,
@@ -147,6 +156,11 @@ One left out makes Phase 1 partial; say which and why.
 - **4.x flows:** F4-01, F4-02, F4-03, F4-04, F4-05, F4-06, F4-07, F4-08,
   F4-20, F4-21, F4-22, F4-23, F4-26, F4-27, F4-29, F4-30, F4-31, F4-32,
   F4-34, F4-37, F4-38, F4-41, F4-45, F4-46, F4-63; frames R4-01 / R4-02.
+- **4.x found by the final audit:** F4-64 … F4-85, with the corrected
+  statements and exact semantics in `AUDIT-CORRECTIONS.md` §D5–D6
+  (notably: 4.x auto-trigger history is in **page storage**, not the user
+  file; with publishing off the flow, auto-trigger and launch groups still
+  use `flow.json`).
 - **4.x scripts and platform:** SCR rows from §4 WP16; D-01…D-10, D-13,
   D-14 (workflow buttons), D-15…D-35, D-37, D-38, D-39, D-41.
 
@@ -177,19 +191,29 @@ test or the real-tenant smoke test confirms it.
     requests;
   - the existing E2E suite, a11y (light and dark) and chat-scroll 400/480
     stay green.
+- The audit's design changes have tests: host gate (`AUDIT-CORRECTIONS.md`
+  A1), slow-drip / oversized / aborted fetches (A2), `auth_required` and
+  the not-published wording (A3), 4.x SSO tenants (A4), version-gated
+  WNV-07 (A6), page-user vs target-user labelling (A7), fixed `userId` and
+  untrusted-content framing for models (A8), fresh content-config on
+  Re-check under concurrency (A10), one tab per case and SPA navigation
+  (A12), stripped case records (A13).
 - `npm run preflight` and every audit in master §1.4 green, including the
-  new `audit:apty-coverage`.
+  new `audit:apty-coverage`, plus `audit:notices`, `policy:check` and
+  `check:dist-policy`.
 
 ## 7. Done when
 
 1. Every WP row in §4 is **done** for its Phase 1 scope, or **partial**
    with exactly what is missing, and every condition in §5.1 is in the
    coverage manifest (`audit:apty-coverage` checks the list).
-2. The four workflow symptoms work end to end for both versions with no
+2. Every item in `AUDIT-CORRECTIONS.md` sections A, B and C that applies
+   to workflows is done, or partial with the reason.
+3. The four workflow symptoms work end to end for both versions with no
    Client record, as shown by the E2E above.
-3. Every other symptom behaves exactly as before Phase 1 (the existing
-   tests prove it).
-4. `docs/STATUS.md` has a Phase 1 row per WP.
+4. Every other symptom behaves exactly as before Phase 1 (the existing
+   tests prove it), except the assertions migrated under D-TESTS.
+5. `docs/STATUS.md` has a Phase 1 row per WP.
 
 ## 8. Hand-over for the owner's review
 

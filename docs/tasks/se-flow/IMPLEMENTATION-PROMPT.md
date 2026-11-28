@@ -58,6 +58,9 @@ proven. Read it end to end before you change anything.
       and the replay design, already built.
    6. `docs/development/se-flow-architecture.md`: the design history and
       its citations. Read it for background only.
+   7. **`docs/tasks/se-flow/AUDIT-CORRECTIONS.md`: the final audit
+      (binding).** It overrides this file, the design and the coverage
+      inventory wherever they differ.
 3. **Keep `docs/STATUS.md` current.** Give each work package (WP) a row:
    not started, in progress, done or partial, with the commit and what is
    missing.
@@ -133,6 +136,8 @@ proven. Read it end to end before you change anything.
   - `audit:settings-readers`
   - `audit:test-skips`
   - `lint:dependencies` (knip)
+  - `audit:notices`, `policy:check`, `check:dist-policy` (new keys and
+    dependencies touch them)
 - `apps/mcp-bridge` is its own pnpm project. If its typecheck fails for
   missing modules, run
   `pnpm --dir apps/mcp-bridge install --frozen-lockfile --ignore-workspace`.
@@ -497,6 +502,7 @@ that don't depend on them. A default applies only if the owner replies
 | D-SELFHOSTED | 4.x self-hosted `hostedContentUrl` names a host the policy may not list | Use it only when it is in `aptyContentOrigins`; otherwise the row is `host_not_allowed` and names the host to add |
 | D-ASKFIRST | Always confirm the tenant, application and environment in the intake card before the first content request, even when they were read from the page? | No. Read them from the page and ask only for what is missing. Implement the mode behind a setting (WP6), off by default |
 | D-DAPTY-WHEN | Call Ask Dapty in parallel with the checks, or only when the checks find nothing? | In parallel. Implement the alternative behind a setting (WP11) |
+| D-ACORN, D-TESTS, D-RELEASES, D-MODELB, D-4XHEADERS, D-HTTP-ONPREM | Added by the final audit; questions and defaults in `AUDIT-CORRECTIONS.md` §E | See there |
 
 ---
 

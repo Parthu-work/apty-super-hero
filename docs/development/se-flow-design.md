@@ -10,6 +10,16 @@ they differ, though their detail and citations still hold:
 
 The build brief is `docs/tasks/se-flow/IMPLEMENTATION-PROMPT.md`.
 
+**Final audit (2026-11-28).** `docs/tasks/se-flow/AUDIT-CORRECTIONS.md`
+is binding and overrides this document where they differ. Its main design
+changes: page-named hosts limited to Apty's own domains or the policy;
+fetch time and byte limits with abort; `auth_required` and an honest
+"not published or wrong ID" wording; 4.x SSO-protected content shown as
+"?"; every mirrored rule version-gated (WNV-07 first); page user vs
+affected user; untrusted-content framing for models; a streaming
+`LocalAnswer`; root files and 4.x script files in the catalogue; the page
+CSP read from response headers.
+
 All work happens in **apty-super-hero**. **apty-dap** (5.x) and
 **apty-assist** (4.x) are read only and are never changed. Every claim
 about Apty cites `repo:path:line` at:
@@ -201,7 +211,9 @@ for words such as "not", "missing", "nothing happens".
 4. **The player's version stamp,** from `content-config.json`.
 5. **GET** with no cookies, no redirects and a 10 s timeout. Failures are
    `network`, `timeout` or `http_<code>`.
-6. **CloudFront's 200 not-found page** means `not_published`.
+6. **CloudFront's 200 default page** means `not_published`, worded "not
+   published, or the ID is wrong": CloudFront maps both 403 and 404 to it.
+   A 401/403 (or a body with that status) is `auth_required`.
 7. **Redaction**, or `too_large`.
 8. **JSON and schema:** `unparsable` or `schema_mismatch`.
 9. **The case cache,** with conditional requests on Re-check. Concurrent
@@ -341,8 +353,8 @@ for words such as "not", "missing", "nothing happens".
 | Content URL | From the page config | From the page config; for self-hosted, `{hostedContentUrl}/contents` if the policy allows (`main.bootstrap.ts:138-150`) |
 | Version stamp | Walks the tenant content-config (`file-timestamp.ts:4-27`) | Merged tenant and app content-config: `cc[app][env][file] \|\| latest \|\| now` (`content-config.helper.ts:5-29`) |
 | URL suffix | `?timestamp=` | `?timestamp=…&token=` (`common-helpers.ts:90-95`) |
-| Widget display | **Per environment:** `widgetDisplayConfig`; missing means hidden (`segments.service.ts:64-80`, since `9b2eef11`) | `widgetConfig.display` All/Specific/None plus `enabledForOtherUser` (`app.selectors.ts:128-152`) |
-| Auto-trigger | `stepsAutoTrigger[]` only (`workflow.mapper.ts:89-93`) | `stepsAttachedRules[]` AutoTrigger. Daily, weekly and monthly never repeat (`rule-engine.effects.ts:298`) |
+| Widget display | **Per environment** on players that contain `9b2eef11`: `widgetDisplayConfig`; missing means hidden (`segments.service.ts:64-80`). Older players use the app-level `widgetConfig`; version unknown means "?" (audit A6) | `widgetConfig.display` All/Specific/None plus `enabledForOtherUser` (`app.selectors.ts:128-152`) |
+| Auto-trigger | `stepsAutoTrigger[]` only (`workflow.mapper.ts:89-93`); history in `users/{id}.json` (per app) | `stepsAttachedRules[]` AutoTrigger. Daily, weekly and monthly never repeat; Once and unknown also never repeat (`rule-engine.effects.ts:298-308`). History is in **page localStorage**, not the user file (audit F4-67) |
 | Rules | The Agent evaluates them (§8.1) | Segments are evaluated. Rule trees and element selection need decision O-3 |
 | Ask Dapty in the player | Yes | None |
 | Ask Dapty KB | One ai-service. The KB tenant has one application per version, plus tenant-wide common documents (`vector-store.service.ts:175-185`) | Same |

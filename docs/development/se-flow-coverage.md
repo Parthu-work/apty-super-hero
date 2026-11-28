@@ -172,8 +172,8 @@ inputs:
 | G5-05 / W5-06 | Any async service init error kills the player: rules, themes, segments, restriction, locale, permalink | — | `ioc.ts:56-63,79` | R; the causes below are F | **new**: run each init's file check |
 | G5-06 | `app-data.defaultThemeId` exists in `default-themes.json` ∪ `theme.json` | files | `theme.mapper.ts:27-31` | F | **new** |
 | W5-07 / G5-12 | At least one `enabled` locale exists, and `locales/{code}.json` resolves | `application-locales.json` | `cdn.service.ts:208-226,577-599`; `locale.service.ts:30-54` | F+P | **new** |
-| W5-02 | Injected mode only: the storage iframe loads within 15 s | page | `index-injected.tsx:51-54,88-96` | P | **new** |
-| W5-01 | Top frame only; other frames run only the iframe script | page | `main-content-script/index.tsx:12-14` | P | info |
+| W5-02 | Injected mode only: the storage iframe loads within 15 s | page | `index-injected.tsx:25-41` (`15000` at 28; widget starts after the iframe, 62-70) | P | **new** |
+| W5-01 | Top frame only; other frames run only the iframe script | page | `apps/player/wxt.config.ts:75-78` (`all_frames: false`; injected mode has no top-frame guard, INFERRED) | P | info |
 
 ### Widget
 
@@ -266,7 +266,7 @@ inputs:
 | W5-57 | Completes when there is no `order + 1` step, on split end, or on hand-off | — | `workflow-engine.service.ts:136-166` | F | info |
 | W5-59 | Feedback shows only if not already in `workflowsFeedback[]`; it is recorded on submit only | user file | `flows-user-preference.service.ts:14-56` | U | **new** |
 | W5-60 / W5-61 | "Not offered again" comes only from the auto-trigger frequency and rules that use `userActivity.toolProgress.WORKFLOW` | user file, rules | `player-rule-evaluation.bindings.ts:207-226` | U+E | **new** |
-| G5-22 | The user file is parsed whole; any schema failure means empty preferences (completions forgotten) | schema | `user-preference.service.ts:62-75` | U | **new** |
+| G5-22 | The user file is parsed whole; any schema failure means empty preferences (completions forgotten) | schema | `libs/shared/cdn-api/src/cdn-reader-api.ts:86-98` (`getWithFallback`); `application-environment-files.ts:216-222` | U | **new** |
 
 ### Other content types
 
@@ -317,7 +317,7 @@ inputs:
 | F4-03 | `name[currentLocaleId]` exists | `flow.json` | `tool-list.selectors.ts:34-35` | F+P | **new** |
 | F4-04 | Schedule window with `timeZone`; missing dates default to now ±2 days | `flow.json` | `announcement.helpers.ts:59-92` | F | **new** |
 | F4-05 | `hideInWidget` | `flow.json` | `tool-list.component.tsx:115-123` | F | exists: C4X-03 |
-| F4-06 | `attachedRule.visibilityResult` must be Show or unset (fail-open) | `rules.json` | `rule-engine.helpers.ts:388-411` | R until O-3 | listed |
+| F4-06 | `attachedRule.visibilityResult` must be Show or unset (fail-open) | `rules.json` | `rule-engine.helpers.ts:45-68`; fail-open at `tool-list.selectors.ts:44-46` | R until O-3 | listed |
 | F4-08 | A flow in any `tags.json` tag leaves the flat list. It shows in the group only with `clientGroupContent` and a tag name in the locale | `tags.json`, flags | `group-content.selector.ts:9-24` | F | **new** |
 | F4-20 | Auto-trigger: `stepsAttachedRules[]` with `AutoTrigger`, the rule true, only the **first** eligible flow. No segment or hide check | `flow.json`, `rules.json` | `rule-engine.effects.ts:259-284` | F + R until O-3 | **new** |
 | F4-21 ✔ | Frequency: daily, weekly and monthly compute `differenceInDays(last, now) >= 1`. That is never true, so the flow **auto-triggers once per user and never again**. Needs a non-default user ID | user file `autoTriggerData` | `components/app/rule-engine/rule-engine.effects.ts:298` | U | **new**: "already triggered on <date>; 4.x never repeats" |
@@ -647,3 +647,13 @@ The "Decidable by" column uses five labels: FILES (from content files), USER-FIL
 | D-39 | DetectLocaleOnDomChange, InvokeStepAfterFramesUpdate, DomChangeDebounce | Behaviour flags not modelled | flags | `locales.effects.ts:150-157`; `frames.effects.ts:233-246`; `app.effects.ts:95-97` | Locale flips; step replays; lag | FILES | no |
 | D-40 | Fonts and themes v2 | Themes from file or API; fonts from `fontsUrl` (self-hosted `/fonts`) | `themes.json` | `themes-v2.effects.ts:94-100`; `main.bootstrap.ts:147`; `fonts.helper.ts:27-32` | Unstyled balloons | FILES | no |
 | D-41 | P4-10 accuracy | Defaults also include ClientVersion (a string); a partial per-flag object replaces the default | — | `feature-flag.types.ts:124-127`; `main.bootstrap.ts:81` | — | FILES | partly |
+
+## 12. Final audit additions (2026-11-28)
+
+The final audit added 5.x conditions **W5-62 … W5-77** and 4.x conditions
+**F4-64 … F4-85**, the missing rows **F4-07** and **F4-22** (= F4-70), and
+corrected W5-01, W5-02, W5-16…18, W5-29, W5-40, W5-49, W5-57, G5-22,
+F4-06, F4-21, F4-23, F4-26/27, F4-32, F4-37, P4-07, P4-16, D-09, D-28,
+D-29 and D-34. The full rows, with citations and how each is decided, are
+in `docs/tasks/se-flow/AUDIT-CORRECTIONS.md` §D, which is binding where it
+differs from the rows above.
