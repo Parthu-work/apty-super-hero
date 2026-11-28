@@ -38,6 +38,12 @@ and `*.apty.io` / localhost (4.x `manifests/manifest.json:11`).
   `aptyContentOrigins`. Otherwise `host_not_allowed`, naming the host to
   add (this is also C-7 / D-20).
 - Default port only. Loopback only if the policy lists it.
+- **Every path, one gate.** Apply the same host rule however the host
+  arrives: named by the page, given by the SE or a tool call, or taken
+  from the policy. Today a host given by the SE is accepted when its
+  origin equals the page's, without the private-network check
+  (`contentBase`, `content-source.ts:411-428`); that bypass goes. Test each
+  path, including "given host equals a private page host".
 - Normalise policy origins through `URL` when parsing the policy
   (trailing slash, default port).
 - Enforce per-version ID shapes before building a path: 5.x UUIDs; 4.x
@@ -249,6 +255,14 @@ else, and say this needs Developer mode (often blocked by policy). Prefer
 the dev-mode panel read (C-16).
 
 ---
+
+### A15. Order: security first
+
+A1 (host gate, every path) and A2 (fetch time and byte limits, abort) fix
+real weaknesses in the replay code already on the branch. Build them
+**first, right after WP0**, as their own commit with their tests, before
+any other work package. Until they land, do not use the replay path on
+untrusted pages.
 
 ## B. Implementation prerequisites the prompts missed
 
