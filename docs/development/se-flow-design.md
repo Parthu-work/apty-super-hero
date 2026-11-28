@@ -374,6 +374,13 @@ checklist row decided from:
 | Ask Dapty | The existing check, plus Item and Launch |
 | Logs | The existing check |
 | Page readiness | The existing check |
+| A customer script does not work | Scripts (§8.3), Platform |
+| Progress, favourites or "don't show again" forgotten | User history, Platform |
+| Reminder missing or early (5.x) | User history, Platform |
+| Permalink does nothing | Item, Platform |
+
+Every symptom also runs the Platform group's cheap rows (§8.4): they
+reuse files and page reads already made, so they add no requests.
 
 ### 8.1 The Agent's own evaluation engines
 
@@ -389,14 +396,21 @@ identical to the player by parity tests.
 - **Sources:** page, `window` (properties only, decision D-WIN), storage,
   `document.cookie`, date, device (decision D-UA), `aptyAugmentation`,
   elements (when the match is unambiguous), and the user file.
-- **Always "?":** `customScript` (decision O-4) and `lastActivityTime`
-  (which lives in the Client's storage).
+- **`customScript`:** checked statically (§8.3); its value is "?" unless
+  decision O-4. **`lastActivityTime`** is always "?" (it lives in the
+  Client's storage).
+- **World parity:** each value is read in the world the player reads it
+  from (§8.3).
 
 **4.x segments:**
 
 - `conditions[][]`: OR over groups, AND within a group.
 - **An absent key is false for every relation** (`segment-executor.helpers.ts:166-168`).
-- The `segment-js` keys are "?" (decision O-4).
+- The `segment-js` keys: in injected mode, read the last result the
+  player stored (`window.__APTY_ADVANCED_JS_DATA__` in the Apty frame)
+  without running anything. In extension mode that value lives in Apty's
+  isolated world, which the Agent cannot read, so the keys are "?" unless
+  decision O-4.
 
 **Schema-drop mirrors** cover each file's per-item and whole-file
 validation. Examples:
@@ -430,6 +444,74 @@ validation. Examples:
 - a scheduled tooltip with an empty time zone is hidden;
 - launcher text with no locale fallback;
 - an absent segment key is false.
+
+### 8.3 Customer scripts (both versions)
+
+Customer scripts fail silently: 5.x logs a warning or a debug line, and
+4.x `letzConsole` prints nothing in production
+(`apty-assist: player3.0/src/shared/helpers/letzconsole.ts:1-5`). The
+Agent checks every script **without running it**:
+
+```mermaid
+flowchart LR
+  F[Case files] --> I[Inventory: every script, its owner, field and wrapper]
+  I --> P[Parse with acorn 8 using the player's wrapper]
+  I --> S[Static references: selectors, window paths, storage keys, apty.getWindowVar, letzNavApi]
+  S --> W[Check each reference on the page, in the player's world]
+  I --> O[Read the stored output: 5.x window.aptyAugmentation; 4.x injected __APTY_ADVANCED_JS_DATA__]
+  I --> C[Page CSP: unsafe-eval, inline script, inline style]
+  P & W & O & C --> R[SCR rows]
+  R -.O-4 consent only.-> X[Run side-effect-free kinds in a fresh isolated world via CDP, player's timeout]
+```
+
+| Kind | 5.x | 4.x |
+|---|---|---|
+| Application load | `application-script.json` APPLICATION_LOAD: isolated world; top frame with `apty`, iframes without; once, after init | `custom-js.js`: Sval, once per frame |
+| Segment / augmentation | DOM_CHANGE: every rule pass, 5 s cap each, results merged into MAIN `window.aptyAugmentation`; a failure keeps old keys | `segment-js.js`: extension runs `new Function` in the **page** (needs `unsafe-eval`, inline fallback); injected uses Sval. **No reply freezes the whole UI** (D-01) |
+| Rule script | isolated world, no `apty`, every frame, OR'ed | `customScriptPool`: `!!result`, so async is always true |
+| Element lookup | sync; must return an element | Sval (extension) or page `Function` (injected, needs `unsafe-eval`) |
+| Click actions | launcher, CTA, Layout, announcement: with `apty`; announcement completes even if the script fails | — |
+| Step script, decision point | — | `letzNavApi.flow.*`; decision points 2 s, then the next step |
+| Validator | sync `function(field)`; a Promise means always valid | outside the try: a syntax error freezes validation silently |
+| DOM config | `domConfig.*Function`: a syntax error breaks **every** element lookup | — |
+| Styles, smart canvas | — | custom-css into every frame (CSP, sanitizer); smart-canvas buttons need exact data attributes |
+
+Scripts are parsed with **acorn 8.16.0, the parser Sval 0.6.11 uses**
+(`apty-dap: pnpm-lock.yaml:32672-32674`), so a parse error the Agent
+reports is the error the 5.x player hits. 4.x uses Sval 0.4.8
+(`player3.0/package.json:53`); its parser version is NOT VERIFIED, so a
+4.x parse error on syntax newer than ES2018 is a "candidate".
+
+**World parity.** 5.x rule `window` values are read in MAIN (the
+player's window-script), but a 5.x rule script or APPLICATION_LOAD script
+runs in the isolated world and sees no page globals. 4.x extension
+`WINDOW_VARIABLE` segments read `window.top[k]` from the content script
+(`localstorage.helper.ts:33-49`), so the Agent reads them in an isolated
+world too, and shows both values when they differ.
+
+### 8.4 Platform, extension and flags
+
+These rows can block every item, so they run for every symptom:
+
+- **5.x:** player below 5.2.2 drops whole files with `EVERY_TIME` or
+  `CUSTOM_SCRIPT`; the external ID silently falls back to the Apty ID
+  (per app and env); user-file writes fail silently and a failed read
+  makes the next write erase progress; files are cached for the page's
+  lifetime; self-hosted moves preferences to browser storage; host
+  permissions cover only `*.apty.ai`; window-script death; extension site
+  access and duplicate builds; dev mode (`apty_player_dev_mode`) shows
+  the User ID, segments and true rules, so the Agent reads it before
+  asking the SE.
+- **4.x:** the full feature-flag map (which flags matter for which
+  symptom; analytics-only and unread flags are never causes); publishing
+  off means the legacy API, so file checks stop; Pulse-only mode; OneX;
+  self-hosted side effects and host permissions (`*.apty.io`); injected
+  loader CSP, the 1 h `apty_config` cache, and `data-self-hosted="false"`
+  read as true; SSO retries; permalink variants; broken-step widget;
+  end-on-browser-close.
+
+Each row's code citation is in `se-flow-coverage.md` §10 (5.x) and §11
+(4.x).
 
 ## 9. Configuration (org policy, set once by IT)
 

@@ -1,6 +1,23 @@
 # Master prompt: build the SE debugging flow end to end in apty-super-hero
 
-**Version 2.** It changes version 1 in these ways:
+**Version 3.** It changes version 2 in these ways:
+
+- Every code citation was re-checked against apty-dap `3f3adba`,
+  apty-assist `bbb4cbc` and this branch; 34 wrong or partial citations
+  were corrected (wrong lines, incomplete paths, two unsupported claims).
+- **WP16** adds every customer-script type for both versions
+  (application, segment, rule, element, click-action, step, decision
+  point, validator, DOM-config, activity, CSS, smart canvas), checked
+  without running them, plus world parity and the O-4 execution path.
+- **WP17** adds platform, extension, feature-flag, user-file and the
+  remaining features (C-1…C-22 for 5.x, D-01…D-41 for 4.x), with the full
+  4.x feature-flag map.
+- New symptoms S-SCRIPT, S-SAVE, S-REMIND and S-LINK (WP6).
+- WP5 reads each value in the world the player reads it from.
+- Hand-over files no longer overwrite existing `REVIEW.md` and
+  `real-tenant-validation.md`.
+
+**Version 2** changed version 1 in these ways:
 
 - It reads the consolidated design `docs/development/se-flow-design.md`
   first.
@@ -211,7 +228,7 @@ The branch has these commits on top of `main` `7d6e9ef`:
 |---|---|
 | `4753e7a` | **Replay, 5.x.** <ul><li>The `AptyContentSource` interface (`packages/agent-core/src/apty/content-source.ts`, with named failures `not_published`, `http_<code>`, `network`, `timeout`, `schema_mismatch`, `host_not_allowed`, `ids_missing`, `body_denied`, `too_large`, `unparsable`, `unknown_file`).</li><li>`aptyContentOrigins` in the org policy and `apps/browser-extension/managed-schema.json`.</li><li>`packages/browser-runtime/src/apty/replay/`: `catalogue.ts` (4.x and 5.x file catalogue and `filePath`), `schemas.ts` (minimal loose schemas), `content-source.ts` (`createReplaySource`, which includes the player timestamp and the 200 not-found detection), and `case-replay.ts` (per-case registry, `pinContext`, `replayResourceSource`).</li><li>The tools `resolve_apty_context`, `list_apty_files` and `fetch_apty_file` (`tools/apty-content.ts`, group `aptyContent`, file-route budget 11).</li><li>Per-gate `source` (`client`, `capture` or `agent`), with the card suffix and `filesFromReplay`.</li><li>A loader fix: a 200 `{status:404}` body is read as HTTP 404.</li><li>`replayVersion` on evidence.</li><li>`tooling/e2e/replay-source.e2e.test.mjs`.</li></ul> |
 | `e973337`, `7119848` | A page-named content URL on a private-network or IPv6 literal host is refused unless the policy lists it |
-| `7487016`, `5831beb`, `752de41`, `af4c7a6`, `d77fa34`, `a91a063` | Design documents and this prompt (§0) |
+| `7487016`, `5831beb`, `752de41`, `af4c7a6`, `d77fa34`, `30636a3`, `a91a063`, `e3690b7` | Design documents and this prompt (§0); version 3 is the commit that adds this row's successor |
 | `c38343b` | **`inFlight` de-duplication:** concurrent `fetchFile` calls for the same file share one request, `content-config.json` included (`apty/replay/content-source.ts`, with its test) |
 | (this version) | `docs/development/se-flow-design.md`, the consolidated final design |
 
@@ -219,16 +236,16 @@ The branch has these commits on top of `main` `7d6e9ef`:
 
 1. A chat turn goes to **one** path: one check pack, a KB card answer, a
    file fetch, or the model. The local responders are registered in
-   `apps/browser-extension/src/hooks/browser-agent-config.ts:203-259`
+   `apps/browser-extension/src/hooks/browser-agent-config.ts:203-264` (`useLocalResponder` 203-220, `combineResponders` 238-264)
    (`combineResponders`, first answer wins).
 2. Inside `createDiagnosisResponder`
-   (`packages/browser-runtime/src/apty/diagnosis/responder.ts:748-813`)
+   (`packages/browser-runtime/src/apty/diagnosis/responder.ts:748-819`)
    the order is: `routeCheck`, `routeLookup`, `asksAboutDapty`,
    `routeSymptom` (`router.ts:217`, **one** route), then `kbAnswer`.
 3. A local answer emits `tool_call_start` and `tool_call_complete` back to
    back (`packages/agent-core/src/agent/apty-agent.ts:794-815`). There is
-   no progress event (`packages/agent-core/src/types.ts:173-184`,
-   AgentEvent union at about `:306`).
+   no progress event (`LocalAnswer` at `packages/agent-core/src/types.ts:146-155`,
+   `LocalResponder` at `:173-184`, AgentEvent union at about `:305`).
 4. Files come from, in order (`apty/diagnosis/apty-files.ts:200-265`):
    1. the Client's record;
    2. the page capture;
@@ -427,7 +444,7 @@ packages below repeat what each one needs.
   - regex matching is never used, because feature flags are never fetched
     (`apps/player/src/main-content-script/cdn/cdn.service.ts:937-939`).
 - **4.x** (`apty-assist: shared/helpers/injected.helpers.ts:18-49`;
-  `shared/helpers/app.helper.ts:81-109`; `url-helpers.ts:82-105`):
+  `shared/helpers/app.helper.ts:81-109`; `shared/helpers/url-helpers.ts:82-105`):
   - apps are taken in order;
   - env keys are sorted with `Object.keys(o).map(Number).sort()`. That
     sorts **as strings**, so "10" comes before "2";
@@ -449,8 +466,8 @@ packages below repeat what each one needs.
     The app-level `config.widgetConfig.display`, `selectedSegments` and
     `enabledForOtherUser` are **ignored**.
   - **The Agent:** its check
-    (`packages/browser-runtime/src/apty/diagnosis/widget-not-visible.ts:365-429`,
-    WNV-07, verified at `4c406d5`) reads the app-level fields. It is
+    (`packages/browser-runtime/src/apty/diagnosis/widget-not-visible.ts:363-534`, `audienceStep`; WNV-07 at 447-533,
+    verified at `4c406d5`) reads the app-level fields. It is
     **wrong today**.
 - ✔ **5.x auto-trigger fields.** Auto-trigger is driven only by the
   workflow's `stepsAutoTrigger[].attachedRule`
@@ -470,11 +487,11 @@ that don't depend on them. A default applies only if the owner replies
 | ID | Question | Default |
 |---|---|---|
 | O-3 | Grant read access to `aptyInc/apty-extension-core` and `aptyInc/rules-engine-package`? They hold the 4.x frame, element-selection and rule logic; `player3.0/package.json:29-30` pins them | No access. The 4.x rule-tree and element-selection rows stay "?" and show their inputs |
-| O-4 | May the Agent execute customer scripts (`customScript` rules, 4.x `segment-js.js`, custom-script elements) to decide a rule? | No. Rows are "?" and name the script |
+| O-4 | May the Agent execute customer scripts (`customScript` rules, DOM_CHANGE and segment scripts, custom-script elements, `domConfig` functions) to decide a rule? Static checks (parse, references, CSP, WP16) always run and never execute anything | No. Rows that need a result are "?" and name the script. If yes: only side-effect-free kinds, in a fresh isolated world through CDP with the player's timeout (WP16 item 4) |
 | O-5 | May the Agent ask the SE for an Apty ID that lives in the Client's storage, when a user-dependent row needs it? | Yes: once, with one copy step |
 | O-6 | Fix the 5.x widget display check first? | Yes |
 | D-UA | Allow two small runtime dependencies so `os`, `browser`, `device` and `country` rule sources match the player exactly (`ua-parser-js` ^2.0.7, as in `apty-dap: libs/client/rules-engine/package.json`, and a timezone-to-country table)? | No. Write a minimal equivalent in agent-core for the common families, and mark any rule on a value it can't classify as "?" |
-| D-WIN | The player's `window` source **calls functions** on the dotted path (`apty-dap: libs/client/rules-evaluation/src/main-world/window-ipc-handles.service.ts:27-46`). May the Agent's reader do the same? | No. Read properties only; a path that reaches a function gives "?" with "the player calls this function" |
+| D-WIN | The player's `window` source **calls functions** on the dotted path (`apty-dap: libs/client/rules-evaluation/src/main-world/window-ipc-handles.service.ts:41-46`, `readWindowPath`, `value.call(acc)` at 44). May the Agent's reader do the same? | No. Read properties only; a path that reaches a function gives "?" with "the player calls this function" |
 | D-KB | Who owns the KB tenant: its documents, with one application each for 4.x and 5.x plus tenant-wide common documents? | Owner names one. Until set, `askDapty` is absent and no call is made |
 | D-CLIENT | Delete the Client-record code, or keep it behind `aptyClientRecord: optional`? | Keep it, off by default |
 | D-SELFHOSTED | 4.x self-hosted `hostedContentUrl` names a host the policy may not list | Use it only when it is in `aptyContentOrigins`; otherwise the row is `host_not_allowed` and names the host to add |
@@ -491,6 +508,8 @@ that don't depend on them. A default applies only if the owner replies
   apty/versions/                  NEW  AptyVersionAdapter + v5.ts + v4.ts (pure: matching, timestamp, ID shapes, paths)
   apty/schema-mirror/             NEW  per-file validators mirroring the player's per-item and whole-file parse rules
   apty/rules/                     NEW  5.x rule evaluator (grammar, compare, predicates, resolver) + 4.x segment evaluator
+  apty/scripts/                   NEW  script inventory, acorn parse with the player's wrappers, static references, SCR verdicts (WP16)
+  apty/platform/                  NEW  pure verdicts for C-xx / D-xx and the 4.x flag map (WP17)
   apty/coverage/                  NEW  condition IDs, rule registry (status: active | candidate), symptom → groups map
   case-run/                       NEW  CaseRunEvent, ChecklistRow, CaseRunResult, aggregate()
   ask-dapty/                      NEW  DaptyAnswer types, classify() (pure)
@@ -500,7 +519,9 @@ that don't depend on them. A default applies only if the owner replies
 
 @apty/browser-runtime
   apty/replay/                    (built) + CHANGE: adapters, 4.x timestamp/matching, stored chats
-  apty/probes/                    NEW  probe5x, probe4x (ext + injected), page-input reader (MAIN world)
+  apty/probes/                    NEW  probe5x, probe4x (ext + injected), page-input reader (MAIN, or ISOLATED where the player reads there)
+  apty/scripts/                   NEW  page-refs (world parity), csp-probe, O-4 runner over automation/cdp-commander.ts
+  apty/platform/                  NEW  presence, player-version, flags4x, user-file, self-hosted, dev-mode readers
   apty/diagnosis/                 CHANGE fix WNV-07; NEW check groups; router returns all routes
   apty/case-run/                  NEW  orchestrator (parallel groups, rows, result, Re-check)
   apty/ask-dapty/                 NEW  SSE client, one-shot fallback, redaction, rows
@@ -715,7 +736,7 @@ Condition IDs (W5-xx, F4-xx and so on) refer to
 
 **Read:**
 
-- `apty-dap: apps/player/src/main-content-script/widget/ai-chat/widget-chat-storage.service.ts:68-80,110,138`:
+- `apty-dap: apps/player/src/main-content-script/widget/ai-chat/widget-chat-storage.service.ts:26-31,111,139` (path constants 26-31, reads 111 and 139; fetch helper 68-80):
   stored chats at `users/{userId}/widget-chat/chat-list.json` and
   `{chatId}.json`.
 - `user-tracking/user-tracking.service.ts:46-76,153-172`: the user ID.
@@ -744,7 +765,7 @@ Condition IDs (W5-xx, F4-xx and so on) refer to
    - **Options:** hide the Client ID, Client connection and Widget network
      calls panels unless `aptyClientRecord` is `optional`. Show a
      read-only "Apty content hosts" list from the policy.
-   - **Settings card "Apty content CDN":** reword it to "The Agent reads
+   - **Settings card "Apty Client: content CDN"** (`packages/ui/src/i18n/locales/en.json:85`): reword it to "The Agent reads
      Apty's published files itself", keeping the existing on/off switch.
 
 **Prove:**
@@ -769,8 +790,8 @@ existing E2E test passes.
 
 - New: `packages/agent-core/src/apty/schema-mirror/{v5,v4,index}.ts`
   (with tests).
-- `packages/browser-runtime/src/apty/diagnosis/loader.ts`: `LoadedFile`
-  gets `dropped?: Array<{index, id?, field, reason}>` and
+- `packages/browser-runtime/src/apty/diagnosis/types.ts:75` (`LoadedFile`, built by
+  `toLoadedFile` in `loader.ts:40`) gets `dropped?: Array<{index, id?, field, reason}>` and
   `wholeFileRejected?: {field, reason}`.
 - New rule IDs SCH-01…; i18n.
 
@@ -792,14 +813,18 @@ existing E2E test passes.
   - `announcement/announcement.schema.ts:200-250`
   - `segment/segment.schema.ts:55-74`
   - `rule/rule.schema.ts:16-20,140-146`
-  - `application/application.schema.ts:81-190,279-309`
+  - `libs/shared/contracts/src/accounts/application/application.schema.ts:81-190,279-309`
+    (`EnvironmentBaseSchema` at 81, `AppUrlSchema` at 279; note the `accounts/` folder)
   - `application-locale/application-locale.schema.ts:17-30`
   - `libs/client/tool-items-schema/src/schemas/user-preference.schema.ts:106-110`
   - `libs/shared/core/src/utilities/smart-canvas-utils.ts:192-198`
     (`hasNonEmptyHTMLContent`)
 
-**Read (4.x):** files that are not lists fall back to the default
-(`apty-assist: api/http.ts:278-284`), and the TypeScript models are in
+**Read (4.x):** a `{status: 404}` payload falls back to the default
+(`apty-assist: api/http.ts:278-285`, `handleCDNResponse`), and a CDN error
+falls back in `sendCDNRequest` (`:249-276`; `:255-260` sends `referer` for
+apty.io hosts). **Nothing checks for a list**: a non-list payload passes
+through to the reducers. The TypeScript models are in the TypeScript models are in
 `shared/types/*.types.ts`. 4.x has no zod, so mirror only the faults that
 change behaviour: a missing `name[locale]`, an empty steps file, a
 non-list steps file, and `app-data.json` with no `config.customConfig`.
@@ -886,7 +911,7 @@ item.
   key is false even for `not_equals`
 - `components/tools-ui/segments/segments.effects.ts:55-82`
 - `components/app/analytics/common-store-utils.ts:39-121`
-- `segments.selectors.ts:37-161`
+- `components/tools-ui/segments/segments.selectors.ts:37-161`
 
 **Do (5.x evaluator, pure, parity with the player):**
 
@@ -919,14 +944,14 @@ item.
    | Source | How the Agent reads it |
    |---|---|
    | `page.*` | The top frame |
-   | `window` | MAIN world, properties only (D-WIN), then `String()` |
+   | `window` | MAIN world, properties only (D-WIN), then `String()`. If window-script is dead (WP17 C-9) the player reads `undefined`; say so |
    | `localStorage` / `sessionStorage` | MAIN world. Missing is `null` |
    | `cookie` | `document.cookie`, first `key=` match, then `decodeURIComponent`. Missing is `undefined` |
    | `dateTime` | Local clock and timezone; keys as in `resolver.ts:91-127` |
    | `os`, `browser`, `device`, `country` | D-UA |
    | `augmentation` | MAIN-world `window.aptyAugmentation`, while the player runs. Otherwise "?" |
    | `element.<id>.(exists\|visible\|text)` | Via the existing element probe (`apty/element-probe.ts`). The row is ✓/✗ only when the selector is CSS, XPath or picker **and** has one unambiguous match. Otherwise "?" with the reason |
-   | `customScript` | "?" (O-4) |
+   | `customScript` | Static checks from WP16 (SCR-02…06, 08, 09). The value is "?" unless O-4 |
    | `userActivity.toolProgress.{WORKFLOW\|CHECKLIST}.<id>` | `users/{userId}.json` (WP6 intake); completed wins |
    | `userActivity.lastActivityTime` | "?", because it is kept in the Client's storage |
    | `screen`, `attribute` | Always undefined on the web |
@@ -949,7 +974,11 @@ item.
   - `page_*`;
   - `application_storageData`: storage and window keys from conditions
     of category `LOCAL_STORAGE`, `SESSION_STORAGE` or `WINDOW_VARIABLE`;
-  - `user_id` from `localStorage['apty-user-id']`.
+  - `user_id` from `selectUserId`: the identification in use, Apty,
+    application or custom (`components/tools-ui/segments/segments.effects.ts:63-67`).
+    `localStorage['apty-user-id']` is only the Apty-ID default
+    (`shared/helpers/aptyId.helper.ts:16-18`, `constants.ts:92`); a Custom ID
+    comes from the segment-js result (WP16, D-38).
 - Keys under `application_customData` are "?" (O-4).
 - **Keys are plain paths only.** A key containing `?(` or `(` is "?"
   ("the player runs this key as code").
@@ -1016,6 +1045,18 @@ source the Agent can read, and say why for every source it can't.
    | S-DAPTY | Ask Dapty problems | The existing Ask Dapty pack, plus Item and Launch for the suggested item |
    | S-LOGS | Errors and logs | The existing logs pack; the Client logs row says "not available" when the Client is not used |
    | S-PAGE | Page readiness | The existing DOM Health pack |
+   | S-SCRIPT | A customer script "does not work", or a behaviour that depends on one (custom data, augmentation, custom element, click action does nothing) | Load, Scripts (WP16), Platform |
+   | S-SAVE | Progress, favourites or "don't show again" forgotten; content shows again | Load, User history, Platform (C-2, C-3, C-4, C-6, D-21) |
+   | S-REMIND | Reminder missing, early or duplicated (5.x) | Load, User history, Platform (C-11) |
+   | S-LINK | A permalink does nothing or opens the wrong item | Load, Item, Platform (C-15, D-32) |
+
+   **Every symptom also runs the Platform group's cheap rows** (presence,
+   version, flags, publishing path, Pulse-only, D-01) because they can
+   block everything. They read files and the page already fetched, so
+   they add no requests.
+
+   **4.x routing note.** With `LSP10544-PublishingSystem` off (D-28) the
+   file groups stop and the result says the env uses the legacy API.
 
    An ambiguous message runs the union of the plausible symptoms' groups.
 2. **A bare how-to makes no content-file requests.**
@@ -1032,8 +1073,9 @@ source the Agent can read, and say why for every source it can't.
      D-KB1).
    - **Ask AI anyway** is offered only if Ask Dapty gives up, errors or
      isn't configured.
-   - **A "Run checks" button** on the answer (reuse `runCheck`,
-     `apty/diagnosis/responder.ts:688-698`) lets the SE start the symptom
+   - **A "Run checks" button** on the answer (reuse `runCheck`:
+     `apty/diagnosis/responder.ts:688` builds it from `topCardCheck`
+     627-632, 698 attaches it, and 752-753 re-routes it with `routeCheck`) lets the SE start the symptom
      checks if there is in fact a problem.
    - **Symptom wording wins:** a how-to that contains a symptom word ("how
      do I fix the tooltip that doesn't show") runs the checks.
@@ -1059,9 +1101,12 @@ source the Agent can read, and say why for every source it can't.
      no value on the page. Then ask (O-5), with the copy step text:
      "Open chrome://extensions, then the Apty Client's service worker,
      then run `chrome.storage.local.get()` and copy the
-     `apty_player_local_storage_user_id` value". Verify the key and scope
-     in `apty-dap: apps/player/src/main-content-script/storage/local-storage.service.ts:84-112`
-     before writing this text.
+     `apty_player_local_storage_user_id` value under the `{appId}-{envId}`
+     object". The key is at
+     `apty-dap: apps/player/src/main-content-script/storage/local-storage.service.ts:89-92`;
+     values sit under the object key `${appId}-${envId}` (`getAppScope`
+     125-128, 130-139), so the copy step names both. Prefer the dev-mode
+     read (WP17, C-16) when the page has dev mode on.
    - The version is asked only if neither the probe nor the ID shape
      settles it.
    - IDs the SE gives are pinned with `pinContext`. A pinned context whose
@@ -1181,7 +1226,8 @@ they start with `libs/`.
   fails to start (W5-07; `cdn.service.ts:208-226,577-599`;
   `locale/locale.service.ts:30-54`).
 - Injected mode: the storage iframe did not load within 15 s
-  (W5-02; `index-injected.tsx:51-54`). Check whether
+  (W5-02; `index-injected.tsx:25-41`, `15000` at 28; the widget starts only
+  after the iframe loads, 62-70, and a rejected load has no catch, C-17). Check whether
   `iframeLocalStorageURL` loads.
 - `restrictionPatterns`: any regex matching the URL hides everything,
   including auto-trigger (W5-11; `widget/widget-restriction.service.ts:10-67`).
@@ -1203,7 +1249,7 @@ they start with `libs/`.
 - Labels and most-used group workflows only; search does not match tags;
   `process-group.json` is unused (info rows; K5-07…11;
   `libs/client/tool-items-schema/src/mappers/widget.mapper.ts:12-96`;
-  `search-filter.controller.ts:8-81`).
+  `apps/player/src/main-content-script/widget/content/search-filter/search-filter.controller.ts:8-81`).
 - Completed workflows stay listed (info).
 
 **Auto-trigger (S-AUTO):**
@@ -1302,7 +1348,7 @@ they start with `libs/`.
 - The target exists and is visible: a workflow with name, success and
   feedback texts; a knowledge-content item; a popup in `popup.json`;
   custom script always passes (L5-02; `cdn.service.ts:524-561`).
-- A BUTTON needs `buttonLabel` (L5-03; `libs/client/tool-items-schema/src/mappers/launcher.mapper.ts:107-117`).
+- A BUTTON needs `buttonLabel` (L5-03; `libs/client/tool-items-schema/src/mappers/launcher.mapper.ts:24-28`).
 - The click re-resolves the target (L5-06).
 
 **Validation:**
@@ -1326,7 +1372,10 @@ they start with `libs/`.
 - REPEAT recurrence arithmetic, with **no end date and no start guard**,
   in browser-local time (A5-06; `recurrence-rule.service.ts:35-252`).
 - **Only one shows:** the first by `order`, then name; blocked while a
-  dialog is active (A5-07; `cdn.service.ts:693-714`).
+  dialog is active (A5-07; ordering at `cdn.service.ts:693-714`; the
+  one-at-a-time and dialog gates are in `tool-items/announcement` and
+  `tool-items/active-dialog.service.ts` — re-cite exact lines before
+  writing the rule, NOT VERIFIED at line level).
 - Permalink `AN:` bypasses everything (A5-08).
 
 **Checklist:**
@@ -1334,10 +1383,12 @@ they start with `libs/`.
 - Items need a visible, locale-valid target.
 - **0 items means the checklist is dropped.**
 - An item is ticked iff its id is in `toolsCompletionProgress.flows[]` or
-  `customContents[]` (C5-02, C5-03, C5-05; `libs/client/tool-items-schema/src/mappers/checklist.mapper.ts:261-298`).
+  `customContents[]` (C5-02, C5-03, C5-05; `libs/client/tool-items-schema/src/mappers/checklist.mapper.ts:10-15,39-45`;
+  0 items dropped at `cdn.service.ts:501-503`).
 
 **Knowledge content permalink:** `KC:` appears never to match, because of
-a `KC-` prefix comparison (K5-05; `cdn.service.ts:888-894`). Report it
+a `KC-` prefix comparison (K5-05; `cdn.service.ts:888-894`, compare at 890; the `KC-` prefix is
+built at `permalink/permalink.service.ts:116-118`). Report it
 only as "candidate", with the citation.
 
 **Locale (S-LOCALE):**
@@ -1394,10 +1445,13 @@ Paths below are relative to `apty-assist/player3.0/src/`.
 - **A segment-hidden widget also stops `DOMChanged`**, so frames, steps,
   rules and the user ID stall. Report this as "candidate (inferred)"
   (P4-16; `components/app/app.effects.ts:64-73`).
-- `hideAptyWidgetWhenNoContent` (P4-17; `banner.component.tsx:140-229`).
+- `hideAptyWidgetWhenNoContent` (P4-17; `components/banner-ui/banner.component.tsx:144,204`).
 - The iframe ignore list (P4-18; `shared/helpers/injected.helpers.ts:66-258`).
 - `publishingSystem` off means **no flows in the widget list**
-  (G4-01, F4-07; `components/player-ui/body/content/tool-list/tool-list.selectors.ts:50-60`).
+  (G4-01, F4-07): `tool-list.selectors.ts:50-60` still pushes the flows but
+  without `ruleVisible` (set only at 34-46), and
+  `components/player-ui/body/content/tool-list/tool-list.component.tsx:116-119`
+  drops them. With publishing off, files are irrelevant: see WP17 D-28.
 
 **Flows (list):**
 
@@ -1408,8 +1462,14 @@ Paths below are relative to `apty-assist/player3.0/src/`.
   dates default to now ±2 days (F4-04; `shared/helpers/announcement.helpers.ts:59-92`).
 - `hideInWidget` (F4-05).
 - `attachedRule.visibilityResult` is fail-open. The row is "?" until O-3,
-  and shows the rule's inputs (F4-06; `components/app/rule-engine/rule-engine.helpers.ts:388-411`).
-- Tags remove a flow from the flat list (F4-08; `group-content.selector.ts:9-24`).
+  and shows the rule's inputs (F4-06; `visibilityResult` is set at
+  `components/app/rule-engine/rule-engine.helpers.ts:45-68`; fail-open at
+  `tool-list.selectors.ts:44-46`, `tooltips.selectors.ts:30`,
+  `validations.selectors.ts:27-28`).
+- Tags remove a flow from the flat list (F4-08; `components/app/group-content/group-content.selector.ts:15-24`).
+  `tags.json` loads only when `ClientGroupContent` is on
+  (`group-content.effects.ts:50-61`), so with the flag off this row is
+  "does not apply" (D-29).
 
 **Auto-trigger (S-AUTO):**
 
@@ -1430,7 +1490,7 @@ Paths below are relative to `apty-assist/player3.0/src/`.
 **Launch:**
 
 - The flow exists with `name[locale]`, else the flow-error modal. An empty
-  `flow-{id}.json` cancels silently (F4-23; `flows.effects.ts:561-617`).
+  `flow-{id}.json` cancels silently (F4-23; `components/player-ui/body/content/tool-list/flows/flows.effects.ts:561-617`).
 - An announcement call-to-action needs the name and an active segment
   (F4-26).
 - **Permalink:** `aptyref=WF-<shortid>[-<step>]` must pass
@@ -1478,7 +1538,7 @@ Paths below are relative to `apty-assist/player3.0/src/`.
 - `showButton`.
 
 (L4-01…07; `components/tools-ui/launchers/launchers.selectors.ts:36-74`;
-`publishing.helpers.ts:75-85`.)
+`shared/helpers/publishing.helpers.ts:75-85`.)
 
 **Validation:**
 
@@ -1583,7 +1643,7 @@ them).
 2. **Aggregate:**
    - collect the causes from every group;
    - de-duplicate by `ruleId` and subject;
-   - order by gate: load, widget, item, audience, rules, launch and steps,
+   - order by gate: platform (WP17), load, scripts that block (SCR-13), widget, item, audience, rules, launch and steps,
      element, user history;
    - status `issues`, `candidates`, `clear` or `no_data`.
 3. **The result card:**
@@ -1638,11 +1698,14 @@ them).
 - `apty-dap: apps/ai-service/src/api/ai-chat-widget/ai-chat-widget.controller.ts:13,49-105`
 - `ai-chat-widget.service.ts:23-24,89,94-112,140-189`
 - `libs/shared/contracts/src/ai/ai-chat-widget/ai-chat-widget.schema.ts:20-45`
-- `ai-chat-widget.contract.ts:97-107` (the one-shot route checks UUIDs)
+- `libs/shared/contracts/src/ai/ai-chat-widget/ai-chat-widget.contract.ts:16-26`
+  (the one-shot route checks UUIDs: `applicationId` at 20, tenant through
+  `TenantIdPathParamSchema` at 19)
 - `apps/player/src/common/widget-chat-stream.ts:18-31,152-154` (how the
   player reads the stream)
-- `api-client/widget-chat-api-client.service.ts:55-88` (the one-shot
-  fallback)
+- `apps/player/src/main-content-script/api-client/widget-chat-api-client.service.ts:55-88`
+  (the one-shot fallback, taken only on `WidgetChatStreamUnavailableError`,
+  84-86)
 - `apps/ai-service/src/vector-store/vector-store.service.ts:175-185`
 
 **Do:**
@@ -1718,7 +1781,9 @@ them).
 - New: `packages/browser-runtime/src/answer/runner.ts`.
 - `apps/browser-extension/src/components/investigation/kb-unknown-setting.tsx`:
   generalise "Ask AI anyway".
-- `packages/browser-runtime/src/apty/diagnosis/responder.ts:686-689`: a
+- `packages/browser-runtime/src/apty/diagnosis/responder.ts:662-684` (`answered`
+  false gives `route:"model"`, returned at 680-683; `needsNoCardInstruction`
+  616-619): a
   `not_covered` question no longer goes to the model automatically when a
   case ran.
 - UI: the AI answer card and the "Not enough evidence" card.
@@ -1782,8 +1847,9 @@ them).
 - Chain unit tests for each `FallbackReason`.
 - Quality-check tests: uncited claims, a contradiction, the wrong
   version, every claim passing.
-- **E2E** with mock models (`startMockModel`; add an OpenAI-shape mock
-  for A):
+- **E2E** with mock models (`startMockModel` in `tooling/e2e/harness.mjs:207` already
+  serves OpenAI `/chat/completions` and `/models` for A; **add an
+  Anthropic `/v1/messages` mock for B**):
   - A passes;
   - A 401 falls to B, which passes;
   - A fails quality, B fails quality, giving "Not enough evidence";
@@ -1820,7 +1886,9 @@ them).
      - whether other `?timestamp=` values are accepted;
      - the 4.x `token=` and `Referer` behaviour.
 
-   Write the findings into `docs/development/real-tenant-validation.md`.
+   Write the findings into a **new** `docs/development/se-flow-real-tenant.md`.
+   (`docs/development/real-tenant-validation.md` already exists for DOM
+   Health; do not overwrite it.)
 
 **Prove:** unit tests for the measures and the registry; the smoke script
 tested against the fake content host.
@@ -1912,7 +1980,366 @@ For **each symptom × version** that applies:
    - on Re-check, every request carries `If-None-Match` or
      `If-Modified-Since`.
 
+Also add the WP16 and WP17 cases to the matrix: S-SCRIPT, S-SAVE,
+S-REMIND (5.x) and S-LINK, each for both versions where they apply, and
+assert for every case in the matrix that **no customer code ran** (the
+fixture sets `window.__ran` only if executed).
+
 Also run the a11y and chat-scroll suites (400 and 480).
+
+### WP16: Customer scripts (every script type, both versions)
+
+Customer scripts are the largest class of silent failures: the player
+swallows their errors (5.x logs `warn` or `debug`; 4.x `letzConsole` prints
+**nothing** in production, `apty-assist: shared/helpers/letzconsole.ts:1-5`).
+This WP makes every script type checkable **without running it**, and
+decides what can only be known by running it (O-4).
+
+**Change:**
+
+- New: `packages/agent-core/src/apty/scripts/{inventory,parse,static-refs,verdicts}.ts`
+  (pure; with tests):
+  - `inventory(version, files)` lists every script in the case's files,
+    with its kind, owner item, file, field and how the player wraps it;
+  - `parse(script, wrapper)` returns `ok` or `{line, column, message}`;
+  - `staticRefs(script)` extracts the selectors, window paths, storage
+    keys, cookie names, `apty.getWindowVar` paths, `letzNavApi` calls and
+    `async`/`await`/`return` facts;
+  - `verdicts` turns these facts into rows (rule IDs SCR-xx).
+- New: `packages/browser-runtime/src/apty/scripts/page-refs.ts`: checks each
+  extracted reference on the page, in the **world the player reads it
+  from** (see "World parity" below), and reads
+  `window.aptyAugmentation` (5.x, MAIN world) without executing anything.
+  4.x keeps the segment-js result in `window.__APTY_ADVANCED_JS_DATA__` of
+  the **player's own context** (`apty-assist: player3.0/src/components/app/analytics/common-store-utils.ts:56-60`,
+  `constants.ts:84`): readable in injected mode (the Apty frame), **not**
+  readable in extension mode (Apty's isolated world).
+- New: `packages/browser-runtime/src/apty/scripts/csp-probe.ts`: reads the
+  page's effective CSP (the `Content-Security-Policy` response header of
+  the main document from the existing capture, else the
+  `<meta http-equiv>` tags) and answers `unsafe-eval`, inline scripts and
+  inline styles allowed or not.
+- New check group `Scripts` and symptom **S-SCRIPT** (WP6).
+- `packages/browser-runtime/src/apty/replay/catalogue.ts`: confirm 5.x
+  `application-script.json` and 4.x `segment-js.js`, `custom-js.js` and
+  `custom-css.css` are present, and that a non-JSON body is accepted for
+  the three 4.x files (they are JS and CSS, not JSON).
+- Dependency: **`acorn@8.16.0`**, the exact parser Sval 0.6.11 uses
+  (`apty-dap: pnpm-lock.yaml:32672-32674`). It is already in this repo's
+  install tree; add it as a direct dependency of `@apty/agent-core`. It
+  parses; it never executes.
+
+**Read (5.x):**
+
+- `libs/client/utilities/src/sval-interpreter.ts:1-45`: one shared Sval
+  interpreter per JS context (`:16`), `ecmaVer: 'latest'` (`:9-11`),
+  sync scripts wrapped as `function(){…}`, application scripts as
+  `async function (apty){…}` (`:40-45`), jQuery `$` imported without
+  awaiting (`:18-24`).
+- `libs/client/utilities/src/script-runner.ts`: 5 s cap, a timed-out
+  script keeps running (`:32,47-61`); failure logs
+  `warn('Application script failed')` and returns `null` (`:56-57`);
+  `runAll` keeps going (`:64-68`); `apty.getWindowVar` exists only with a
+  window channel (`:19-21`).
+- `apps/player/src/main-content-script/ioc.ts:38-49,79-87` (APPLICATION_LOAD
+  after every init service);
+  `apps/player/src/main-content-script/define-widget-content-script.tsx:81-82`
+  (init failure logged at **debug**).
+- `apps/player/src/main-content-script/tool-items/rule-engine/player-rule-evaluation.bindings.ts:132-184`
+  (DOM_CHANGE scripts, merge into `window.aptyAugmentation`, the pass
+  wrapped in `catch { return null }`).
+- `libs/client/rules-evaluation/src/evaluation/rule-evaluation.service.ts:77-90,144-163`
+  (a rule pass runs even with no rules).
+- `libs/client/rules-evaluation/src/main-world/window-ipc-handles.service.ts:62-75`
+  (`mergeAugmentation`).
+- `libs/client/tool-items-content-script/src/main/messaging/ipc.service.ts:253-266`
+  and the iframe twin `:188-199` (rule `customScript` in every frame,
+  OR'ed); `rule-evaluation-context.service.ts:68-70,110,239-252`.
+- `libs/client/element-identification/src/element-identification.ts:81-94`;
+  `element-identification.service.ts:42-45,78-80,104,120-126`;
+  `selector-config.ts:11-29` (`domConfig` functions revived on every
+  lookup, outside a try).
+- `libs/client/tool-items-components/src/validation/use-validators-executor.controller.ts:85-118`
+  (custom validator).
+- `tool-items-ipc.service.ts:185-190,233-255`;
+  `announcement.service.ts:189-205` (launcher, CTA and Layout scripts).
+- `libs/client/studio-components/src/helpers/player-version.helpers.ts:3-9,24-31`
+  (players below 5.2.2 reject a whole file containing `EVERY_TIME` or
+  `CUSTOM_SCRIPT`).
+- `user-tracking/workday-user-data.service.ts:49-55,82-108`;
+  `salesforce-user-data.service.ts:10,23,27-69`;
+  `user-tracking.service.ts:109-142` (a `null` session cached for the page).
+
+**Read (4.x)** (paths under `apty-assist: player3.0/src/` unless shown):
+
+- `shared/helpers/deserialize.helpers.ts:1-52`: Sval **0.4.8**
+  (`player3.0/package.json:53`) with `$`, default options (no `ecmaVer`).
+- `../window.var.js:15-53,65-77,89-92`: `EXECUTE_ADVANCED_JS` runs
+  `new Function(code)()` in the **page MAIN world**; a non-object result
+  becomes `{}`; on a throw it awaits `executeAptySegmentationScript` (an
+  inline `<script>` added by `CREATE_SEGMENT_SCRIPT`).
+- `components/tools-ui/segments/segments.helpers.ts:41-63` (extension:
+  post to `window.top`; injected: Sval in the Apty frame);
+  `components/tools-ui/segments/advanced-js.effects.ts:15-26` (re-run on
+  each `DOMChangedInAWindow`, 500 ms debounce).
+- `components/Technical/resolver/resolver.tsx:20`,
+  `resolver.effects.ts:60-71,104-114,160-171`,
+  `components/tools-ui/segments/segments.effects.ts:58-71` (**D-01**: the UI
+  renders only after `UPDATE_ACTIVE_SEGMENTS`; with no active segment
+  that waits for the segment-js reply).
+- `services/script-execution.service.ts:14-21`;
+  `shared/helpers/letznav-api.helpers.ts:11-83` (custom-js.js once per
+  frame; `letzNavApi.sendUserAction` needs a 6-alphanumeric code;
+  `letzNavApi.flow.*` for `step.script`).
+- `services/custom-theme.service.ts:27-37`; `shared/helpers/common-helpers.ts:28-33`
+  (custom-css.css into every frame's `<head>`, through `DOMPurify.sanitize`).
+- `shared/helpers/element-helpers.ts:38-57,259-286` (customScript elements:
+  Sval in extension mode, `window.parent.Function` in injected mode;
+  custom and regex validators **outside** the try).
+- `services/rule-engine.service.ts:234-311` (rule `customScriptPool`:
+  `!!result`; window reads with no timeout and no request ID).
+- `services/rules-context-builder.service.ts:135-215`;
+  `components/tools-ui/play-flow/play-flow.effects.ts:194-247,593-630`
+  (decision points: 2 s, then the next step; `goto` counts non-decision
+  steps only).
+- `components/tools-ui/smart-canvas-template/smart-canvas-template.component.tsx:30-64`;
+  `components/tools-ui/announcements/announcements.effects.ts:504-558`.
+- `shared/helpers/segment-executor.helpers.ts:60-84,117-125,166-179`
+  (JSONPath keys; `walk` visits index `i` only if `val.indexOf(i) > 0`, so
+  `*` and `..` over arrays never match).
+- `components/tools-ui/activities/activities.helper.ts:137-157` (activity
+  augmentation scripts).
+- `shared/helpers/localstorage.helper.ts:33-49` (`getValueFromWindowObject`
+  reads `window.top[k]` from the content script);
+  `gazer/segmentation/app-helpers/workday.ts:16` ("Window var accessed only
+  in Injected Mode").
+
+**Do:**
+
+1. **Script inventory.** For the case's files, list every script with its
+   kind, owner, field and wrapper:
+
+   | Kind | 5.x source | 4.x source | Wrapper (parse as) | World the player runs it in |
+   |---|---|---|---|---|
+   | Application load | `application-script.json` `executeOn=APPLICATION_LOAD` | `custom-js.js` | 5.x `async function (apty){…}`; 4.x Sval function body, `'use strict'` | 5.x isolated (top **with** `apty`; iframes **without**); 4.x isolated (ext.), Apty frame (inj.) |
+   | Segment / augmentation | `application-script.json` `executeOn=DOM_CHANGE` | `segment-js.js` | 5.x `async function (apty){…}`; 4.x `new Function` body | 5.x isolated, top only; 4.x **page MAIN** (ext.) or Sval in the Apty frame (inj.) |
+   | Rule script | `rule.json` condition `left.source='customScript'` (the key is the script) | `rules.json` `ruleContextPool.customScriptPool[k].script` | 5.x `async function (apty){…}` without `apty`; 4.x function body | 5.x isolated, every frame, OR'ed; 4.x Sval (ext.) or page `Function` (inj.) |
+   | Element lookup | `element.customScript` (step, tooltip, launcher, validation) | type-2 `customScript` | sync `function(){…}`; must `return` an element | 5.x isolated; 4.x Sval (ext.) or page `Function` (inj.) |
+   | Click action | launcher `launcherAction.script`, step CTA, Layout and announcement actions | — | `async function (apty){…}` | 5.x isolated, top, with `apty` |
+   | Step script | — | `flow-{id}.json` step `script` | Sval function body with `letzNavApi` | 4.x the frame matching the step |
+   | Decision point | (5.x uses rules) | step `decisionPoint.rules` scripts | function body | 4.x top frame only |
+   | Validator | `validation.json` `customScriptValidator` when `isCustomScriptValidatorEnabled` | validator `{type: Custom, code}` | 5.x sync `function(field){…}`; 4.x `newFunction('field','context',code)` | isolated / player window |
+   | DOM config | `app-data.json` `config.domConfig.{screenTokenFunction, partialSelectorsFunction, ignoreSelectorIdFunction, ignoreSelectorClassFunction}` | — | `return <src>` | 5.x isolated, on **every** element lookup |
+   | Activity script | — | `activities.json` `augmentationScript[].customJS` | function body | Sval (ext.) or page `Function` (inj.) |
+   | Styles | — | `custom-css.css`; `themes.json` `customCSS` | CSS | every frame's `<head>` (ext., sanitized); Apty frame (inj.) |
+   | Smart canvas | — | `smart-canvas-templates.json` `templateHTML` | HTML | open shadow root; `<script>` never runs |
+
+2. **Checks that need no execution** (all run by default):
+
+   | ID | Check | Applies to | Row when it fails |
+   |---|---|---|---|
+   | SCR-01 | The file or field exists and is non-empty; 4.x body is not the `{"status":404}` JSON or an XML error page | all | ✗ "The script is empty or the host returned an error page; the player runs that error text as code" |
+   | SCR-02 | **Parses** with acorn 8 using the player's wrapper (table above), `ecmaVersion: 'latest'` | all JS kinds | ✗ with line and column, mapped back to the customer's own text (subtract the wrapper's prefix) |
+   | SCR-03 | `async` or `await` where the player expects a **sync** result | element lookup, validator (5.x); 4.x rule script, segment-js (ext.) | ✗ "This script is async. The player reads a Promise: always valid (validator), always true (4.x rule), no reply (4.x segment-js)" |
+   | SCR-04 | No `return` where a result is needed | element lookup, validator, segment/augmentation, rule script | ✗ "Returns nothing: element not found / invalid / no segment data / false" |
+   | SCR-05 | Uses `apty.*` where `apty` is absent | 5.x rule scripts; APPLICATION_LOAD in iframes | ✗ for rule scripts; ⚠ for APPLICATION_LOAD ("throws a TypeError in every iframe") |
+   | SCR-06 | Reads page globals (`window.x`, bare globals that are not DOM or built-ins) from a world that cannot see them | 5.x rule scripts and APPLICATION_LOAD (isolated); 4.x custom-js (ext.) | ✗ "Runs in the extension's isolated world, where the page's `window.x` is undefined. Use `apty.getWindowVar('x')` (5.x DOM_CHANGE or click actions) or a DOM read" |
+   | SCR-07 | Writes `window.x =` expecting the page to see it | 5.x APPLICATION_LOAD | ⚠ "The page never sees this assignment" |
+   | SCR-08 | Each extracted selector resolves on the page (count, visible) | all | ✗ per selector, with the count |
+   | SCR-09 | Each extracted window path, storage key and cookie exists **in the player's world** | all | ✗ or "?" (world rules below) |
+   | SCR-10 | 5.x DOM_CHANGE output: `window.aptyAugmentation` keys vs the keys rules, segments and `userIdentificationConfig` (type Augmentation) use | 5.x | ✗ "Key `k` is used by rule R but no script produces it"; ⚠ "Key `k` may be stale: a failing script keeps the last merged value" |
+   | SCR-11 | 4.x segment-js output: `window.__APTY_ADVANCED_JS_DATA__` keys vs `application_customData.*` segment keys and a Custom user-ID key (top level only, D-38) | 4.x **injected** only; extension mode lists the keys the segments need and is "?" unless O-4 | as SCR-10 |
+   | SCR-12 | Page CSP allows what the engine needs: 4.x extension segment-js needs `unsafe-eval`, or inline scripts for the fallback; 4.x injected customScript, rule scripts and activity scripts need `unsafe-eval`; custom-css needs inline styles; injected loader needs inline scripts (D-22) | 4.x | ✗ naming the directive and the script |
+   | SCR-13 | **D-01 freeze** (4.x): no active segment, `window.var.js` absent from resource entries or SCR-12 failed, and the widget root is absent | 4.x ext. | ✗ "The player waits for segment-js forever, so nothing renders. Fix CSP or the script; this blocks every item" |
+   | SCR-14 | Non-cloneable or non-object result evident from the source (`return document…`, `return () =>`, `return 'x'`) | 4.x segment-js | ✗ "The result can't be sent to the player; no reply (see SCR-13)" |
+   | SCR-15 | `domConfig` functions parse; the screen-token function returns a string for this page (only with O-4) | 5.x | ✗ "A syntax error here breaks **every** element lookup, CSS and XPath included" |
+   | SCR-16 | Smart-canvas buttons: target is a `<button>`; launcher buttons have `data-launch-content` with `data-flow-id` **and** `data-step-id`, or `data-kc-id`; announcement CTAs have `id` and `data-action` | 4.x | ✗ per button |
+   | SCR-17 | JSONPath segment keys use `*` or `..` over an array | 4.x | ✗ "Never matches: the player's JSONPath walk skips array items" |
+   | SCR-18 | custom-css contains `>`, `&` or `<` (DOMPurify may escape them in extension mode) | 4.x | ⚠ candidate, NOT VERIFIED |
+   | SCR-19 | Player below 5.2.2 and the file contains `EVERY_TIME` or `CUSTOM_SCRIPT` | 5.x | ✗ "This player version drops the whole file" (needs the version, WP17 C-1) |
+   | SCR-20 | `letzNavApi.sendUserAction(code)` codes are 6 alphanumerics; `letzNavApi.flow.goto(n)` targets exist counting non-decision steps | 4.x | ✗ per call |
+   | SCR-21 | Decision point script or rule with no matching branch in 2 s goes to the next step | 4.x | ⚠ "Silent wrong branch" with the step |
+   | SCR-22 | Workday or Salesforce session inputs: `app-data.code`; `environments[].enableUserProfile`; page `iframe#aptyFrame` holds the JSON; `window.workday.tenant` | 5.x | ✗ per input; note the page-lifetime `null` cache |
+
+3. **World parity** (fixes WP5). The Agent reads a value in the world
+   **the player reads it from**, not always MAIN:
+
+   | Read | Player world | Agent reads |
+   |---|---|---|
+   | 5.x rule `window` source | MAIN via window-script; isolated fallback when window-script is dead (C-9) | MAIN, then checks window-script is alive (MAIN `aptyAugmentation` or the `window-script.js` resource). Dead → the row says the player sees `undefined` |
+   | 5.x `apty.getWindowVar` | MAIN | MAIN |
+   | 5.x rule `customScript`, APPLICATION_LOAD reads of `window.x` | isolated | report "undefined in the player's world" (SCR-06) |
+   | 4.x segment `WINDOW_VARIABLE` (extension) | content script, `window.top[k]` | an isolated-world read through `chrome.scripting.executeScript({world: 'ISOLATED'})` with a fixed reader function (no customer code). This is the **Agent's** isolated world, not Apty's, but page globals are equally invisible in both; only properties Apty's own content script sets on its `window` differ, and those are "?". Where it differs from MAIN, show both and say the player uses the isolated value |
+   | 4.x segment `WINDOW_VARIABLE` (injected) | page | MAIN |
+   | 4.x rule window reads (`get_letznav_global_variables`) | MAIN via `window.var.js` | MAIN, then check `window.var.js` is loaded; absent → "the player's read never returns" (D-06) |
+
+4. **Execution (O-4).** Without consent nothing above executes customer
+   code. With O-4 granted for the case:
+   - run only scripts the inventory lists, by ID, never text from the
+     model or the SE's chat;
+   - run in a **fresh isolated world** created through CDP
+     `Page.createIsolatedWorld` and `Runtime.evaluate` with `timeout` set to
+     the player's cap (5 s for 5.x scripts, 2 s for decision points),
+     `returnByValue: true`, reusing `packages/browser-runtime/src/automation/cdp-commander.ts`;
+   - wrap exactly as the player does, give 5.x scripts an `apty` whose
+     only method is a read-only `getWindowVar`;
+   - for 4.x extension segment-js, which the player runs in MAIN, run it in
+     MAIN through CDP with the same `new Function` shape;
+   - never run click actions, step scripts, custom-js.js or APPLICATION_LOAD
+     (they have side effects); they stay static-only;
+   - the result passes through redaction before any row shows it; a
+     value is shown as its type and key list unless it is a boolean or
+     number.
+   - The Chrome "is debugging this browser" bar appears while CDP is
+     attached; detach right after the run and say so in the row.
+
+5. **Rows and copy.** Each script row names the script by owner and field
+   ("Rule ‘Is manager’ → custom script"), never prints the script, and
+   offers **Show script** (local, redacted, collapsed) for the SE.
+
+**UI:** a "Scripts" group in the checklist; parse errors show line and
+column with a three-line excerpt around them; SCR-13 is shown as a
+blocking issue at the top of the result.
+
+**Prove:**
+
+- `parse` tests per wrapper, with line mapping back to the customer text.
+- `staticRefs` tests: `document.querySelector`, `$()`, `getElementById`,
+  `apty.getWindowVar`, `localStorage.getItem`, cookies, template strings
+  (unresolved parts give "?").
+- A world-parity unit test for each row of the table in item 3.
+- CSP probe tests (header, meta, `'nonce-…'` and `'strict-dynamic'`
+  treated as "inline not allowed for an unnonced script").
+- E2E: fixtures for SCR-02 (5.x DOM_CHANGE syntax error), SCR-06 (rule
+  script reading `window.user`), SCR-10 (missing augmentation key),
+  SCR-13 (4.x CSP without `unsafe-eval`, widget absent), SCR-16 and
+  SCR-17. Each asserts the row, and that **no customer code ran**: the
+  fixture script sets `window.__ran = true` and the test asserts it stays
+  undefined.
+- With O-4 on, an E2E that a looping script is stopped by the timeout
+  and the row says "timed out after 5 s".
+
+**Done when:** every kind in item 1 has a static row for both versions;
+the world table is implemented and tested; nothing executes without O-4.
+
+### WP17: Platform, extension, feature flags, user file and the remaining features
+
+These are causes outside any one content item. Each becomes a row in the
+**Load** or **Platform** group, and runs for every symptom unless noted.
+
+**Change:**
+
+- New: `packages/browser-runtime/src/apty/platform/{presence,player-version,flags4x,user-file,self-hosted,dev-mode}.ts`
+  and pure verdicts in `packages/agent-core/src/apty/platform/`.
+- WP6: symptoms **S-SAVE** ("progress, favourites or 'don't show again'
+  forgotten", "shows again"), **S-REMIND** (reminders) and **S-LINK**
+  (permalink does nothing).
+- New rule IDs PLT-xx, mapped to C-xx (5.x) and D-xx (4.x) in
+  `se-flow-coverage.md` §11 and §12.
+
+**Do (5.x):**
+
+| ID | Condition | How the Agent decides | Row |
+|---|---|---|---|
+| C-1 | Player below 5.2.2 drops whole files with `EVERY_TIME` or `CUSTOM_SCRIPT` | Version from injected `iframeLocalStorageURL` or `player-config`; extension: dev-mode panel (C-16), else ask once | ✗ naming the files and the minimum version |
+| C-2 | External ID missing or not a string falls back to the Apty ID; the Apty ID is per app+env, the user file per app | `userIdentificationConfig`; read the configured source in the player's world | ⚠ "The player is using the Apty ID, so progress differs by env, browser and profile" |
+| C-3 | User-file writes fail silently (`post` never throws, `libs/shared/axios-client/src/axios-client.ts:143-157`) | Compare the user file with what the SE says they did; `storageURL` host reachable | ⚠ candidate "the last save did not reach Apty's storage" |
+| C-4 | A user-file read failure returns empty preferences and the next write overwrites the stored file | User file fetch result: schema failure or network error | ✗ "Progress will be erased on the next save" |
+| C-5 | Files cached for the page's lifetime | Compare the replay timestamp with the page's load time (Navigation Timing) | ⚠ "Published after this page loaded: reload the page" |
+| C-6 | Self-hosted: preferences in browser storage, tracking and AI off | `player-config.isSelfHosted` | Switch U-based rows to "?" with the reason |
+| C-7 | `host_permissions` cover only `https://*.apty.ai/*` | Config hosts outside it | ✗ "The extension cannot reach host H without CORS" |
+| C-8 | Extension presence: site access "on click", `file://`, two builds, context invalidated | No `window-script.js` resource and no widget root; two widget roots | ✗ per case |
+| C-9 | Window-script dead (CS-3090) | Widget present, MAIN `aptyAugmentation` absent, no `window-script.js` | ✗ "Window-variable rules and the external ID read `undefined`" |
+| C-10 | Init errors logged at debug | — | Tell the SE to set console level Verbose and `apty_player_log_level` (C-16) |
+| C-11 | Reminders: past-due never fire; skipped on a restricted URL; one timer per tab | User file `reminders[]`, `features.reminders`, restriction patterns | per reminder (S-REMIND) |
+| C-12 | Favourites lost (C-3) | User file `favorites` | S-SAVE |
+| C-13 | Checklist tab hidden when no visible items | Checklist evaluation | S-CHECKLIST |
+| C-14 | Autopilot only via `aptyref`+`autopilot=true` and `enableAutopilot` | URL, workflow field | S-LAUNCH |
+| C-15 | Permalinks: case-insensitive key, nested in query values, parsed only at first load, `autopilot` from the first `?` | URL at load vs now | S-LINK |
+| C-16 | Dev mode `localStorage.apty_player_dev_mode='true'` shows User ID, segments, true rules in the open shadow root | Read the panel's text when present | **Use it as the preferred User-ID source** before asking the SE (O-5) |
+| C-17 | Injected storage iframe partitioned per site; rejected load means no widget | `iframeLocalStorageURL` load result | ✗ |
+| C-18 | `domConfig.ignoreDomChangeConditions`, `domDebounceTime`, `enableShadowDOMSupport`, `enableFocusLock` | `app-data.json` | ⚠ per property, with its effect |
+| C-19 | Knowledge content media: popup blocked outside a user gesture; CSP or X-Frame-Options blank the viewer | Item type, page CSP `frame-src` | S-KC rows |
+| C-20 | Ask Dapty history keyed on the user ID | — | S-DAPTY note |
+| C-21 | Fonts blocked by page `font-src` | CSP probe | ⚠ cosmetic |
+| C-22 | Widget position stored per user, app+env | — | "Drag the widget back; position is per user" |
+
+**Do (4.x):**
+
+| ID | Condition | How the Agent decides | Row |
+|---|---|---|---|
+| D-01 | Resolver waits for the segment-js reply | WP16 SCR-13 | ✗ blocking |
+| D-04 | `application_data` segment keys from Workday, Salesforce, CA PPM (10 s timeout) | App type from `app-data.json`; page cookies and frames | "?" with inputs |
+| D-06 | Rule window reads with no timeout and no request ID | `window.var.js` loaded | ✗ when absent |
+| D-15 | `letzConsole` silent in production | — | Always tell the SE "a clean console proves nothing on 4.x" |
+| D-16 | Pulse-only: `enablePlayer` false + `Pulse` flag + `pulseConfig.isEnabled` | Files | ✗ "Apty is in Pulse-only mode for this env: no widget by design" |
+| D-17 | OneX: no player until `startAptyPlayer` | Feature state not readable | "?" with the reason |
+| D-18 | Firefox MV2 has no `storage` permission | Browser | ✗ on Firefox, NOT VERIFIED at runtime |
+| D-19 | Test-extension abort (P4-04) likely dead code without `management` permission | — | Mark P4-04 "candidate" |
+| D-20 | Self-hosted content host outside `host_permissions` (`*.apty.io`, localhost) | `app-urls.json` | ✗ "needs CORS" |
+| D-21 | Self-hosted: no user file, activities, session tracker, systemConfig | `SelfHosted` flag | U-based rows "?" |
+| D-22 | Injected loader writes an inline `<script>` | CSP probe | ✗ |
+| D-23 | Injected config cached 1 h in `localStorage.apty_config` | Read the key's time stamp | ⚠ "Flag changes apply within an hour, or clear `apty_config`" |
+| D-24 | Injected `data-self-hosted="false"` and `data-reg-exp-url="false"` read as **true** | `#letznav-script` attributes | ✗ |
+| D-25 | Snippet clientVersion: numeric env sort, own wildcard regex, falls back to `4.16.0` | `app-urls.json` + page bundle URL | ⚠ |
+| D-26 | CDN: `x-referer`, `keepalive`, `?token=`; 401 returned as content | Replay result | ✗ "401 body treated as content" |
+| D-27 | SSO: 5 retries 60 s apart | `tenant-config.json` | ⚠ "The player may appear minutes later" |
+| D-28 | Publishing system off: content from the legacy `/assist` APIs, files irrelevant | `feature-flag.json` | ✗ "File checks do not apply; this env uses the legacy API" and stop the file groups |
+| D-29, D-30 | Tags, most used, favourites each behind a flag | Flags | rows say "does not apply" when off |
+| D-31 | Search needs 2+ characters; keywords need a locale name | `keywords.json` | S-LIST |
+| D-32 | Permalinks: WF, KC, AN; `aptyref` or `letznavref` by substring; KC by `externalUniqueId` with no segment check; WF null crash | URL + files | S-LINK |
+| D-33 | Autopilot per-step advance types | Step fields | S-STEP |
+| D-34 | `BrokenWorkflowRecovery`: broken-step widget instead of the error modal | Flag | Explain which UI the SE should expect |
+| D-35 | `EndWorkflowOnBrowserClose`: no resume | Flag + flow field | S-LAUNCH |
+| D-36 | Activities: flag, self-hosted off, scripts, progress in localStorage | Files + page | S-ACTIVITY (folded into S-CHECKLIST for routing) |
+| D-37 | Shadow-DOM fallback only in injected mode; dynamic element search only by flag | Flags, mode | S-STEP element rows |
+| D-38 | Custom user ID = top-level key of the segment-js result | WP16 SCR-11 | ✗ |
+| D-39 | `DetectLocaleOnDomChange`, `InvokeStepAfterFramesUpdate`, `DomChangeDebounce` | Flags | ⚠ with the effect |
+| D-40 | Themes v2 and fonts | Files, CSP | ⚠ cosmetic |
+| D-41 | A partial per-flag object replaces the default; `ClientVersion` is a string | `feature-flag.json` | ✗ "Flag F is present but partial, so its default is lost" |
+
+**4.x feature flags.** Read `feature-flag.json` once per case and show a
+**Flags** row group with only the flags that change the current symptom.
+Defaults: all false except `WidgetSessionTracker` and `CustomTabOrder`
+(true) and `ClientVersion` (string)
+(`components/Technical/feature-flag/feature-flag.types.ts:95-260`). The
+extension merges one level deep over defaults
+(`main.bootstrap.ts:75-86,365-376`); **the injected loader reads the file
+unmerged** (`inject/config.ts:74-80`), so a file without `selfHosted`
+means no player in injected mode (inferred). The injected loader reads it at
+tenant level (`tenant-{t}/feature-flag.json`, `inject/config.ts:74-78`).
+The names below are the enum names; take each flag's **file key** from
+`feature-flag.types.ts` (for example `SelfHosted` is `selfHosted`,
+`inject/config.ts:80`) and test the mapping. Map:
+
+| Flag | Symptom it matters for | Effect |
+|---|---|---|
+| `LSP10544-PublishingSystem` | all | off → legacy API path (D-28) |
+| `SelfHosted` | S-SAVE, S-AUTO, S-ANNOUNCE | no user file, activities, tracker (D-21) |
+| `Pulse` | S-WIDGET | Pulse-only (D-16) |
+| `WidgetSSO` | S-WIDGET | SSO gate (P4-11) |
+| `RegExpURL` | S-WIDGET | raw RegExp env matching (P4-07) |
+| `LSP14236-HideAptyWidgetWhenNoContent` | S-WIDGET | icon hidden (P4-17) |
+| `ClientGroupContent`, `ClientMostUsedContent`, `ClientFavoriteContent` | S-LIST, S-SAVE | sections and tags (D-29, D-30) |
+| `ContentAggregation` | S-KC | aggregation |
+| `CB454-IgnoreSegmentationCheck` | S-ANNOUNCE | segment bypass |
+| `LSP12645-BrokenWorkflowRecovery` | S-STEP | D-34 |
+| `LSP21281-EndWorkflowOnBrowserClose` | S-LAUNCH | D-35 |
+| `LSP12622-EnhancedActivities` | S-CHECKLIST | D-36 |
+| `ShadowRootsPlayer`, `AptyElementSelect` | S-STEP, S-TOOLTIP | D-37 |
+| `DetectLocaleOnDomChange` | S-LOCALE | D-39 |
+| `LSP12255-InvokeStepAfterFramesUpdate`, `DomChangeDebounce`, `CB684-WFAutoScrollBehaviour` | S-STEP | D-39 |
+| `LSP15462-CustomValidationIcon` | S-VALIDATION | icon |
+| `EventsAPI`, `DisableInsightsAnalytics`, `DisableAssistAnalytics`, `ThirdPartyAnalytics`, `SendAnalyticsToProxyService`, `IgnoreDuplicateBadgeDisplayEventsInASession` | none | analytics only: never a cause |
+| `URLRegex`, `DisableServerCalls`, `LSP12158-ZindexAppConfig`, `LSP12403-enableFrameCheck`, `WhiteLabeling`, `LSP17880-InHouseFeatureFlags`, `LSP20085-ContentAnalytics`, `LSP11470-ErrorInsightsConfig` | none | no reader found at `bbb4cbc`: never a cause |
+
+**Prove:** unit tests per row; E2E for C-1 (injected version 5.2.1 with an
+`EVERY_TIME` workflow), C-4, C-9, C-16 (dev mode gives the User ID with no
+question asked), D-16, D-24, D-28 and D-41.
+
+**Done when:** every row above is implemented or marked partial with the
+reason; the coverage manifest lists C-1…C-22 and D-01…D-41.
+
 
 ---
 
@@ -1973,7 +2400,7 @@ Also run the a11y and chat-scroll suites (400 and 480).
 
 ## 10. Definition of done (the whole task)
 
-1. WP0–WP15 are **done**, or **partial** with exactly what is missing.
+1. WP0–WP17 are **done**, or **partial** with exactly what is missing.
 2. `npm run preflight` is green. The E2E suite is green, with the new
    files listed and their output pasted. All the audits in §1.4 are
    green.
@@ -1985,7 +2412,8 @@ Also run the a11y and chat-scroll suites (400 and 480).
 5. Requests follow the network-call policy (§3.2), asserted in WP15
    item 8.
 6. No code path contacts the Apty Client by default. No request sends
-   credentials. No customer script runs (unless O-4). No value reaches a
+   credentials. No customer script runs (unless O-4); every script type
+   has static rows for both versions (WP16). No value reaches a
    model unredacted.
 7. The coverage manifest lists every implemented condition, and
    `audit:apty-coverage` passes against apty-dap `3f3adba` and
@@ -1994,7 +2422,8 @@ Also run the a11y and chat-scroll suites (400 and 480).
 
 ## 11. Hand-over
 
-Write `REVIEW.md` with:
+Write `docs/tasks/se-flow/REVIEW.md` with (the root `REVIEW.md` belongs to
+an earlier hardening review; do not overwrite it):
 
 1. Commits per WP.
 2. Test output: unit counts, E2E list, audits.
