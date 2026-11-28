@@ -824,7 +824,7 @@ existing E2E test passes.
 (`apty-assist: api/http.ts:278-285`, `handleCDNResponse`), and a CDN error
 falls back in `sendCDNRequest` (`:249-276`; `:255-260` sends `referer` for
 apty.io hosts). **Nothing checks for a list**: a non-list payload passes
-through to the reducers. The TypeScript models are in the TypeScript models are in
+through to the reducers. The TypeScript models are in
 `shared/types/*.types.ts`. 4.x has no zod, so mirror only the faults that
 change behaviour: a missing `name[locale]`, an empty steps file, a
 non-list steps file, and `app-data.json` with no `config.customConfig`.
