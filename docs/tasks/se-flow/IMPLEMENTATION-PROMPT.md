@@ -1762,6 +1762,13 @@ them).
 - **E2E** `tooling/e2e/ask-dapty.e2e.test.mjs` with a fake ai-service:
   - a KB answer shows guidance and no cards;
   - a give-up shows the card;
+  - **a give-up does not change the diagnosis:** for the same symptom and
+    fixtures, run the case with the fake ai-service returning a KB answer,
+    the give-up text, an error, a 20 s stall, and with `askDapty` unset.
+    Assert that all five give identical checklist rows, causes and content
+    requests (§3.2). Only the guidance or card section differs. Assert that
+    "Ask AI anyway" appears only in the give-up, error and unset runs, and
+    only when the checks found no issue;
   - an error leaves the checks unaffected;
   - every request body has no `userId` or `chatId`, and the question is
     masked;
