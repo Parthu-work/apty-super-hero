@@ -96,8 +96,8 @@ items listed. **Later** = do not build in Phase 1.
 | WP13 Accuracy and measurement | **Workflow** | Measures and registry for the Phase 1 rules; the real-tenant smoke script (run only if the owner gives a test tenant) |
 | WP14 Production readiness | **Workflow** | Every item that touches code built in Phase 1 (security review of new page readers, limits, abort on close, docs for the new settings) |
 | WP15 End-to-end matrix | **Workflow** | The four workflow symptoms × 4.x and 5.x, plus the bare how-to, with every assertion in WP15 items 1–8 and the WP11 "give-up does not change the diagnosis" test |
-| WP16 Customer scripts | **Workflow** | Script inventory, parse, static references, page CSP and world parity for the kinds that can stop a workflow: 5.x rule `customScript`, DOM_CHANGE scripts (feed audience rules), element `CUSTOM_SCRIPT`, step CTA click actions, `domConfig` functions (all element lookup); 4.x `segment-js.js` (including SCR-13 freeze and SCR-14), `customScriptPool`, type-2 element scripts, `step.script` with `letzNavApi.flow.*`, decision points. Checks SCR-01…SCR-06, 08, 09, 10, 11, 12, 13, 14, 15, 17, 19, 20, 21. O-4 runner only if the owner allows it |
-| WP17 Platform | **Workflow** | 5.x C-1, C-2, C-3, C-4, C-5, C-6, C-7, C-8, C-9, C-10, C-14, C-15, C-16, C-17, C-18. 4.x D-01, D-04, D-06, D-15, D-16, D-17, D-20, D-21, D-22, D-23, D-24, D-25, D-26, D-27, D-28, D-32 (WF only), D-33, D-34, D-35, D-37, D-38, D-39, D-41, and the 4.x feature-flag map rows for S-WIDGET, S-AUTO, S-LAUNCH, S-STEP |
+| WP16 Customer scripts | **Workflow** | Script inventory, parse, static references, page CSP and world parity for the kinds that can stop a workflow: 5.x rule `customScript`, DOM_CHANGE scripts (feed audience rules), element `CUSTOM_SCRIPT`, step CTA click actions, `domConfig` functions (all element lookup); 4.x `segment-js.js` (including SCR-13 freeze and SCR-14), `customScriptPool`, type-2 element scripts, `step.script` with `letzNavApi.flow.*`, decision points. Also 5.x APPLICATION_LOAD scripts (they can set what rules read) and Workday / Salesforce session inputs; 4.x `custom-js.js` (static checks) and smart-canvas buttons that launch a workflow (`data-flow-id` + `data-step-id`). Checks SCR-01…SCR-17, SCR-19…SCR-22 (all except SCR-18, custom-css). This covers 4.x D-02, D-03, D-05, D-07, D-08, D-09, D-10, D-13 and D-14 (workflow buttons). O-4 runner only if the owner allows it |
+| WP17 Platform | **Workflow** | 5.x C-1, C-2, C-3, C-4, C-5, C-6, C-7, C-8, C-9, C-10, C-14, C-15, C-16, C-17, C-18. 4.x D-01, D-04, D-06, D-15, D-16, D-17, D-20, D-21, D-22, D-23, D-24, D-25, D-26, D-27, D-28, D-32 (WF only), D-33, D-34, D-35, D-37, D-38, D-39, D-41, plus D-18, D-19, D-29 (tags hide flows), D-30 (most-used and favourite flow sections), D-31 (search needs 2+ characters and a locale keyword), and the 4.x feature-flag map rows for S-WIDGET, S-LIST, S-AUTO, S-LAUNCH, S-STEP |
 
 ## 5. The workflow checks, both versions
 
@@ -119,6 +119,41 @@ groups the symptom needs (master prompt WP6 table):
 
 Every row cites its apty-dap or apty-assist line and appears in the
 coverage manifest.
+
+### 5.1 Every condition in scope (none may be skipped)
+
+These are all the workflow, widget-gate, load and platform conditions in
+`docs/development/se-flow-coverage.md` that can make a workflow missing,
+silent, unopenable or broken. **Each must be implemented as a checklist
+row** (a cause, a "?" with the deciding value, or an info row, as the
+inventory's last column says), **and listed in the coverage manifest**.
+One left out makes Phase 1 partial; say which and why.
+
+- **5.x load, widget and gates:** W5-01, W5-02, W5-03, W5-04, W5-05,
+  W5-06 / G5-05, G5-06, W5-07 / G5-12, W5-08, W5-09, W5-10, W5-11, G5-10,
+  G5-11, P5-01.
+- **5.x workflow item, audience and rules:** W5-15 / G5-19, W5-16,
+  W5-17, W5-18, W5-19, W5-20 / G5-17, W5-21 / G5-16, W5-22 / G5-15, W5-24.
+- **5.x auto-trigger:** W5-26, W5-27, W5-28, W5-29, W5-30, W5-31, W5-33.
+- **5.x launch:** W5-34, W5-35, W5-36, W5-37, W5-38, W5-40, W5-41.
+- **5.x steps and run:** W5-43, W5-44, W5-45, W5-46, W5-48, W5-49,
+  W5-50, W5-51, W5-53, W5-54, W5-56, W5-57.
+- **5.x user history:** W5-59, W5-60 / W5-61, G5-22.
+- **5.x scripts and platform:** SCR rows from §4 WP16; C-1…C-10, C-14,
+  C-15, C-16, C-17, C-18.
+- **4.x load and widget:** P4-01, P4-02, P4-04, P4-05, P4-06, P4-07,
+  P4-08, P4-10, P4-11, P4-12, P4-13, P4-14, P4-15 / G4-02, P4-16, P4-17,
+  P4-18, G4-01, G4-04.
+- **4.x flows:** F4-01, F4-02, F4-03, F4-04, F4-05, F4-06, F4-07, F4-08,
+  F4-20, F4-21, F4-22, F4-23, F4-26, F4-27, F4-29, F4-30, F4-31, F4-32,
+  F4-34, F4-37, F4-38, F4-41, F4-45, F4-46, F4-63; frames R4-01 / R4-02.
+- **4.x scripts and platform:** SCR rows from §4 WP16; D-01…D-10, D-13,
+  D-14 (workflow buttons), D-15…D-35, D-37, D-38, D-39, D-41.
+
+Before writing code for a group, re-read each of its conditions at the
+cited line (master prompt §1.1). Where the inventory marks a row
+"inferred" or NOT VERIFIED, implement it as status `candidate` until a
+test or the real-tenant smoke test confirms it.
 
 ## 6. Proof required for Phase 1
 
@@ -148,7 +183,8 @@ coverage manifest.
 ## 7. Done when
 
 1. Every WP row in §4 is **done** for its Phase 1 scope, or **partial**
-   with exactly what is missing.
+   with exactly what is missing, and every condition in §5.1 is in the
+   coverage manifest (`audit:apty-coverage` checks the list).
 2. The four workflow symptoms work end to end for both versions with no
    Client record, as shown by the E2E above.
 3. Every other symptom behaves exactly as before Phase 1 (the existing
