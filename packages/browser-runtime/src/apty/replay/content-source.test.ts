@@ -18,11 +18,11 @@ import type { AptyPage, AptyPageProbe } from "../apty-cdn-source";
 import {
   createReplaySource,
   fileTimestamp,
-  MAX_REPLAY_BODY_CHARS,
+  MAX_REPLAY_FILE_BYTES,
   type ReplayDeps,
 } from "./content-source";
 
-const CDN = "https://content.apty.example";
+const CDN = "https://content.apty.ai";
 const OTHER = "https://other-content.example";
 const TENANT = "0f000000-0000-7000-8000-000000000000";
 const APP = "0a000000-0000-7000-8000-000000000001";
@@ -199,7 +199,10 @@ describe("resolveContext", () => {
     });
     expect(context).toMatchObject({ applicationId: APP, environmentId: ENV });
     expect(
-      await replay.resolveContext({ tenantId: TENANT, environmentId: "nope" }),
+      await replay.resolveContext({
+        tenantId: TENANT,
+        environmentId: "0e000000-0000-7000-8000-0000000000ff",
+      }),
     ).toMatchObject({
       ok: false,
       failure: "no_environment_match",
@@ -269,7 +272,7 @@ describe("resolveContext", () => {
     expect(
       await source({}).replay.resolveContext({
         ...GIVEN,
-        contentURL: "http://content.apty.example",
+        contentURL: "http://content.apty.ai",
       }),
     ).toMatchObject({ ok: false, failure: "host_not_allowed" });
   });
@@ -305,17 +308,19 @@ describe("resolveContext", () => {
     expect(await resolved(listed.replay, GIVEN)).toMatchObject({
       contentURL: "https://10.0.0.5",
     });
+    // Migrated by AUDIT-CORRECTIONS A1: a public IP literal the page names
+    // was accepted; no IP literal is an Apty content host, so it is refused.
     expect(
-      await resolved(
-        source({}, { page: onPage({ contentURL: "https://172.32.0.1" }) })
-          .replay,
-        GIVEN,
-      ),
-    ).toMatchObject({ contentURL: "https://172.32.0.1" });
+      await source(
+        {},
+        { page: onPage({ contentURL: "https://172.32.0.1" }) },
+      ).replay.resolveContext(GIVEN),
+    ).toMatchObject({ ok: false, failure: "host_not_allowed" });
   });
 
   it("asks for both IDs on 4.x", async () => {
-    const { replay } = source({});
+    // A 4.x content host off *.apty.io needs the policy (A1).
+    const { replay } = source({}, { policyOrigins: async () => [CDN] });
     expect(
       await replay.resolveContext({ version: "4.x", tenantId: "k" }),
     ).toMatchObject({
@@ -333,9 +338,10 @@ describe("resolveContext", () => {
   });
 
   it("asks for a 4.x file the way player3.0 does, with its empty token", async () => {
-    const { replay, calls } = source({
-      [`${CDN}/tenant-k/app-7/env-1/flow.json`]: [],
-    });
+    const { replay, calls } = source(
+      { [`${CDN}/tenant-k/app-7/env-1/flow.json`]: [] },
+      { policyOrigins: async () => [CDN] },
+    );
     const context = await resolved(replay, {
       version: "4.x",
       tenantId: "k",
@@ -424,7 +430,7 @@ describe("fetchFile", () => {
   it("names a network failure and a body too large to keep", async () => {
     const { replay, context } = await ready({
       [`${E}/tooltip.json`]: new TypeError("Failed to fetch"),
-      [`${E}/rule.json`]: "x".repeat(MAX_REPLAY_BODY_CHARS + 1),
+      [`${E}/rule.json`]: "x".repeat(MAX_REPLAY_FILE_BYTES + 1),
     });
     expect(await replay.fetchFile(context, "tooltip.json")).toMatchObject({
       ok: false,
@@ -461,7 +467,7 @@ describe("fetchFile", () => {
   it("requests nothing on the body deny list", async () => {
     const { replay, context, calls } = await ready(
       { [`${E}/tooltip.json`]: TOOLTIPS },
-      { denyList: async () => ["content.apty.example"] },
+      { denyList: async () => ["content.apty.ai"] },
     );
     expect(await replay.fetchFile(context, "tooltip.json")).toMatchObject({
       ok: false,
@@ -556,5 +562,242 @@ describe("fetchFile", () => {
     expect(await replay.fetchFile(context, "app-urls.json")).toMatchObject({
       failure: "host_not_allowed",
     });
+  });
+});
+
+describe("one host gate on every path (AUDIT-CORRECTIONS A1)", () => {
+  it("refuses a page-named host off Apty's content domain, with no request, naming the policy key", async () => {
+    for (const contentURL of [
+      "https://intranet.example",
+      "https://cdn.apty.io",
+      "https://content.apty.ai:8443",
+      "http://127.0.0.1:4100",
+      "http://localhost",
+    ]) {
+      const { replay, calls } = source({}, { page: onPage({ contentURL }) });
+      expect(await replay.resolveContext(GIVEN)).toMatchObject({
+        ok: false,
+        failure: "host_not_allowed",
+        detail: expect.stringContaining("aptyContentOrigins"),
+      });
+      expect(calls).toHaveLength(0);
+    }
+  });
+
+  it("refuses a given host that equals a private page host", async () => {
+    const { replay, calls } = source(
+      {},
+      { page: onPage({ contentURL: "https://10.0.0.5" }) },
+    );
+    expect(
+      await replay.resolveContext({ ...GIVEN, contentURL: "https://10.0.0.5" }),
+    ).toMatchObject({ ok: false, failure: "host_not_allowed" });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("refuses a given host that equals any page host off Apty's domain", async () => {
+    const { replay } = source(
+      {},
+      { page: onPage({ contentURL: "https://intranet.example" }) },
+    );
+    expect(
+      await replay.resolveContext({
+        ...GIVEN,
+        contentURL: "https://intranet.example",
+      }),
+    ).toMatchObject({ ok: false, failure: "host_not_allowed" });
+  });
+
+  it("takes a given host on Apty's domain, or one the policy lists, loopback included", async () => {
+    expect(
+      await resolved(source({}, { page: noApty }).replay, {
+        ...GIVEN,
+        contentURL: "https://eu.content.apty.ai/",
+      }),
+    ).toMatchObject({ contentURL: "https://eu.content.apty.ai" });
+    expect(
+      await resolved(
+        source(
+          {},
+          {
+            page: onPage({ contentURL: "http://127.0.0.1:4100" }),
+            policyOrigins: async () => ["http://127.0.0.1:4100"],
+          },
+        ).replay,
+        GIVEN,
+      ),
+    ).toMatchObject({ contentURL: "http://127.0.0.1:4100" });
+  });
+
+  it("checks each version's ID shapes before any request", async () => {
+    const { replay, calls } = source({});
+    for (const input of [
+      { ...GIVEN, tenantId: "t1" },
+      { ...GIVEN, applicationId: "7" },
+      { ...GIVEN, environmentId: "%2e%2e" },
+      {
+        version: "4.x" as const,
+        tenantId: "k",
+        applicationId: APP,
+        environmentId: "1",
+      },
+    ]) {
+      expect(await replay.resolveContext(input)).toMatchObject({
+        ok: false,
+        failure: "ids_missing",
+      });
+    }
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe("fetch time and byte limits, and abort (AUDIT-CORRECTIONS A2)", () => {
+  const streamed = (
+    chunks: string[],
+    { end = true, headers = {} as Record<string, string> } = {},
+  ) => {
+    const encoder = new TextEncoder();
+    const state = { pulled: 0, cancelled: false };
+    const body = new ReadableStream<Uint8Array>(
+      {
+        pull(controller) {
+          const chunk = chunks[state.pulled++];
+          if (chunk !== undefined) controller.enqueue(encoder.encode(chunk));
+          else if (end) controller.close();
+          else return new Promise<void>(() => undefined);
+          return undefined;
+        },
+        cancel() {
+          state.cancelled = true;
+        },
+      },
+      { highWaterMark: 0 },
+    );
+    return { response: new Response(body, { status: 200, headers }), state };
+  };
+
+  function sourceServing(
+    serve: (url: string) => Response,
+    deps: Partial<ReplayDeps> = {},
+  ) {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) =>
+      serve(String(input).replace(/\?.*$/, "")),
+    ) as unknown as typeof fetch;
+    return createReplaySource({
+      page: onPage(),
+      fetchImpl,
+      now: () => 1_000,
+      ...deps,
+    });
+  }
+
+  it("keeps the time limit running while a body drips in, and caches nothing", async () => {
+    const drip = streamed(['[{"id":'], { end: false });
+    const replay = sourceServing(
+      (url) =>
+        url.endsWith("content-config.json")
+          ? new Response("{}", { status: 200 })
+          : drip.response,
+      { timeoutMs: 20 },
+    );
+    const context = await resolved(replay, GIVEN);
+    expect(await replay.fetchFile(context, "tooltip.json")).toMatchObject({
+      ok: false,
+      failure: "timeout",
+    });
+    expect(drip.state.cancelled).toBe(true);
+  });
+
+  it("stops reading a body past the per-file byte cap, without Content-Length", async () => {
+    const big = streamed(["x".repeat(60), "x".repeat(60), "x".repeat(60)]);
+    const replay = sourceServing(
+      (url) =>
+        url.endsWith("content-config.json")
+          ? new Response("{}", { status: 200 })
+          : big.response,
+      { maxFileBytes: 100 },
+    );
+    const context = await resolved(replay, GIVEN);
+    expect(await replay.fetchFile(context, "tooltip.json")).toMatchObject({
+      ok: false,
+      failure: "too_large",
+      detail: expect.stringContaining("100 bytes"),
+    });
+    expect(big.state.pulled).toBeLessThan(3);
+    expect(big.state.cancelled).toBe(true);
+  });
+
+  it("refuses a body whose Content-Length is over the cap before reading it", async () => {
+    const declared = streamed(["[]"], { headers: { "content-length": "101" } });
+    const replay = sourceServing(
+      (url) =>
+        url.endsWith("content-config.json")
+          ? new Response("{}", { status: 200 })
+          : declared.response,
+      { maxFileBytes: 100 },
+    );
+    const context = await resolved(replay, GIVEN);
+    expect(await replay.fetchFile(context, "tooltip.json")).toMatchObject({
+      ok: false,
+      failure: "too_large",
+    });
+    expect(declared.state.pulled).toBe(0);
+  });
+
+  it("counts bytes across the case and stops past the per-case cap", async () => {
+    const replay = sourceServing(
+      (url) =>
+        new Response(
+          url.endsWith("content-config.json") ? "{}" : `[${" ".repeat(70)}]`,
+          { status: 200 },
+        ),
+      { maxCaseBytes: 120 },
+    );
+    const context = await resolved(replay, GIVEN);
+    expect(await replay.fetchFile(context, "tooltip.json")).toMatchObject({
+      ok: true,
+    });
+    expect(await replay.fetchFile(context, "rule.json")).toMatchObject({
+      ok: false,
+      failure: "too_large",
+      detail: expect.stringContaining("limit for one case"),
+    });
+  });
+
+  it("aborts what is under way when the case closes", async () => {
+    let seen: AbortSignal | undefined;
+    const fetchImpl = vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
+      String(input).includes("content-config.json")
+        ? Promise.resolve(new Response("{}", { status: 200 }))
+        : new Promise<Response>((_resolve, reject) => {
+            seen = init?.signal ?? undefined;
+            init?.signal?.addEventListener("abort", () =>
+              reject(new Error("aborted")),
+            );
+          }),
+    ) as unknown as typeof fetch;
+    const replay = createReplaySource({ page: onPage(), fetchImpl });
+    const context = await resolved(replay, GIVEN);
+    const pending = replay.fetchFile(context, "tooltip.json");
+    await vi.waitFor(() => expect(seen).toBeDefined());
+    replay.clear();
+    expect(await pending).toMatchObject({ ok: false, failure: "aborted" });
+  });
+
+  it("aborts on the caller's signal too", async () => {
+    const closed = new AbortController();
+    const drip = streamed(["["], { end: false });
+    const replay = sourceServing(
+      (url) =>
+        url.endsWith("content-config.json")
+          ? new Response("{}", { status: 200 })
+          : drip.response,
+      { signal: closed.signal },
+    );
+    const context = await resolved(replay, GIVEN);
+    const pending = replay.fetchFile(context, "tooltip.json");
+    await vi.waitFor(() => expect(drip.state.pulled).toBeGreaterThan(0));
+    closed.abort();
+    expect(await pending).toMatchObject({ ok: false, failure: "aborted" });
   });
 });

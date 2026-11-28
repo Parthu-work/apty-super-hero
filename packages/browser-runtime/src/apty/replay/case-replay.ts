@@ -27,7 +27,8 @@ const UNSCOPED = "__unscoped__";
 const MAX_CASES = 20;
 const cases = new Map<string, CaseReplay>();
 
-async function policyContentOrigins(): Promise<readonly string[]> {
+/** The organization policy's `aptyContentOrigins`, read on every call so a policy change applies at once. */
+export async function policyContentOrigins(): Promise<readonly string[]> {
   const policy = policyOf(await loadOrgPolicy());
   return policy?.aptyContentOrigins ?? [];
 }

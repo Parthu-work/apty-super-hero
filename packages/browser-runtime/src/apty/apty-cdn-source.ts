@@ -25,6 +25,7 @@
  * redaction as the Client's record.
  */
 
+import { checkContentHost, idShapeIssue } from "@apty/agent-core";
 import type { ResourceSource } from "./diagnosis/loader.js";
 import { patternMatches } from "./diagnosis/url-patterns.js";
 import type {
@@ -96,22 +97,8 @@ const isRec = (v: unknown): v is Rec =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
 
-/** A content URL the source may call: https, or http on this machine (tests). */
-function usableBase(url: string): string | undefined {
-  try {
-    const parsed = new URL(url);
-    const local =
-      parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
-    if (parsed.protocol !== "https:" && !(local && parsed.protocol === "http:"))
-      return undefined;
-    return url.replace(/\/+$/, "");
-  } catch {
-    return undefined;
-  }
-}
-
 /** A path segment the Client would put in a URL as is: no separator or query in it. */
-const PATH_SAFE = /^[^/?#\\\s]{1,256}$/;
+const PATH_SAFE = /^[^/?#%\\\s]{1,256}$/;
 /** A content file name as the Client names them (`segment.json`, `workflow-<id>.json`). */
 const FILE_NAME = /^[\w.-]{1,200}\.json$/;
 
@@ -183,6 +170,8 @@ export interface CdnSourceOptions {
   files: readonly string[];
   /** Also read the newest stored Ask Dapty chat, when the user ID is on the page. */
   storedChats?: boolean;
+  /** Origins the organization policy allows besides Apty's own content domain. */
+  policyOrigins?: () => Promise<readonly string[]>;
   fetchImpl?: typeof fetch;
   now?: () => number;
 }
@@ -198,6 +187,7 @@ export function createCdnResourceSource({
   page,
   files,
   storedChats = false,
+  policyOrigins = async () => [],
   fetchImpl = (input, init) => fetch(input, init),
   now = Date.now,
 }: CdnSourceOptions): CdnResourceSource {
@@ -209,17 +199,36 @@ export function createCdnResourceSource({
     const probe = await page
       .probe()
       .catch((): AptyPageProbe => ({ ok: false, reason: "not-readable" }));
-    const base = probe.ok ? usableBase(probe.config.contentURL) : undefined;
-    if (!probe.ok || !base || !PATH_SAFE.test(probe.config.tenantId)) {
+    // The same host gate as replay (AUDIT-CORRECTIONS A1): the page names this host.
+    const host = probe.ok
+      ? checkContentHost(probe.config.contentURL, "5.x", await policyOrigins())
+      : undefined;
+    const base = host?.ok ? host.base : undefined;
+    if (
+      !probe.ok ||
+      !base ||
+      !PATH_SAFE.test(probe.config.tenantId) ||
+      idShapeIssue("5.x", "tenant", probe.config.tenantId)
+    ) {
       return {
         list: {
           ok: false,
           resources: [],
           failure: "no_receiver",
-          error: probe.ok ? "unusable-config" : probe.reason,
+          error: !probe.ok
+            ? probe.reason
+            : host && !host.ok
+              ? "host-not-allowed"
+              : "unusable-config",
         },
         bodies,
-        probe: probe.ok ? { ok: false, reason: "no-config" } : probe,
+        // Apty is on the page even when its content host is refused: only the files are withheld.
+        probe:
+          probe.ok && host && !host.ok
+            ? probe
+            : probe.ok
+              ? { ok: false, reason: "no-config" }
+              : probe,
         storedChat: storedChats ? "no-chats" : "not-requested",
       };
     }
@@ -241,6 +250,7 @@ export function createCdnResourceSource({
         const response = await fetchImpl(url, {
           credentials: "omit",
           cache: "no-store",
+          redirect: "error",
         });
         resource.status = response.status;
         resource.mimeType =

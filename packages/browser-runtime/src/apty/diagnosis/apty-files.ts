@@ -20,6 +20,7 @@ import { aptyContentCalls } from "../network-capture-session.js";
 import {
   caseReplay,
   pinnedContext,
+  policyContentOrigins,
   replayResourceSource,
 } from "../replay/case-replay.js";
 import type { ReplaySource } from "../replay/content-source.js";
@@ -301,6 +302,7 @@ export const DEFAULT_APTY_FILES_READERS: AptyFilesReaders = {
       page: tabAptyPage(tabId),
       files: names,
       storedChats,
+      policyOrigins: policyContentOrigins,
     }),
 };
 

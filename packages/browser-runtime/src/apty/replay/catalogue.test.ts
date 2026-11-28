@@ -2,16 +2,18 @@ import { describe, expect, it } from "vitest";
 import { FILES_4X, FILES_5X, filePath, specFor } from "./catalogue";
 
 const IDS = {
-  tenantId: "t1",
-  applicationId: "a1",
-  environmentId: "e1",
+  tenantId: "0f000000-0000-7000-8000-000000000000",
+  applicationId: "0a000000-0000-7000-8000-000000000001",
+  environmentId: "0e000000-0000-7000-8000-000000000002",
 };
 const EXTRA = { userId: "u1", chatId: "c1", workflowId: "w1" };
 
 const expected5x: Record<string, string> = {
-  tenant: "tenant-t1/{name}",
-  application: "tenant-t1/app-a1/{name}",
-  environment: "tenant-t1/app-a1/env-e1/{name}",
+  tenant: "tenant-0f000000-0000-7000-8000-000000000000/{name}",
+  application:
+    "tenant-0f000000-0000-7000-8000-000000000000/app-0a000000-0000-7000-8000-000000000001/{name}",
+  environment:
+    "tenant-0f000000-0000-7000-8000-000000000000/app-0a000000-0000-7000-8000-000000000001/env-0e000000-0000-7000-8000-000000000002/{name}",
 };
 
 describe("filePath, 5.x", () => {
@@ -39,13 +41,13 @@ describe("filePath, 5.x", () => {
       filePath(ctx, "users/{userId}/widget-chat/chat-list.json", EXTRA),
     ).toMatchObject({
       ok: true,
-      path: "tenant-t1/app-a1/users/u1/widget-chat/chat-list.json",
+      path: "tenant-0f000000-0000-7000-8000-000000000000/app-0a000000-0000-7000-8000-000000000001/users/u1/widget-chat/chat-list.json",
     });
     expect(
       filePath(ctx, "users/{userId}/widget-chat/{chatId}.json", EXTRA),
     ).toMatchObject({
       ok: true,
-      path: "tenant-t1/app-a1/users/u1/widget-chat/c1.json",
+      path: "tenant-0f000000-0000-7000-8000-000000000000/app-0a000000-0000-7000-8000-000000000001/users/u1/widget-chat/c1.json",
     });
   });
 
@@ -54,13 +56,16 @@ describe("filePath, 5.x", () => {
       filePath({ version: "5.x", ...IDS }, "workflow-0c01.json"),
     ).toMatchObject({
       ok: true,
-      path: "tenant-t1/app-a1/env-e1/workflow-0c01.json",
+      path: "tenant-0f000000-0000-7000-8000-000000000000/app-0a000000-0000-7000-8000-000000000001/env-0e000000-0000-7000-8000-000000000002/workflow-0c01.json",
     });
     expect(specFor("5.x", "flow-1.json")).toBeUndefined();
   });
 
   it("names the missing ID for each scope", () => {
-    const tenantOnly = { version: "5.x" as const, tenantId: "t1" };
+    const tenantOnly = {
+      version: "5.x" as const,
+      tenantId: "0f000000-0000-7000-8000-000000000000",
+    };
     expect(filePath(tenantOnly, "app-urls.json").ok).toBe(true);
     expect(filePath(tenantOnly, "app-data.json")).toMatchObject({
       ok: false,
@@ -68,7 +73,13 @@ describe("filePath, 5.x", () => {
       detail: "app-data.json needs the application ID.",
     });
     expect(
-      filePath({ ...tenantOnly, applicationId: "a1" }, "tooltip.json"),
+      filePath(
+        {
+          ...tenantOnly,
+          applicationId: "0a000000-0000-7000-8000-000000000001",
+        },
+        "tooltip.json",
+      ),
     ).toMatchObject({ ok: false, failure: "ids_missing" });
     expect(
       filePath({ version: "5.x", ...IDS }, "users/{userId}.json"),
@@ -89,7 +100,13 @@ describe("filePath, 5.x", () => {
       });
     }
     expect(
-      filePath({ ...ctx, environmentId: "e1/../../x" }, "tooltip.json"),
+      filePath(
+        {
+          ...ctx,
+          environmentId: "0e000000-0000-7000-8000-000000000002/../../x",
+        },
+        "tooltip.json",
+      ),
     ).toMatchObject({ ok: false, failure: "ids_missing" });
     expect(
       filePath(ctx, "users/{userId}.json", { userId: "u?x=1" }),
@@ -129,5 +146,56 @@ describe("filePath, 4.x", () => {
       ),
     ).toMatchObject({ ok: true, path: "tenant-k/app-7/content-config.json" });
     expect(specFor("4.x", "flow-12.json")?.scope).toBe("workflow");
+  });
+});
+
+describe("filePath ID checks (AUDIT-CORRECTIONS A1)", () => {
+  const uuid = "0f000000-0000-7000-8000-000000000000";
+  it.each([
+    [
+      "a 5.x tenant that is not a UUID",
+      { version: "5.x", tenantId: "t1" },
+      "app-urls.json",
+      {},
+    ],
+    [
+      "a 5.x application that is not a UUID",
+      { version: "5.x", tenantId: uuid, applicationId: "7" },
+      "app-data.json",
+      {},
+    ],
+    [
+      "a 4.x application that is not a number",
+      { version: "4.x", tenantId: "k", applicationId: uuid },
+      "app-data.json",
+      {},
+    ],
+    [
+      "percent-encoding in a 4.x tenant",
+      { version: "4.x", tenantId: "k%2f" },
+      "app-urls.json",
+      {},
+    ],
+    [
+      "percent-encoding in a user ID",
+      { version: "5.x", tenantId: uuid, applicationId: uuid },
+      "users/{userId}.json",
+      { userId: "%2e%2e" },
+    ],
+  ] as const)("refuses %s", (_name, context, file, extra) => {
+    expect(filePath(context, file, extra)).toMatchObject({
+      ok: false,
+      failure: "ids_missing",
+      detail: expect.not.stringContaining("needs the"),
+    });
+  });
+
+  it("builds the path once the shapes are right", () => {
+    expect(
+      filePath(
+        { version: "4.x", tenantId: "k", applicationId: "7" },
+        "app-data.json",
+      ),
+    ).toMatchObject({ ok: true, path: "tenant-k/app-7/app-data.json" });
   });
 });

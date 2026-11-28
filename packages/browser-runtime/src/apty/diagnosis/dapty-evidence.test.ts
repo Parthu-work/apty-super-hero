@@ -26,7 +26,7 @@ import { capture, evidenceFrom } from "./diagnosis-test-utils";
 import { createDiagnosisResponder } from "./responder";
 import type { ClientEvidence, DiagnosisResult } from "./types";
 
-const CDN = "https://client.apty.example";
+const CDN = "https://client.apty.ai";
 const TENANT = "0f000000-0000-7000-8000-000000000000";
 const APP = "0a000000-0000-7000-8000-000000000001";
 const ENV = "0e000000-0000-7000-8000-000000000002";
@@ -218,7 +218,8 @@ describe("the Ask Dapty evidence bundle", () => {
     expect(json).not.toMatch(/https?:\/\//);
     for (const secret of [
       "example.com",
-      "apty.example",
+      // The fixture's content host (renamed onto *.apty.ai for A1).
+      "client.apty.ai",
       EMAIL,
       USER,
       TENANT,

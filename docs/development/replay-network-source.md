@@ -233,7 +233,8 @@ segment and rule results, and what it actually rendered.
 | The user's network (proxy, VPN, CSP) blocks what the Agent's network allows | A successful replay never passes the logs-and-errors pack; the source label stops a replay row being read as the Client's outcome |
 | Per-user files need the user ID, which in Extension mode may exist only in Client storage | `users/*` files need an explicit `userId`; `ids_missing` otherwise. The existing CDN source already reports `apty-id` for this case (`apty-cdn-source.ts`) |
 | Load on Apty's CDN | Per-case in-memory cache, with `not_published` cached too; conditional requests (`If-None-Match`/`If-Modified-Since`, 304 reuses the copy); at most 20 open cases |
-| A hostile page names an internal host as its content URL (SSRF from the Agent's service worker, which has `<all_urls>` and no CORS) | A page-named URL on a private, link-local or shared IPv4 literal, or any IPv6 literal (fail closed: embedded IPv4 forms), is refused unless `aptyContentOrigins` lists it; only catalogue GET paths, no credentials or redirects. **Open decision**: loopback is still allowed (as in the existing `apty-cdn-source.ts` fallback, and for the E2E harness); and a host name that resolves to a private address is not caught |
+| A hostile page names an internal host as its content URL (SSRF: the Agent has `<all_urls>` and no CORS) | One gate for every host, however it arrives (page, SE, tool call or policy): `checkContentHost` in `@apty/agent-core` accepts only the version's Apty content domain (`https://*.apty.ai` for 5.x, `https://*.apty.io` for 4.x, as the players' `host_permissions`) on the default port, or an origin the policy's `aptyContentOrigins` lists. Loopback, IP literals, plain http and every other host need the policy. IDs are checked against each version's shape, and `%` is refused in any path segment (AUDIT-CORRECTIONS A1). A host name under an Apty domain that resolves to a private address is not caught (no DNS from the extension) |
+| A stalled, slowly dripping or huge body | The time limit covers the whole request, body included; bodies are read as a stream with a 5 MB cap per file (checked against `Content-Length` first) and 25 MB per case; closing the case (`clear_investigation_evidence`, deleting the conversation) aborts what is under way with `aborted` (A2) |
 | A prompt-injected page makes the model pin another tenant's IDs | The host never comes from the model (page config or policy only), and only public GETs are made. A pinned result says `idsFrom: given` and every row names its source. **Open decision**: require the SE's confirmation before pinning IDs that differ from the page's tenant |
 
 ## 4. Design (built)
@@ -242,10 +243,11 @@ segment and rule results, and what it actually rendered.
   - `AptyContentSource` with `resolveContext`, `listFiles` and `fetchFile`.
   - `AptyFetchFailure` names every failure: `not_published`, `http_<code>`,
     `network`, `timeout`, `schema_mismatch`, `host_not_allowed`,
-    `ids_missing`, `body_denied`, `too_large`, `unparsable`, `unknown_file`.
+    `ids_missing`, `body_denied`, `too_large`, `unparsable`, `unknown_file`,
+    `aborted`.
 - **Policy.** `aptyContentOrigins` in the organization policy
-  (`org-policy.ts`, `managed-schema.json`) lists content hosts besides the
-  page's own.
+  (`org-policy.ts`, `managed-schema.json`) lists content hosts besides
+  Apty's own content domains (`src/apty/content-host.ts`).
 - **Implementation** (`@apty/browser-runtime`, `src/apty/replay/`):
   - `catalogue.ts`: the file catalogue for both versions and `filePath`. A
     file outside the catalogue, or an ID that is not a plain path segment, is

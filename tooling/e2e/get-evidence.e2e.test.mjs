@@ -24,6 +24,7 @@ import {
   startPageServer,
   tempDir,
 } from "./harness.mjs";
+import { ensurePolicyBuild, setTestPolicy } from "./policy-build.mjs";
 
 const FIXTURES = join(
   ROOT,
@@ -78,7 +79,12 @@ before(async () => {
   for (const [name, body] of Object.entries(files)) {
     pages[`${BASE}/${name}`] = body;
   }
-  browser = await launchBrowser({ extraExtensions: [fakeClientOnLocalhost()] });
+  browser = await launchBrowser({
+    extensionDir: ensurePolicyBuild(),
+    extraExtensions: [fakeClientOnLocalhost()],
+  });
+  // The fake Client's content URL is on loopback, so the policy must list it (A1).
+  await setTestPolicy(browser, { aptyContentOrigins: ["http://127.0.0.1:1"] });
 });
 
 after(async () => {

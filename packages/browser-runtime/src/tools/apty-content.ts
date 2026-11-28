@@ -59,6 +59,7 @@ async function contextFor(context: unknown) {
     : { ...resolved, replay };
 }
 
+/** @internal */
 export const resolveAptyContextTool = tool({
   name: "resolve_apty_context",
   description:
@@ -97,6 +98,7 @@ export const resolveAptyContextTool = tool({
   },
 });
 
+/** @internal */
 export const listAptyFilesTool = tool({
   name: "list_apty_files",
   description:
@@ -163,6 +165,7 @@ function failureOut(result: AptyFileResult & { ok: false }) {
   };
 }
 
+/** @internal */
 export const fetchAptyFileTool = tool({
   name: "fetch_apty_file",
   description:

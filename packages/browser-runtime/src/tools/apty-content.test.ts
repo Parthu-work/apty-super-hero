@@ -26,9 +26,9 @@ import {
   resolveAptyContextTool,
 } from "./apty-content";
 
-const CDN = "https://content.apty.example";
-const T = `${CDN}/tenant-t1`;
-const E = `${T}/app-a1/env-e1`;
+const CDN = "https://content.apty.ai";
+const T = `${CDN}/tenant-0f000000-0000-7000-8000-000000000000`;
+const E = `${T}/app-0a000000-0000-7000-8000-000000000001/env-0e000000-0000-7000-8000-000000000002`;
 const SEGMENTS = [
   { id: "g1", isActive: true, name: "Sales team" },
   { id: "g2", isActive: false, name: "Old" },
@@ -36,7 +36,9 @@ const SEGMENTS = [
 const files: Record<string, unknown> = {
   [`${T}/content-config.json`]: {
     latest: 1,
-    "app-a1": { "env-e1": { "segment.json": 2 } },
+    "app-0a000000-0000-7000-8000-000000000001": {
+      "env-0e000000-0000-7000-8000-000000000002": { "segment.json": 2 },
+    },
   },
   [`${E}/segment.json`]: SEGMENTS,
 };
@@ -73,7 +75,11 @@ beforeEach(() => {
   forgetCase("case-1");
 });
 
-const IDS = { tenantId: "t1", applicationId: "a1", environmentId: "e1" };
+const IDS = {
+  tenantId: "0f000000-0000-7000-8000-000000000000",
+  applicationId: "0a000000-0000-7000-8000-000000000001",
+  environmentId: "0e000000-0000-7000-8000-000000000002",
+};
 
 describe("resolve_apty_context", () => {
   it("pins the IDs the SE gave for the case, and shows the host only as an origin", async () => {
@@ -81,13 +87,15 @@ describe("resolve_apty_context", () => {
     expect(result).toMatchObject({
       ok: true,
       pinned: true,
-      tenantId: "t1",
-      applicationId: "a1",
-      environmentId: "e1",
+      tenantId: "0f000000-0000-7000-8000-000000000000",
+      applicationId: "0a000000-0000-7000-8000-000000000001",
+      environmentId: "0e000000-0000-7000-8000-000000000002",
       contentHost: CDN,
       idsFrom: { tenant: "given", environment: "given" },
     });
-    expect(pinnedContext("case-1")?.environmentId).toBe("e1");
+    expect(pinnedContext("case-1")?.environmentId).toBe(
+      "0e000000-0000-7000-8000-000000000002",
+    );
     expect(pinnedContext("case-2")).toBeUndefined();
   });
 

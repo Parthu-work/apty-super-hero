@@ -3,6 +3,11 @@ export { aisdk } from "@openai/agents-extensions/ai-sdk";
 // Agent
 export { AptyAgent } from "./agent/index.js";
 export {
+  APTY_CONTENT_DOMAIN,
+  type ContentHostVerdict,
+  checkContentHost,
+} from "./apty/content-host.js";
+export {
   type AptyContentContext,
   type AptyContentSource,
   type AptyContextFailure,
@@ -16,6 +21,7 @@ export {
   type AptyVersion,
   httpFailure,
 } from "./apty/content-source.js";
+export { type AptyIdKind, idShapeIssue } from "./apty/ids.js";
 export {
   CASE_CONTINUE_HOURS,
   CASE_DOM_CONFIG_FILE_MAX,

@@ -27,6 +27,9 @@ vi.mock("../../storage/indexeddb-storage", () => ({
   },
 }));
 
+const { forgetCase } = vi.hoisted(() => ({ forgetCase: vi.fn() }));
+vi.mock("../../apty/replay/case-replay", () => ({ forgetCase }));
+
 // Import after mocks are set up
 import { ConversationStorage } from "../conversation-storage";
 import { siteHostOf } from "../site-host";
@@ -453,6 +456,17 @@ describe("ConversationStorage", () => {
 
       expect(mockDb.c1).toBeUndefined();
       expect(deleteAgentSessions).toHaveBeenCalledWith(["s1"]);
+    });
+
+    it("closes the conversation's Apty case, aborting its content requests (A2)", async () => {
+      storedWithSession("c1", 0);
+      const storage = new ConversationStorage({
+        deleteAgentSessions: vi.fn().mockResolvedValue(undefined),
+      });
+
+      await storage.deleteConversation("c1");
+
+      expect(forgetCase).toHaveBeenCalledWith("c1");
     });
 
     it("does not call the session store for a conversation without a session", async () => {

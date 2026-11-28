@@ -322,8 +322,8 @@ stays absent and no Ask Dapty call is made.
 
 | WP | State | Commit | Missing |
 |---|---|---|---|
-| WP0 Baseline | Done | (this commit) | — |
-| A1 + A2 Host gate on every path; fetch time and byte limits, abort (audit A15: first) | Not started | | |
+| WP0 Baseline | Done | `5f8fdaa` | — |
+| A1 + A2 Host gate on every path; fetch time and byte limits, abort (audit A15: first) | Done | (A1 + A2 commit) | The signal reaches the Ask Dapty client and page reads when WP11 and WP5 build them |
 | WP1 Drift (WNV-07, version-gated) and coverage manifest | Not started | | |
 | WP2 Version adapters | Not started | | |
 | WP3 Remove the Client dependency | Not started | | |
@@ -348,9 +348,10 @@ dom-snapshot 468, apty-debug-contract 151, mcp-bridge 72, scripts 305);
 `npm run build` green; `replay-source.e2e.test.mjs` 3 of 3; every master
 §1.4 audit green except `lint:dependencies`, which reports nine exports of
 the replay slice used only by its tests (`catalogue.ts`, `content-source.ts`,
-`tools/apty-content.ts`); it passes on `main`. Fixed with A1 + A2, which
-rewrites those modules. `policy:check` passes on each file in
-`tooling/scripts/policy/fixtures/expected/`.
+`tools/apty-content.ts`); it passes on `main`. Fixed with A1 + A2.
+`policy:check` passes on each file in
+`tooling/scripts/policy/fixtures/expected/`. Running record:
+[`PHASE-1-REVIEW.md`](tasks/se-flow/PHASE-1-REVIEW.md).
 
 ## Known limitations
 

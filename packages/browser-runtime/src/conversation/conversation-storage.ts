@@ -4,6 +4,7 @@ import {
   isExpired,
   selectForEviction,
 } from "@apty/agent-core";
+import { forgetCase } from "../apty/replay/case-replay";
 import {
   deleteAgentSessions,
   deleteOrphanAgentSessions,
@@ -249,6 +250,7 @@ export class ConversationStorage {
       const conversation = await this.storage.load(conversationId);
       await this.storage.delete(conversationId);
       if (conversation) await this.removeAgentSessionsOf([conversation]);
+      forgetCase(conversationId);
       log.debug("🗑️ Conversation deleted:", conversationId);
     } catch (error) {
       console.error(

@@ -32,7 +32,7 @@ import {
 import { createReplaySource } from "./content-source";
 
 const FIXTURES = join(__dirname, "../diagnosis/fixtures/content-5x");
-const CDN = "https://content.apty.example";
+const CDN = "https://content.apty.ai";
 const TENANT = "0f000000-0000-7000-8000-000000000000";
 const APP = "0a000000-0000-7000-8000-000000000001";
 const ENV = "0e000000-0000-7000-8000-000000000002";

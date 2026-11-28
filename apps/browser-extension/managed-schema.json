@@ -26,7 +26,7 @@
     },
     "aptyContentOrigins": {
       "title": "Apty content hosts",
-      "description": "Origins of Apty content hosts the Agent may read published content files from, besides the content URL the page's Apty config names. https only (http only for a loopback host), no path.",
+      "description": "Origins of Apty content hosts the Agent may read published content files from, besides Apty's own content domains (https://*.apty.ai for 5.x, https://*.apty.io for 4.x). Any other host the page names, a self-hosted or on-premises one included, is read only when listed here. https only (http only for a loopback host), no path.",
       "type": "array",
       "items": { "type": "string" }
     },

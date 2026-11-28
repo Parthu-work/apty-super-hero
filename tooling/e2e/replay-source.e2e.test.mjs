@@ -24,6 +24,7 @@ import {
   startPageServer,
   startServer,
 } from "./harness.mjs";
+import { ensurePolicyBuild, setTestPolicy } from "./policy-build.mjs";
 
 const FIXTURES = join(
   ROOT,
@@ -79,7 +80,9 @@ before(async () => {
       { contentURL: cdn.origin, tenantId: TENANT },
     )};</script>`,
   });
-  browser = await launchBrowser();
+  // The fake content host is on loopback, so the policy must list it (A1).
+  browser = await launchBrowser({ extensionDir: ensurePolicyBuild() });
+  await setTestPolicy(browser, { aptyContentOrigins: [cdn.origin] });
 });
 
 after(async () => {

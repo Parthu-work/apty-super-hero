@@ -60,7 +60,9 @@ export type AptyFetchFailure =
   | "body_denied"
   | "too_large"
   | "unparsable"
-  | "unknown_file";
+  | "unknown_file"
+  /** The case or conversation closed while the request was under way. */
+  | "aborted";
 
 export type AptyContextFailure =
   | "ids_missing"

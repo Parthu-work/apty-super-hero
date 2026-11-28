@@ -10,6 +10,7 @@ import type {
   AptyFileSpec,
   AptyVersion,
 } from "@apty/agent-core";
+import { idShapeIssue } from "@apty/agent-core";
 
 const spec = (
   version: AptyVersion,
@@ -28,6 +29,7 @@ const spec = (
 const env5 = (name: string, purpose: string) =>
   spec("5.x", "environment", name, purpose);
 
+/** @internal */
 export const FILES_5X: readonly AptyFileSpec[] = [
   spec(
     "5.x",
@@ -103,6 +105,7 @@ const env4 = (name: string, purpose: string) =>
 const app4 = (name: string, purpose: string) =>
   spec("4.x", "application", name, purpose);
 
+/** @internal */
 export const FILES_4X: readonly AptyFileSpec[] = [
   spec(
     "4.x",
@@ -152,14 +155,15 @@ export const FILES_4X: readonly AptyFileSpec[] = [
 export const filesOf = (version: AptyVersion): readonly AptyFileSpec[] =>
   version === "4.x" ? FILES_4X : FILES_5X;
 
-/** A path segment the player puts in a URL as is: no separator or query in it. */
-export const PATH_SAFE = /^[^/?#\\\s]{1,256}$/;
+/** A path segment the player puts in a URL as is: no separator, query or percent-encoding in it (A1). */
+const PATH_SAFE = /^[^/?#%\\\s]{1,256}$/;
 const STEP_FILE = {
   "5.x": /^workflow-[\w-]{1,200}\.json$/,
   "4.x": /^flow-[\w-]{1,200}\.json$/,
 };
 
 /** The catalogue entry for a file: its exact name, a template name, or a step file by id. */
+/** @internal */
 export function specFor(
   version: AptyVersion,
   file: string,
@@ -216,6 +220,15 @@ export function filePath(
   if (ids.some((id) => id !== undefined && !PATH_SAFE.test(id))) {
     return missing("An ID is not a plain path segment.");
   }
+  const shapeIssue =
+    idShapeIssue(context.version, "tenant", context.tenantId) ??
+    (context.applicationId === undefined
+      ? undefined
+      : idShapeIssue(context.version, "application", context.applicationId)) ??
+    (context.environmentId === undefined
+      ? undefined
+      : idShapeIssue(context.version, "environment", context.environmentId));
+  if (shapeIssue) return missing(shapeIssue);
   let name = file.startsWith(APP_SCOPED) ? file.slice(APP_SCOPED.length) : file;
   for (const key of found.needs ?? []) {
     if (!name.includes(`{${key}}`)) continue;

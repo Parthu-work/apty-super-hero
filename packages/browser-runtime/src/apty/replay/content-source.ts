@@ -1,14 +1,17 @@
 /**
  * The Agent's own reader of Apty's published content (replay): the GET
- * requests the Apty player makes to its content host, made from the Agent's
- * service worker, for a tenant, application and environment taken from the
- * page or given by the SE. See docs/development/replay-network-source.md.
+ * requests the Apty player makes to its content host, made from the side
+ * panel (the MCP bridge runs the same code in the service worker), for a
+ * tenant, application and environment taken from the page or given by the
+ * SE. See docs/development/replay-network-source.md.
  *
- * - Hosts: the content URL the page's Apty config names, or an origin in the
- *   organization policy's `aptyContentOrigins`; never one from free text.
+ * - Hosts: every host, from the page, the SE, a tool call or the policy,
+ *   passes `checkContentHost` (AUDIT-CORRECTIONS A1); never one from free text.
  * - Requests: GET only, no credentials, no redirects, a file from the
  *   catalogue only, with the player's own `?timestamp=` when it can be
- *   reproduced (5.x `file-timestamp.ts`).
+ *   reproduced (5.x `file-timestamp.ts`). The time limit covers the whole
+ *   body; bodies are read with a byte cap per file and per case, and closing
+ *   the case aborts what is under way (A2).
  * - Bodies: the body deny list first, then the same redaction as the
  *   Client's record (`readResourceBody`); kept in memory for the case only.
  */
@@ -20,12 +23,14 @@ import {
   type AptyFetchFailure,
   type AptyFileExtra,
   type AptyFileResult,
+  checkContentHost,
   httpFailure,
+  idShapeIssue,
 } from "@apty/agent-core";
 import { type AptyPage, activeIds } from "../apty-cdn-source.js";
 import { readResourceBody } from "../extension-network-inspector.js";
 import { matchingDenyEntry } from "../resource-body-utils.js";
-import { filePath, filesOf, PATH_SAFE } from "./catalogue.js";
+import { filePath, filesOf } from "./catalogue.js";
 import { checkSchema } from "./schemas.js";
 
 export interface ReplayFetchOptions {
@@ -40,7 +45,7 @@ export interface ReplaySource extends AptyContentSource {
     extra?: AptyFileExtra,
     options?: ReplayFetchOptions,
   ): Promise<AptyFileResult>;
-  /** Drop every cached body: the case is closed. */
+  /** The case is closed: abort every request under way and drop every cached body. */
   clear(): void;
 }
 
@@ -52,75 +57,30 @@ export interface ReplayDeps {
   denyList?: () => Promise<readonly string[]>;
   fetchImpl?: typeof fetch;
   now?: () => number;
+  /** For the whole request, body included. */
   timeoutMs?: number;
+  maxFileBytes?: number;
+  maxCaseBytes?: number;
+  /** Aborts every request of the case, as `clear()` does. */
+  signal?: AbortSignal;
 }
 
 /** @internal */
-export const MAX_REPLAY_BODY_CHARS = 5_000_000;
+export const MAX_REPLAY_FILE_BYTES = 5_000_000;
+/** @internal */
+export const MAX_REPLAY_CASE_BYTES = 25_000_000;
 const DEFAULT_TIMEOUT_MS = 10_000;
 
 type Rec = Record<string, unknown>;
 const isRec = (v: unknown): v is Rec =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
-/** An https base, or http on this machine (tests), with no trailing slash. */
-export function usableBase(url: string): string | undefined {
-  try {
-    const parsed = new URL(url);
-    const local =
-      parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
-    if (parsed.username || parsed.password || parsed.search || parsed.hash)
-      return undefined;
-    if (parsed.protocol !== "https:" && !(local && parsed.protocol === "http:"))
-      return undefined;
-    return url.replace(/\/+$/, "");
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * A host a page may not name as its content URL (SSRF): a private,
- * link-local or shared IPv4 literal, or any IPv6 literal. Apty's content
- * hosts are never IPv6 literals, and embedded IPv4 forms (`::ffff:a00:5`)
- * would otherwise slip past a range check, so IPv6 fails closed. IPv4 is
- * read after the URL parser normalizes decimal and hex forms. Loopback
- * stays allowed, as for the existing content-CDN fallback (and its tests).
- */
-export function isPrivateNetworkHost(url: string): boolean {
-  let host: string;
-  try {
-    host = new URL(url).hostname.toLowerCase();
-  } catch {
-    return true;
-  }
-  if (host.startsWith("[")) return true;
-  const v4 = /^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(host);
-  if (!v4) return false;
-  const [a, b] = [Number(v4[1]), Number(v4[2])];
-  return (
-    a === 10 ||
-    a === 0 ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168) ||
-    (a === 169 && b === 254) ||
-    (a === 100 && b >= 64 && b <= 127)
-  );
-}
-
-const originOf = (url: string) => {
-  try {
-    return new URL(url).origin;
-  } catch {
-    return undefined;
-  }
-};
-
 /**
  * The player's `?timestamp=` for a file: the number at `path` in
  * content-config.json, else the nearest `latest` on the way, else now
  * (5.x `file-timestamp.ts` `getFileTimestamp`).
  */
+/** @internal */
 export function fileTimestamp(
   contentConfig: unknown,
   path: readonly string[],
@@ -165,6 +125,26 @@ const fail = (
   extra: { path?: string; httpStatus?: number } = {},
 ): AptyFileResult => ({ ok: false, file, failure, detail, ...extra });
 
+type BodyRead =
+  | { ok: true; text: string }
+  | { ok: false; reason: "file_limit" | "case_limit" | "stopped" };
+
+/** What stopped a request: the case closing wins over the time limit. */
+type Stop = "aborted" | "timeout";
+
+const stoppedFailure = (
+  file: string,
+  stop: Stop,
+  path: string,
+): AptyFileResult =>
+  stop === "aborted"
+    ? fail(file, "aborted", "The case was closed before the answer arrived.", {
+        path,
+      })
+    : fail(file, "timeout", "No complete answer within the time limit.", {
+        path,
+      });
+
 export function createReplaySource({
   page,
   policyOrigins = async () => [],
@@ -172,6 +152,9 @@ export function createReplaySource({
   fetchImpl = (input, init) => fetch(input, init),
   now = Date.now,
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  maxFileBytes = MAX_REPLAY_FILE_BYTES,
+  maxCaseBytes = MAX_REPLAY_CASE_BYTES,
+  signal: externalSignal,
 }: ReplayDeps = {}): ReplaySource {
   const cache = new Map<string, CacheEntry>();
   /** Paths the host said hold nothing, for the case: not asked again until `fresh`. */
@@ -180,13 +163,33 @@ export function createReplaySource({
   const inFlight = new Map<string, Promise<AptyFileResult>>();
   /** Bases a context was resolved for: the only hosts `fetchFile` calls. */
   const allowedBases = new Set<string>();
+  let caseController = new AbortController();
+  let caseBytes = 0;
+
+  /** A request's own signal: its time limit, the case closing, or the caller's signal. */
+  function startCall() {
+    const timeout = new AbortController();
+    const timer = setTimeout(() => timeout.abort(), timeoutMs);
+    const caseSignal = caseController.signal;
+    const signals = [timeout.signal, caseSignal];
+    if (externalSignal) signals.push(externalSignal);
+    return {
+      signal: AbortSignal.any(signals),
+      stop: (): Stop | undefined =>
+        caseSignal.aborted || externalSignal?.aborted
+          ? "aborted"
+          : timeout.signal.aborted
+            ? "timeout"
+            : undefined,
+      end: () => clearTimeout(timer),
+    };
+  }
 
   async function request(
     url: string,
     headers: Record<string, string>,
-  ): Promise<Response | "timeout" | Error> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    signal: AbortSignal,
+  ): Promise<Response | Error> {
     try {
       return await fetchImpl(url, {
         method: "GET",
@@ -194,13 +197,55 @@ export function createReplaySource({
         cache: "no-store",
         redirect: "error",
         headers,
-        signal: controller.signal,
+        signal,
       });
     } catch (error) {
-      if (controller.signal.aborted) return "timeout";
       return error instanceof Error ? error : new Error("The request failed");
+    }
+  }
+
+  /**
+   * The body as text, read as a stream so no more than the per-file and
+   * per-case byte caps is ever held, and stopped as soon as `signal` fires
+   * (a stalled or slowly dripping body otherwise holds the request open).
+   */
+  async function readBody(
+    response: Response,
+    signal: AbortSignal,
+  ): Promise<BodyRead> {
+    const declared = Number(response.headers.get("content-length"));
+    if (Number.isFinite(declared) && declared > maxFileBytes) {
+      await response.body?.cancel().catch(() => undefined);
+      return { ok: false, reason: "file_limit" };
+    }
+    if (!response.body) return { ok: true, text: "" };
+    const reader = response.body.getReader();
+    const stopped = new Promise<"stopped">((resolve) => {
+      if (signal.aborted) resolve("stopped");
+      signal.addEventListener("abort", () => resolve("stopped"), {
+        once: true,
+      });
+    });
+    const decoder = new TextDecoder();
+    let text = "";
+    let fileBytes = 0;
+    try {
+      for (;;) {
+        const next = await Promise.race([reader.read(), stopped]);
+        if (next === "stopped") return { ok: false, reason: "stopped" };
+        if (next.done) return { ok: true, text: text + decoder.decode() };
+        fileBytes += next.value.byteLength;
+        caseBytes += next.value.byteLength;
+        if (fileBytes > maxFileBytes)
+          return { ok: false, reason: "file_limit" };
+        if (caseBytes > maxCaseBytes)
+          return { ok: false, reason: "case_limit" };
+        text += decoder.decode(next.value, { stream: true });
+      }
+    } catch {
+      return { ok: false, reason: "stopped" };
     } finally {
-      clearTimeout(timer);
+      reader.cancel().catch(() => undefined);
     }
   }
 
@@ -256,8 +301,8 @@ export function createReplaySource({
     extra: AptyFileExtra,
     { fresh = false }: ReplayFetchOptions,
   ): Promise<AptyFileResult> {
-    const base = usableBase(context.contentURL);
-    if (!base || !allowedBases.has(base)) {
+    const base = context.contentURL.replace(/\/+$/, "");
+    if (!allowedBases.has(base)) {
       return fail(
         file,
         "host_not_allowed",
@@ -291,36 +336,50 @@ export function createReplaySource({
     if (cached?.lastModified)
       headers["If-Modified-Since"] = cached.lastModified;
 
-    const response = await request(url, headers);
-    if (response === "timeout") {
-      return fail(file, "timeout", `No answer within ${timeoutMs} ms.`, {
-        path,
-      });
-    }
-    if (response instanceof Error) {
-      return fail(file, "network", response.message, { path });
-    }
-    if (response.status === 304 && cached) {
-      const result = { ...cached.result, fetchedAt: now() };
-      cache.set(key, { ...cached, result });
-      return { ...result, fromCache: true };
-    }
-    if (!response.ok) {
-      const failed = fail(
-        file,
-        httpFailure(response.status),
-        `The content host answered HTTP ${response.status}.`,
-        { path, httpStatus: response.status },
-      );
-      if (response.status === 404) unpublished.set(key, failed);
-      return failed;
-    }
-    const raw = await response.text();
-    if (raw.length > MAX_REPLAY_BODY_CHARS) {
-      return fail(file, "too_large", `${raw.length} characters.`, {
-        path,
-        httpStatus: response.status,
-      });
+    const call = startCall();
+    let raw: string;
+    let response: Response | Error;
+    try {
+      response = await request(url, headers, call.signal);
+      const stop = call.stop();
+      if (stop) return stoppedFailure(file, stop, path);
+      if (response instanceof Error) {
+        return fail(file, "network", response.message, { path });
+      }
+      if (response.status === 304 && cached) {
+        await response.body?.cancel().catch(() => undefined);
+        const result = { ...cached.result, fetchedAt: now() };
+        cache.set(key, { ...cached, result });
+        return { ...result, fromCache: true };
+      }
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => undefined);
+        const failed = fail(
+          file,
+          httpFailure(response.status),
+          `The content host answered HTTP ${response.status}.`,
+          { path, httpStatus: response.status },
+        );
+        if (response.status === 404) unpublished.set(key, failed);
+        return failed;
+      }
+      const body = await readBody(response, call.signal);
+      if (!body.ok) {
+        if (body.reason === "stopped") {
+          return stoppedFailure(file, call.stop() ?? "aborted", path);
+        }
+        return fail(
+          file,
+          "too_large",
+          body.reason === "file_limit"
+            ? `The file is over ${maxFileBytes} bytes, the limit for one file.`
+            : `This case has read over ${maxCaseBytes} bytes of Apty content, the limit for one case.`,
+          { path, httpStatus: response.status },
+        );
+      }
+      raw = body.text;
+    } finally {
+      call.end();
     }
     const read = await readResourceBody(
       {
@@ -399,50 +458,28 @@ export function createReplaySource({
     return result;
   }
 
+  /** The content host for the case: the one given, else the page's, else the policy's only origin; each through the one gate. */
   async function contentBase(
     given: string | undefined,
     fromPage: string | undefined,
+    version: AptyContentContext["version"],
   ): Promise<
     | { ok: true; base: string }
     | { ok: false; failure: "host_not_allowed" | "ids_missing"; detail: string }
   > {
-    const allowed = (await policyOrigins()).map((o) => o.toLowerCase());
-    const pageBase = fromPage ? usableBase(fromPage) : undefined;
-    if (given) {
-      const base = usableBase(given);
-      const origin = base ? originOf(base) : undefined;
-      if (
-        base &&
-        origin &&
-        (allowed.includes(origin.toLowerCase()) ||
-          (pageBase !== undefined && originOf(pageBase) === origin))
-      ) {
-        return { ok: true, base };
-      }
-      return {
-        ok: false,
-        failure: "host_not_allowed",
-        detail:
-          "That content host is not the page's Apty content URL nor in the organization policy's aptyContentOrigins.",
-      };
-    }
-    if (pageBase) {
-      const origin = originOf(pageBase)?.toLowerCase();
-      if (
-        isPrivateNetworkHost(pageBase) &&
-        !(origin && allowed.includes(origin))
-      ) {
-        return {
-          ok: false,
-          failure: "host_not_allowed",
-          detail:
-            "The page names a content URL on a private network address; it is used only if the organization policy's aptyContentOrigins lists it.",
-        };
-      }
-      return { ok: true, base: pageBase };
+    const allowed = await policyOrigins();
+    const named = given ?? fromPage;
+    if (named) {
+      const verdict = checkContentHost(named, version, allowed);
+      return verdict.ok
+        ? verdict
+        : { ok: false, failure: "host_not_allowed", detail: verdict.detail };
     }
     const [only, ...more] = allowed;
-    if (only && more.length === 0) return { ok: true, base: only };
+    if (only && more.length === 0) {
+      const verdict = checkContentHost(only, version, allowed);
+      if (verdict.ok) return verdict;
+    }
     return {
       ok: false,
       failure: more.length > 0 ? "ids_missing" : "host_not_allowed",
@@ -459,20 +496,33 @@ export function createReplaySource({
     const probe = page ? await page.probe().catch(() => undefined) : undefined;
     const config = probe?.ok ? probe.config : undefined;
     const tenantId = input.tenantId ?? config?.tenantId;
-    if (!tenantId || !PATH_SAFE.test(tenantId)) {
+    const version = input.version ?? "5.x";
+    if (!tenantId) {
       return {
         ok: false,
-        failure: !tenantId && page && !config ? "no_apty" : "ids_missing",
-        detail: tenantId
-          ? "The tenant ID is not a plain path segment."
-          : "No tenant ID: give one, or open a page where Apty runs.",
+        failure: page && !config ? "no_apty" : "ids_missing",
+        detail: "No tenant ID: give one, or open a page where Apty runs.",
       };
     }
-    const host = await contentBase(input.contentURL, config?.contentURL);
+    const shapeIssue =
+      idShapeIssue(version, "tenant", tenantId) ??
+      (input.applicationId === undefined
+        ? undefined
+        : idShapeIssue(version, "application", input.applicationId)) ??
+      (input.environmentId === undefined
+        ? undefined
+        : idShapeIssue(version, "environment", input.environmentId));
+    if (shapeIssue) {
+      return { ok: false, failure: "ids_missing", detail: shapeIssue };
+    }
+    const host = await contentBase(
+      input.contentURL,
+      config?.contentURL,
+      version,
+    );
     if (!host.ok)
       return { ok: false, failure: host.failure, detail: host.detail };
     allowedBases.add(host.base);
-    const version = input.version ?? "5.x";
     const context: AptyContentContext = {
       version,
       contentURL: host.base,
@@ -480,15 +530,6 @@ export function createReplaySource({
       ...(config ? { mode: config.mode } : {}),
       idsFrom: { tenant: input.tenantId ? "given" : "page" },
     };
-    for (const id of [input.applicationId, input.environmentId]) {
-      if (id !== undefined && !PATH_SAFE.test(id)) {
-        return {
-          ok: false,
-          failure: "ids_missing",
-          detail: "An ID is not a plain path segment.",
-        };
-      }
-    }
     if (input.applicationId && input.environmentId) {
       return {
         ok: true,
@@ -572,8 +613,12 @@ export function createReplaySource({
     listFiles: filesOf,
     fetchFile,
     clear: () => {
+      caseController.abort();
+      caseController = new AbortController();
+      caseBytes = 0;
       cache.clear();
       unpublished.clear();
+      inFlight.clear();
       allowedBases.clear();
     },
   };

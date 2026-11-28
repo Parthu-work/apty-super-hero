@@ -32,6 +32,7 @@ Preflight names the reason (fail closed).
 | `kbToMcp` | boolean | `false` | Whether a KB result reaches a local MCP client with its card text. Otherwise it arrives as "KB result withheld by policy. Cards: <ids>." |
 | `allowedProviders` | string array | any | Provider keys the user may use: `openai`, `anthropic`, `google`, `azure`, `openrouter`, `requesty`, `deepseek`, `groq`, `together`, `mistral`, `cohere`, `perplexity`, `fireworks`, `replicate`, `custom`. |
 | `allowedOrigins` | string array | any | Base URL origins, compared exactly on scheme, host and port: `https://` only, or `http://` for a loopback host (`localhost`, `127.x.x.x`, `[::1]`) for a local model. No path. |
+| `aptyContentOrigins` | string array | Apty's own content domains only | Apty content hosts the Agent may read published files from, besides `https://*.apty.ai` (5.x) and `https://*.apty.io` (4.x) on the default port. A self-hosted, on-premises or other content host the page names is read only when listed here; so is a loopback host. Same origin rules as `allowedOrigins`. |
 | `allowedModels` | string array | any | Model ids the user may use; also what Fetch models lists. |
 | `preset` | object: `aiProvider`, `aiHost`, `aiModel`, `aiToken`, `aiWorkspaceId` (strings) | none | Written into the user's settings and locked: Options shows them read-only with "Set by your organization". |
 | `redactionFloor` | `"strict"` or `"standard"` | none | The weakest redaction mode the user may choose. |

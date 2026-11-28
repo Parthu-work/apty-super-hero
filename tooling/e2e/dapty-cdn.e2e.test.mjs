@@ -26,6 +26,7 @@ import {
   startServer,
   tempDir,
 } from "./harness.mjs";
+import { ensurePolicyBuild, setTestPolicy } from "./policy-build.mjs";
 
 const FIXTURES = join(
   ROOT,
@@ -186,15 +187,23 @@ before(async () => {
     join(tempDir("apty-e2e-dapty-cdn-"), "client"),
     cdn.origin,
   );
-  browser = await launchBrowser({ extraExtensions: [clientDir] });
+  // The fake content host is on loopback, so the policy must list it (A1).
+  const policy = { aptyContentOrigins: [cdn.origin] };
+  browser = await launchBrowser({
+    extensionDir: ensurePolicyBuild(),
+    extraExtensions: [clientDir],
+  });
+  await setTestPolicy(browser, policy);
   const emptyClientDir = writeUnpatchedClient(
     join(tempDir("apty-e2e-dapty-cdn-empty-"), "client"),
     cdn.origin,
     { answersEmpty: true },
   );
   emptyClientBrowser = await launchBrowser({
+    extensionDir: ensurePolicyBuild(),
     extraExtensions: [emptyClientDir],
   });
+  await setTestPolicy(emptyClientBrowser, policy);
 });
 
 after(async () => {

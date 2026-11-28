@@ -25,7 +25,7 @@ import { DAPTY_FILES } from "./diagnosis/dapty-conversation";
 import { loadDaptyFrom } from "./diagnosis/dapty-loader";
 import { loadEvidenceFrom } from "./diagnosis/loader";
 
-const CDN = "https://client.apty.example";
+const CDN = "https://client.apty.ai";
 const TENANT = "0f000000-0000-7000-8000-000000000000";
 const APP = "0a000000-0000-7000-8000-000000000001";
 const ENV = "0e000000-0000-7000-8000-000000000002";
@@ -304,7 +304,7 @@ describe("createCdnResourceSource", () => {
         ok: true,
         config: {
           mode: "injected",
-          contentURL: "http://client.apty.example",
+          contentURL: "http://client.apty.ai",
           tenantId: TENANT,
           pageUrl: PAGE,
         },
@@ -345,5 +345,39 @@ describe("createCdnResourceSource", () => {
     expect(evidence.files["workflow.json"]?.status).toBe("failed");
     expect(evidence.files["rule.json"]?.status).not.toBe("ok");
     expect(fetchImpl).toHaveBeenCalledTimes(5);
+  });
+});
+
+describe("createCdnResourceSource host gate (AUDIT-CORRECTIONS A1)", () => {
+  it("calls no host the page names off Apty's content domain unless the policy lists it", async () => {
+    const config = {
+      mode: "extension" as const,
+      contentURL: "https://intranet.example",
+      tenantId: TENANT,
+      pageUrl: PAGE,
+    };
+    const blocked = cdn({});
+    const refusedSource = createCdnResourceSource({
+      page: page({ ok: true, config }),
+      files: ["workflow.json"],
+      fetchImpl: blocked.fetchImpl,
+    });
+    const refused = await refusedSource.listResources();
+    // Apty is still reported on the page: only its files are withheld.
+    expect(await refusedSource.probe()).toMatchObject({
+      ok: true,
+      config: { mode: "extension" },
+    });
+    expect(refused).toMatchObject({ ok: false, error: "host-not-allowed" });
+    expect(blocked.requested).toHaveLength(0);
+
+    const listed = cdn({});
+    await createCdnResourceSource({
+      page: page({ ok: true, config }),
+      files: ["workflow.json"],
+      policyOrigins: async () => ["https://intranet.example"],
+      fetchImpl: listed.fetchImpl,
+    }).listResources();
+    expect(listed.requested.length).toBeGreaterThan(0);
   });
 });
