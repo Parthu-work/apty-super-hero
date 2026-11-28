@@ -23,6 +23,9 @@ extend-exclude = [
 extend-ignore-re = ["`[0-9a-f]{7,40}`"]
 
 [default.extend-words]
+# Apty 4.x message name, spelled this way in apty-assist player3.0/window.var.js:78
+# and quoted verbatim in docs/development/se-flow-coverage.md.
+varaible = "varaible"
 # India Standard Time, in the KB pack job's schedule (KB-RAG K26).
 IST = "IST"
 # "Infor" is the ERP vendor name (Infor LN) referenced in the DOM Health
